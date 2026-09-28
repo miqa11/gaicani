@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <title>GAICANI – ჯოკერი</title>
+  <meta name="theme-color" content="#0f1830" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #17181d;
+      --surface:   #26272e;
+      --surface-2: #2f3037;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #5865f2;
+      --accent-dk: #4752c4;
+      --accent-lt: #8b93ff;
+      --text:      #e4e5ea;
+      --muted:     #7d81a0;
+      --good:      #3ba55d;
+      --warn:      #faa61a;
+      --danger:    #f23f42;
+      --gold:      #f2c94c;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top:    env(safe-area-inset-top, 0px);
+      --felt-1: #1c2c58;
+      --felt-2: #0f1830;
+    }
+
+    html, body {
+      height: 100%; height: 100dvh; height: var(--app-height, 100dvh);
+      background: radial-gradient(circle at 50% 0%, #22232c 0%, #17181d 55%);
+      color: var(--text); font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden; -webkit-text-size-adjust: 100%;
+      overscroll-behavior: contain;
+    }
+    button, a, [role="button"] { touch-action: manipulation; }
+    #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; height: var(--app-height, 100dvh); }
+
+    .jk-loading, .jk-center-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; text-align: center; padding: 24px;
+    }
+    .jk-loading.hidden, .jk-center-screen.hidden { display: none; }
+    .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent-lt); animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .jk-center-screen p { max-width: 280px; line-height: 1.5; }
+    .jk-center-screen a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.92em; background: var(--accent); padding: 11px 24px; border-radius: 10px; }
+
+    .jk-screen { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+    .jk-screen.visible { display: flex; }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    .jk-header {
+      display: flex; align-items: center; gap: 8px;
+      min-height: 54px; flex-shrink: 0; padding: 0 10px; padding-top: var(--safe-top);
+      padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .jk-icon-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: transparent; border: none; color: var(--text);
+      text-decoration: none; font-size: 1.15em; cursor: pointer;
+      transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .jk-icon-btn:hover { background: rgba(255,255,255,0.08); }
+    .jk-header-title { font-weight: 700; font-size: 1.02em; flex: 1; min-width: 0; }
+
+    /* ── Setup screen ────────────────────────────────────────────── */
+    .jk-setup-body { flex: 1; overflow-y: auto; padding: 16px 14px calc(16px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 16px; }
+    .jk-new-game-btn { border: none; border-radius: 12px; padding: 14px; font-weight: 800; font-size: 0.98em; background: linear-gradient(135deg, var(--accent), var(--accent-dk)); color: #fff; cursor: pointer; }
+    .jk-new-game-btn:disabled { opacity: 0.5; }
+    .jk-section-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .jk-pick-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; cursor: pointer; }
+    .jk-pick-row.selected { border-color: var(--accent); background: rgba(88,101,242,0.1); }
+    .jk-pick-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+    .jk-pick-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .jk-pick-name { flex: 1; font-size: 0.9em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .jk-pick-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7em; }
+    .jk-pick-row.selected .jk-pick-check { background: var(--accent); border-color: var(--accent); }
+    .jk-empty-state { color: var(--muted); font-size: 0.86em; text-align: center; padding: 20px 10px; line-height: 1.6; }
+    .jk-hint { color: var(--muted); font-size: 0.78em; text-align: center; }
+
+    .jk-public-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .jk-public-info { flex: 1; min-width: 0; }
+    .jk-public-host { font-weight: 700; font-size: 0.9em; }
+    .jk-public-meta { color: var(--muted); font-size: 0.76em; margin-top: 2px; }
+    .jk-join-btn { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 0.82em; cursor: pointer; background: var(--accent); color: #fff; }
+
+    /* ── Lobby screen ────────────────────────────────────────────── */
+    .jk-lobby-body { flex: 1; overflow-y: auto; padding: 16px 14px; }
+    .jk-lobby-player { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .jk-lobby-tag { font-size: 0.68em; font-weight: 700; background: rgba(88,101,242,0.18); color: var(--accent-lt); padding: 2px 8px; border-radius: 20px; }
+    .jk-lobby-slot-empty { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; margin-bottom: 7px; color: var(--muted); font-size: 0.86em; }
+    .jk-lobby-actions { padding: 12px 14px calc(12px + var(--safe-bottom)); border-top: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+    .jk-start-btn { border: none; border-radius: 10px; padding: 13px; font-weight: 800; background: var(--good); color: #fff; cursor: pointer; font-size: 0.95em; }
+    .jk-start-btn:disabled { opacity: 0.45; }
+    .jk-leave-btn { border: none; border-radius: 10px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 0.88em; background: var(--surface-2); color: var(--danger); }
+    .jk-lobby-hint { text-align: center; color: var(--muted); font-size: 0.8em; padding: 6px 0; }
+
+    /* ── Game screen ─────────────────────────────────────────────── */
+    .jk-game-header { display: flex; align-items: center; gap: 10px; padding: 6px 12px; padding-top: var(--safe-top); background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .jk-hand-counter { font-size: 0.8em; font-weight: 700; }
+    .jk-set-label { font-size: 0.68em; color: var(--muted); }
+    .jk-trump-chip { margin-left: auto; display: flex; align-items: center; gap: 7px; background: var(--surface-2); border-radius: 12px; padding: 4px 10px 4px 12px; font-weight: 800; font-size: 0.9em; }
+    .jk-trump-chip.no-trump { color: var(--muted); font-size: 0.7em; padding: 5px 12px; }
+    .jk-trump-chip-label { font-size: 0.62em; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .jk-trump-chip-card.jk-card { width: 26px; height: 37px; font-size: 0.55em; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+    .jk-trump-chip-card.jk-card .jk-card-suit { font-size: 1.1em; margin-top: 1px; }
+    .jk-trump-chip-card.jk-card-joker { font-size: 1.1em; }
+
+    .jk-table {
+      flex: 1; position: relative; overflow: hidden;
+      background: radial-gradient(ellipse at 50% 45%, var(--felt-1) 0%, var(--felt-2) 75%);
+      display: flex; flex-direction: column;
+    }
+
+    .jk-opp { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 72px; z-index: 5; }
+    .jk-opp-top   { top: 10px; left: 50%; transform: translateX(-50%); }
+    .jk-opp-left  { left: 10px; top: 50%; transform: translateY(-50%); }
+    .jk-opp-right { right: 10px; top: 50%; transform: translateY(-50%); }
+
+    /* ── Small persistent scoreboard, top-left corner ───────────────── */
+    .jk-scoreboard {
+      position: absolute; top: 8px; left: 8px; z-index: 15;
+      background: rgba(15,15,20,0.72); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 6px 8px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+      display: flex; flex-direction: column; gap: 3px; min-width: 92px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3); cursor: pointer;
+    }
+    .jk-sb-row { display: flex; align-items: center; gap: 6px; font-size: 0.62em; white-space: nowrap; }
+    .jk-sb-row.me { font-weight: 800; }
+    .jk-sb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; max-width: 62px; color: rgba(255,255,255,0.85); }
+    .jk-sb-score { font-weight: 800; color: var(--gold); min-width: 22px; text-align: right; }
+    .jk-sb-row.leader .jk-sb-score { color: #fff; text-shadow: 0 0 6px rgba(242,201,76,0.8); }
+
+    .jk-opp-avatar-wrap { position: relative; }
+    .jk-opp-avatar { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.3); display: block; background: var(--surface-2); }
+    @keyframes jkTurnPulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(242,201,76,0.35), 0 0 16px rgba(242,201,76,0.45); }
+      50%      { box-shadow: 0 0 0 6px rgba(242,201,76,0.55), 0 0 26px rgba(242,201,76,0.75); }
+    }
+    .jk-opp.acting .jk-opp-avatar { border-color: var(--gold); animation: jkTurnPulse 1.3s ease-in-out infinite; }
+    .jk-opp.disconnected .jk-opp-avatar { filter: grayscale(0.7) opacity(0.6); }
+    .jk-dealer-chip { position: absolute; top: -4px; right: -4px; width: 17px; height: 17px; border-radius: 50%; background: #fff; color: #1a1a1a; font-size: 0.55em; font-weight: 900; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+    .jk-bot-chip { position: absolute; top: -4px; left: -4px; width: 19px; height: 19px; border-radius: 50%; background: var(--warn); color: #1a1a1a; font-size: 0.7em; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+    .jk-bot-label { font-size: 0.56em; color: var(--warn); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+    .jk-opp-name { font-size: 0.66em; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8); max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .jk-opp-stats { font-size: 0.6em; color: var(--gold); text-shadow: 0 1px 3px rgba(0,0,0,0.8); display: flex; gap: 4px; }
+    .jk-opp-cardcount { position: absolute; bottom: -3px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; padding: 0 5px; font-size: 0.56em; font-weight: 800; color: #fff; }
+
+    .jk-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .jk-trick-area { position: relative; width: 150px; height: 150px; }
+    .jk-trick-slot { position: absolute; width: 40px; height: 56px; }
+    .jk-trick-slot.slot-top    { top: 0; left: 50%; transform: translateX(-50%); }
+    .jk-trick-slot.slot-left   { left: 0; top: 50%; transform: translateY(-50%); }
+    .jk-trick-slot.slot-right  { right: 0; top: 50%; transform: translateY(-50%); }
+    .jk-trick-slot.slot-bottom { bottom: 0; left: 50%; transform: translateX(-50%); }
+
+    .jk-hand-label { position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%); font-size: 0.62em; color: rgba(255,255,255,0.4); text-align: center; white-space: nowrap; }
+
+    /* ── Playing cards ───────────────────────────────────────────── */
+    .jk-card {
+      width: 40px; height: 56px; border-radius: 6px; background: #fff; color: #1a1a1a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.8em; line-height: 1; box-shadow: 0 2px 6px rgba(0,0,0,0.4); flex-shrink: 0;
+      position: relative; user-select: none;
+    }
+    .jk-card.red { color: #d0332f; }
+    .jk-card .jk-card-suit { font-size: 1.15em; margin-top: 2px; }
+    .jk-card.jk-card-joker { background: linear-gradient(160deg, #6c3fd4, #2f1a5e); color: #fff; align-items: center; justify-content: center; font-size: 1.4em; }
+    .jk-card.jk-card-joker .jk-joker-tag { position: absolute; bottom: 3px; font-size: 0.32em; font-weight: 900; letter-spacing: 0.04em; background: rgba(255,255,255,0.18); border-radius: 4px; padding: 1px 4px; }
+
+    @keyframes jkDealIn { from { opacity: 0; transform: scale(0.3) translateY(-30px) rotate(-14deg); } to { opacity: 1; transform: scale(1) translateY(0) rotate(0); } }
+    .jk-deal-in { animation: jkDealIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+    @keyframes jkPlayIn { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+    .jk-play-in { animation: jkPlayIn 0.28s ease-out both; }
+    @keyframes jkTrickSweep { to { opacity: 0; transform: scale(0.5) translateY(-40px); } }
+    .jk-trick-sweep { animation: jkTrickSweep 0.4s ease-in forwards; }
+
+    /* ── Me bar + hand ───────────────────────────────────────────── */
+    .jk-me-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border); }
+    .jk-me-avatar-wrap { position: relative; flex-shrink: 0; }
+    .jk-me-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-lt); display: block; }
+    .jk-me-bar.acting .jk-me-avatar { border-color: var(--gold); animation: jkTurnPulse 1.3s ease-in-out infinite; }
+    .jk-me-info { min-width: 0; }
+    .jk-me-name { font-size: 0.84em; font-weight: 800; }
+    .jk-me-stats { font-size: 0.72em; color: var(--gold); }
+    .jk-me-timer { margin-left: auto; font-size: 0.8em; font-weight: 800; color: var(--muted); flex-shrink: 0; }
+    .jk-me-timer.low { color: var(--danger); }
+
+    .jk-my-hand-wrap { flex-shrink: 0; padding: 8px 6px calc(8px + var(--safe-bottom)); background: var(--surface); overflow-x: auto; overflow-y: hidden; }
+    .jk-my-hand { display: flex; justify-content: center; gap: -8px; min-width: min-content; padding: 0 8px; }
+    .jk-hand-card {
+      width: 52px; height: 74px; margin-left: -14px; border-radius: 8px; background: #fff; color: #1a1a1a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1em; box-shadow: 0 2px 8px rgba(0,0,0,0.4); flex-shrink: 0;
+      cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+      position: relative; border: 2px solid transparent;
+    }
+    .jk-hand-card:first-child { margin-left: 0; }
+    .jk-hand-card.red { color: #d0332f; }
+    .jk-hand-card .jk-card-suit { font-size: 1.3em; margin-top: 2px; }
+    .jk-hand-card.legal { transform: translateY(-10px); border-color: var(--gold); box-shadow: 0 4px 14px rgba(242,201,76,0.4); }
+    .jk-hand-card.illegal { opacity: 0.4; cursor: default; }
+    .jk-hand-card.jk-card-joker { background: linear-gradient(160deg, #6c3fd4, #2f1a5e); color: #fff; font-size: 1.6em; }
+    .jk-hand-card.jk-card-joker .jk-joker-tag { position: absolute; bottom: 5px; font-size: 0.3em; font-weight: 900; background: rgba(255,255,255,0.2); border-radius: 4px; padding: 1px 5px; }
+    .jk-hand-card:active.legal { transform: translateY(-16px) scale(1.05); }
+
+    /* ── Trump card shown during bidding — same visual card style as the
+       hand cards, but a plain, non-interactive display (no cursor/hover
+       affordance, since it's not something you can click). ── */
+    .jk-bid-trump-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 4px 0 14px; }
+    .jk-bid-trump-label { font-size: 0.72em; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .jk-trump-card-display {
+      width: 56px; height: 80px; border-radius: 8px; background: #fff; color: #1a1a1a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.05em; box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+      position: relative; user-select: none; border: 2px solid var(--gold);
+    }
+    .jk-trump-card-display.red { color: #d0332f; }
+    .jk-trump-card-display .jk-card-suit { font-size: 1.3em; margin-top: 2px; }
+    .jk-trump-card-display.jk-card-joker { background: linear-gradient(160deg, #6c3fd4, #2f1a5e); color: #fff; font-size: 1.6em; }
+    .jk-trump-card-display.jk-card-joker .jk-joker-tag { position: absolute; bottom: 5px; font-size: 0.3em; font-weight: 900; background: rgba(255,255,255,0.2); border-radius: 4px; padding: 1px 5px; }
+
+    /* ── Bidding modal ───────────────────────────────────────────── */
+    .jk-modal { position: fixed; inset: 0; z-index: 550; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.65); padding: 20px; }
+    .jk-modal.show { display: flex; }
+    .jk-modal-box { background: var(--surface); border-radius: 18px; padding: 22px 20px; max-width: 360px; width: 100%; text-align: center; }
+    .jk-modal-title { font-weight: 800; font-size: 1.05em; margin-bottom: 4px; }
+    .jk-modal-sub { color: var(--muted); font-size: 0.82em; margin-bottom: 16px; }
+
+    /* ── Expanded scoreboard modal — opened by tapping the small corner
+       scoreboard. Bigger totals + a scrollable hand-by-hand history. ── */
+    .jk-sb-modal-box { max-width: 400px; max-height: 82vh; display: flex; flex-direction: column; position: relative; text-align: left; }
+    .jk-sb-modal-close {
+      position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%;
+      background: var(--surface-2); border: none; color: var(--text); font-size: 1em; cursor: pointer;
+    }
+    .jk-sb-modal-totals { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 16px; }
+    .jk-sb-modal-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
+    .jk-sb-modal-row.leader { background: rgba(242,201,76,0.14); border: 1px solid rgba(242,201,76,0.4); }
+    .jk-sb-modal-row.me { font-weight: 800; }
+    .jk-sb-modal-name { flex: 1; font-size: 0.95em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .jk-sb-modal-score { font-size: 1.15em; font-weight: 800; color: var(--gold); }
+    .jk-sb-modal-row.leader .jk-sb-modal-score { color: #fff; text-shadow: 0 0 6px rgba(242,201,76,0.8); }
+    .jk-sb-modal-history-label { font-size: 0.78em; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+    .jk-sb-modal-history { overflow-y: auto; flex: 1; display: flex; flex-direction: column-reverse; gap: 8px; min-height: 60px; }
+    .jk-sb-hand-card { background: var(--surface-2); border-radius: 10px; padding: 8px 10px; }
+    .jk-sb-hand-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.74em; color: var(--muted); margin-bottom: 6px; }
+    .jk-sb-hand-row { display: flex; align-items: center; gap: 6px; font-size: 0.8em; padding: 2px 0; }
+    .jk-sb-hand-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .jk-sb-hand-bid { color: var(--muted); font-size: 0.85em; min-width: 46px; text-align: right; }
+    .jk-sb-hand-score { font-weight: 800; min-width: 32px; text-align: right; }
+    .jk-sb-hand-score.pos { color: #3ba55d; }
+    .jk-sb-hand-score.neg { color: #f23f42; }
+    .jk-sb-hand-empty { color: var(--muted); font-size: 0.85em; text-align: center; padding: 20px 0; }
+    .jk-sb-bonus-tag { font-size: 0.68em; color: var(--gold); font-weight: 700; margin-left: 4px; }
+    .jk-bid-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 6px; }
+    .jk-bid-choice { width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--surface-2); color: var(--text); font-weight: 800; font-size: 1em; cursor: pointer; }
+    .jk-bid-choice:disabled { opacity: 0.25; cursor: default; }
+    .jk-bid-choice:active:not(:disabled) { transform: scale(0.92); }
+
+    .jk-joker-choices { display: flex; gap: 12px; justify-content: center; margin-bottom: 6px; }
+    .jk-joker-choice { flex: 1; max-width: 130px; border: none; border-radius: 12px; padding: 16px 10px; font-weight: 800; font-size: 0.95em; cursor: pointer; }
+    .jk-joker-choice.high { background: linear-gradient(135deg, #4a90e2, var(--accent-dk)); color: #fff; }
+    .jk-joker-choice.low { background: linear-gradient(135deg, #5a5c66, #33343c); color: #fff; }
+    .jk-suit-grid { display: flex; gap: 10px; justify-content: center; }
+    .jk-suit-choice { width: 54px; height: 54px; border-radius: 12px; border: none; background: var(--surface-2); font-size: 1.5em; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .jk-suit-choice.red { color: #e0483a; }
+    .jk-suit-choice.black { color: var(--text); }
+    .jk-suit-choice:active { transform: scale(0.92); }
+
+    /* ── Hand-end / game-end overlays ────────────────────────────── */
+    .jk-overlay { position: fixed; inset: 0; z-index: 540; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.68); padding: 16px; }
+    .jk-overlay.show { display: flex; }
+    .jk-overlay-box { background: var(--surface); border-radius: 18px; padding: 18px 16px; max-width: 400px; width: 100%; max-height: 88vh; overflow-y: auto; }
+    .jk-overlay-title { font-weight: 800; font-size: 1.05em; text-align: center; margin-bottom: 4px; }
+    .jk-overlay-sub { color: var(--muted); font-size: 0.78em; text-align: center; margin-bottom: 14px; }
+    .jk-result-table { width: 100%; border-collapse: collapse; font-size: 0.84em; }
+    .jk-result-table th { text-align: right; color: var(--muted); font-weight: 600; font-size: 0.82em; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+    .jk-result-table th:first-child { text-align: left; }
+    .jk-result-table td { text-align: right; padding: 6px; border-bottom: 1px solid var(--border); }
+    .jk-result-table td:first-child { text-align: left; font-weight: 700; }
+    .jk-result-table td.pos { color: var(--good); }
+    .jk-result-table td.neg { color: var(--danger); }
+    .jk-khishti-tag { font-size: 0.68em; color: var(--danger); display: block; }
+    .jk-set-bonus-row { background: rgba(242,201,76,0.08); font-weight: 700; }
+    .jk-overlay-hint { text-align: center; color: var(--muted); font-size: 0.76em; margin-top: 12px; }
+
+    .jk-podium { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .jk-podium-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; }
+    .jk-podium-row.first { background: linear-gradient(135deg, rgba(242,201,76,0.22), rgba(242,201,76,0.05)); border: 1px solid rgba(242,201,76,0.4); }
+    .jk-podium-medal { font-size: 1.3em; width: 30px; text-align: center; }
+    .jk-podium-name { flex: 1; font-weight: 700; font-size: 0.9em; }
+    .jk-podium-score { font-weight: 800; color: var(--gold); }
+    .jk-overlay-actions button { width: 100%; border: none; border-radius: 10px; padding: 12px; font-weight: 700; cursor: pointer; font-size: 0.9em; background: var(--accent); color: #fff; }
+
+    .jk-invite-bar {
+      position: fixed; left: 12px; right: 12px; bottom: calc(12px + var(--safe-bottom)); z-index: 998;
+      background: var(--surface); border: 1px solid var(--accent); border-radius: 12px;
+      padding: 12px 14px; display: none; align-items: center; gap: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.45); max-width: 420px; margin: 0 auto;
+    }
+    .jk-invite-bar.show { display: flex; }
+    .jk-invite-bar span { flex: 1; font-size: 0.86em; }
+    .jk-invite-bar button { border: none; border-radius: 8px; padding: 7px 12px; font-weight: 700; font-size: 0.85em; cursor: pointer; }
+    .jk-invite-accept { background: var(--good); color: #fff; }
+    .jk-invite-decline { background: var(--surface-2); color: var(--text); }
+
+    #jkToast {
+      position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 18px; border-radius: 20px; font-size: 0.86em;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 600; max-width: 90vw; text-align: center;
+    }
+    #jkToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Chat: header button, floating speech bubbles, slide-up panel ──── */
+    .jk-chat-unread-dot {
+      display: none; position: absolute; top: 3px; right: 3px; width: 9px; height: 9px;
+      border-radius: 50%; background: var(--danger); border: 2px solid var(--surface);
+    }
+    .jk-chat-unread-dot.show { display: block; }
+
+    .jk-bubble-layer { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+    .jk-speech-bubble {
+      position: absolute; max-width: 130px; background: #fff; color: #1a1a1a;
+      border-radius: 12px; padding: 6px 10px; font-size: 0.72em; font-weight: 600; line-height: 1.3;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.35); text-align: center;
+      opacity: 0; animation: jkBubbleInOut 3.6s ease forwards;
+    }
+    .jk-speech-bubble::after {
+      content: ""; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+      border-width: 6px 6px 0; border-style: solid; border-color: #fff transparent transparent;
+    }
+    @keyframes jkBubbleInOut {
+      0%   { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+      10%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      85%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -8px) scale(0.95); }
+    }
+
+    .jk-chat-backdrop {
+      position: fixed; inset: 0; z-index: 560; background: rgba(0,0,0,0.4);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .jk-chat-backdrop.show { opacity: 1; pointer-events: auto; }
+    .jk-chat-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 561;
+      background: var(--surface); border-radius: 16px 16px 0 0; border-top: 1px solid var(--border);
+      max-width: 460px; margin: 0 auto; height: 52vh; max-height: 460px;
+      display: flex; flex-direction: column;
+      transform: translateY(105%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1);
+    }
+    .jk-chat-panel.show { transform: translateY(0); }
+    .jk-chat-panel-header {
+      display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+      font-weight: 700; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .jk-chat-panel-header button { background: rgba(255,255,255,0.08); border: none; color: var(--muted); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; }
+    .jk-chat-messages { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .jk-chat-msg { max-width: 78%; padding: 7px 11px; border-radius: 12px; font-size: 0.85em; line-height: 1.4; }
+    .jk-chat-msg.other { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+    .jk-chat-msg.mine { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+    .jk-chat-msg .jk-chat-author { font-size: 0.76em; font-weight: 700; color: var(--accent-lt); margin-bottom: 2px; }
+    .jk-chat-msg.mine .jk-chat-author { display: none; }
+    .jk-chat-input-row { display: flex; gap: 8px; padding: 10px 14px calc(10px + var(--safe-bottom)); border-top: 1px solid var(--border); flex-shrink: 0; padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+    #chatInput { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; color: var(--text); font-size: 16px; padding: 9px 14px; }
+    #chatInput:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    #chatSendBtn { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 1em; cursor: pointer; }
+
+    /* ── Score count-up flash ────────────────────────────────────── */
+    @keyframes jkScoreFlash { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.22); color: #fff; } }
+    .jk-score-flash { display: inline-block; animation: jkScoreFlash 0.5s ease; }
+
+    /* ── Trump reveal ────────────────────────────────────────────── */
+    @keyframes jkTrumpReveal { from { transform: rotateY(90deg) scale(0.7); opacity: 0; } to { transform: rotateY(0) scale(1); opacity: 1; } }
+    .jk-trump-reveal { animation: jkTrumpReveal 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+    /* ── Flying trick-collection token (JS-positioned) ──────────────── */
+    .jk-flying-card { position: fixed; z-index: 700; pointer-events: none; transition: transform 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.5s ease 0.15s; will-change: transform, opacity; }
+
+    @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+    /* ── Desktop / big screens — the table gets real room to breathe
+       instead of a mobile-width layout stretched across a wide monitor. ── */
+    @media (min-width: 700px) {
+      body {
+        display: flex; align-items: center; justify-content: center;
+        background: #0e0f13;
+      }
+      #app {
+        width: 100%; max-width: 760px;
+        height: 92vh; height: 92dvh;
+        border-radius: 20px; overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+    }
+  
+    /* ── Touch target size ────────────────────────────────────────────────
+       These close/back buttons are 22-34px, below the ~44px minimum that's
+       comfortable to hit with a thumb. Rather than making them visually
+       bigger (which would change the design), an invisible centred ::after
+       extends only the TAPPABLE area to 44x44. Touch devices only.
+       Deliberately limited to isolated buttons — the same trick on things
+       like the colour swatches or vote arrows would overlap neighbouring
+       hit areas and cause mis-taps.                                     */
+    @media (pointer: coarse) {
+      .jk-sb-modal-close::after {
+        content: ""; position: absolute;
+        top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 44px; height: 44px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="jkLoading" class="jk-loading"><div class="spinner"></div></div>
+
+  <div id="jkAuthScreen" class="jk-center-screen hidden">
+    <div style="font-size:2.4em;">🔒</div>
+    <p>ჯოკერის სათამაშოდ საჭიროა შესვლა.</p>
+    <a href="/">რეგისტრაცია / შესვლა</a>
+  </div>
+
+  <!-- SETUP SCREEN -->
+  <div id="setupScreen" class="jk-screen">
+    <header class="jk-header">
+      <a href="/dashboard.html" class="jk-icon-btn" title="უკან">←</a>
+      <div class="jk-header-title">🃏 ჯოკერი</div>
+    </header>
+    <div class="jk-setup-body">
+      <button id="createGameBtn" class="jk-new-game-btn" disabled>➕ ახალი მაგიდის შექმნა</button>
+      <div class="jk-hint">მოიწვიე რამდენიც გინდა — ვინც პირველი შემოუერთდება, ის ითამაშებს (მაგიდაზე 4 ადგილია)</div>
+      <div>
+        <div class="jk-section-label">მოწვევა — ონლაინ მეგობრები</div>
+        <div id="onlineFriendsList"></div>
+      </div>
+      <div>
+        <div class="jk-section-label">აქტიური მაგიდები</div>
+        <div id="publicGameList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobbyScreen" class="jk-screen">
+    <header class="jk-header">
+      <button id="lobbyBackBtn" class="jk-icon-btn" title="უკან">←</button>
+      <div class="jk-header-title">მაგიდის ლობი (<span id="lobbyCount">0</span>/4)</div>
+      <button id="lobbyChatToggleBtn" class="jk-icon-btn" title="ჩატი" style="position:relative;">
+        💬<span id="lobbyChatUnreadDot" class="jk-chat-unread-dot"></span>
+      </button>
+    </header>
+    <div class="jk-lobby-body">
+      <div id="lobbyPlayers"></div>
+      <div id="lobbyWaitHint" class="jk-lobby-hint"></div>
+    </div>
+    <div class="jk-lobby-actions">
+      <button id="startGameBtn" class="jk-start-btn" style="display:none">🃏 თამაშის დაწყება</button>
+      <button id="lobbyLeaveBtn" class="jk-leave-btn">მაგიდის დატოვება</button>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="gameScreen" class="jk-screen">
+    <div class="jk-game-header">
+      <button id="gameBackBtn" class="jk-icon-btn" title="სია" style="width:32px;height:32px;">←</button>
+      <div>
+        <div class="jk-hand-counter">ხელი <span id="handCounter">1/24</span></div>
+        <div class="jk-set-label" id="setLabel">სეტი 1 — ზრდადი</div>
+      </div>
+      <div class="jk-trump-chip" id="trumpChip">—</div>
+      <button id="chatToggleBtn" class="jk-icon-btn" title="ჩატი" style="width:32px;height:32px;position:relative;">
+        💬<span id="chatUnreadDot" class="jk-chat-unread-dot"></span>
+      </button>
+    </div>
+
+    <div class="jk-table" id="table">
+      <div class="jk-scoreboard" id="scoreboard"></div>
+      <div class="jk-opp jk-opp-top" id="oppTop"></div>
+      <div class="jk-opp jk-opp-left" id="oppLeft"></div>
+      <div class="jk-opp jk-opp-right" id="oppRight"></div>
+      <div class="jk-center">
+        <div class="jk-trick-area" id="trickArea">
+          <div class="jk-hand-label" id="handSizeLabel"></div>
+        </div>
+      </div>
+      <div class="jk-bubble-layer" id="bubbleLayer"></div>
+    </div>
+
+    <div class="jk-me-bar" id="meBar">
+      <div class="jk-me-avatar-wrap"><img id="meAvatar" class="jk-me-avatar" alt="" /></div>
+      <div class="jk-me-info">
+        <div class="jk-me-name" id="meName"></div>
+        <div class="jk-me-stats" id="meStats"></div>
+      </div>
+      <div class="jk-me-timer" id="meTimer"></div>
+    </div>
+    <div class="jk-my-hand-wrap"><div class="jk-my-hand" id="myHandEl"></div></div>
+  </div>
+
+  <div id="jkToast"></div>
+  <div id="jkInviteBar" class="jk-invite-bar"></div>
+</div>
+
+<!-- Bid modal -->
+<div id="bidModal" class="jk-modal">
+  <div class="jk-modal-box">
+    <div class="jk-modal-title">რამდენ ხელს აიღებ?</div>
+    <div class="jk-bid-trump-wrap" id="bidTrumpWrap">
+      <div class="jk-bid-trump-label">კოზირი</div>
+      <div id="bidTrumpCardSlot"></div>
+    </div>
+    <div class="jk-modal-sub" id="bidSub"></div>
+    <div class="jk-bid-grid" id="bidGrid"></div>
+  </div>
+</div>
+
+<!-- Joker HIGH/LOW + suit modal -->
+<div id="jokerModal" class="jk-modal">
+  <div class="jk-modal-box">
+    <div class="jk-modal-title" id="jokerModalTitle">ჯოკერი — მაღლა თუ დაბლა?</div>
+    <div class="jk-modal-sub">აირჩიე როგორ ითამაშებ ჯოკერს</div>
+    <div class="jk-joker-choices" id="jokerChoiceRow">
+      <button class="jk-joker-choice high" id="jokerHighBtn">⬆️ მაღლა</button>
+      <button class="jk-joker-choice low" id="jokerLowBtn">⬇️ დაბლა</button>
+    </div>
+    <div id="jokerSuitRow" style="display:none;">
+      <div class="jk-modal-sub" style="margin-top:10px;">აირჩიე ფერი — სხვებმა ეს უნდა აჰყვნენ</div>
+      <div class="jk-suit-grid">
+        <button class="jk-suit-choice red" data-suit="h">♥</button>
+        <button class="jk-suit-choice red" data-suit="d">♦</button>
+        <button class="jk-suit-choice black" data-suit="s">♠</button>
+        <button class="jk-suit-choice black" data-suit="c">♣</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hand-end result overlay -->
+<div id="handEndOverlay" class="jk-overlay">
+  <div class="jk-overlay-box">
+    <div class="jk-overlay-title">ხელის შედეგი</div>
+    <div class="jk-overlay-sub" id="handEndSub"></div>
+    <table class="jk-result-table">
+      <thead><tr><th>მოთამაშე</th><th>ბიდი</th><th>აიღო</th><th>ქულა</th></tr></thead>
+      <tbody id="handEndBody"></tbody>
+    </table>
+    <div class="jk-overlay-hint">შემდეგი ხელი მალე დაიწყება...</div>
+  </div>
+</div>
+
+<!-- Game-end overlay -->
+<div id="gameEndOverlay" class="jk-overlay">
+  <div class="jk-overlay-box">
+    <div class="jk-overlay-title">🏆 თამაში დასრულდა!</div>
+    <div class="jk-podium" id="podium"></div>
+    <div class="jk-overlay-actions"><button id="gameEndBackBtn">სიაში დაბრუნება</button></div>
+  </div>
+</div>
+
+<!-- Chat panel — slides up from the bottom, stays docked while open -->
+<div id="chatBackdrop" class="jk-chat-backdrop"></div>
+<div id="chatPanel" class="jk-chat-panel">
+  <div class="jk-chat-panel-header">
+    <div>ჩატი</div>
+    <button id="chatCloseBtn">✕</button>
+  </div>
+  <div id="chatMessages" class="jk-chat-messages"></div>
+  <div class="jk-chat-input-row">
+    <input type="text" id="chatInput" maxlength="200" placeholder="დაწერე რამე..." />
+    <button id="chatSendBtn">➤</button>
+  </div>
+</div>
+
+<!-- Expanded scoreboard — opens when the small corner scoreboard is tapped.
+     Bigger score view plus a hand-by-hand history of what happened. -->
+<div id="scoreboardModal" class="jk-modal">
+  <div class="jk-modal-box jk-sb-modal-box">
+    <button class="jk-sb-modal-close" id="scoreboardModalClose">✕</button>
+    <div class="jk-modal-title">ანგარიში</div>
+    <div class="jk-sb-modal-totals" id="scoreboardModalTotals"></div>
+    <div class="jk-sb-modal-history-label">ისტორია — რა მოხდა თითოეულ ხელში</div>
+    <div class="jk-sb-modal-history" id="scoreboardModalHistory"></div>
+  </div>
+</div>
+
+<script src="/ban-notice.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  (function () {
+    function setAppHeight() {
+      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    }
+    setAppHeight();
+    if (window.visualViewport) { window.visualViewport.addEventListener("resize", setAppHeight); window.visualViewport.addEventListener("scroll", setAppHeight); }
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+  })();
+</script>
+<script>
+(function () {
+  "use strict";
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  function $(id) { return document.getElementById(id); }
+  function showToast(msg, ms = 3200) {
+    const t = $("jkToast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), ms);
+  }
+  function loadAuth() {
+    try { return { token: localStorage.getItem("gaicani_auth_token"), username: localStorage.getItem("gaicani_auth_user") }; }
+    catch (_) { return {}; }
+  }
+  function getRoomParam() { return (new URLSearchParams(window.location.search).get("room") || "").trim(); }
+  function setAvatar(container, avatarFile, username) {
+    container.innerHTML = "";
+    if (avatarFile) {
+      const img = document.createElement("img");
+      img.src = "/" + avatarFile;
+      img.alt = username || "";
+      container.appendChild(img);
+    } else {
+      container.textContent = (username || "?").charAt(0).toUpperCase();
+    }
+  }
+
+  const SUIT_GLYPH = { s: "♠", h: "♥", d: "♦", c: "♣" };
+  const SUIT_NAME = { s: "spades", h: "hearts", d: "diamonds", c: "clubs" };
+  const SUIT_NAME_KA = { s: "სპადი", h: "ხარტი", d: "ბუბნა", c: "ტრეფი" };
+  function isRedSuit(s) { return s === "h" || s === "d"; }
+  function isJoker(card) { return card === "JK1" || card === "JK2"; }
+  function rankLabel(card) { return card[0] === "T" ? "10" : card[0]; }
+
+  function cardEl(card, className) {
+    const el = document.createElement("div");
+    if (isJoker(card)) {
+      el.className = className + " jk-card-joker";
+      el.innerHTML = `🃏<span class="jk-joker-tag">JOKER</span>`;
+    } else {
+      const red = isRedSuit(card[1]);
+      el.className = className + (red ? " red" : "");
+      el.innerHTML = `<div>${rankLabel(card)}</div><div class="jk-card-suit">${SUIT_GLYPH[card[1]]}</div>`;
+    }
+    return el;
+  }
+
+  const { token, username } = loadAuth();
+  let myUsernameLower = (username || "").toLowerCase();
+
+  const elLoading = $("jkLoading");
+  const elAuth = $("jkAuthScreen");
+  const screens = { setup: $("setupScreen"), lobby: $("lobbyScreen"), game: $("gameScreen") };
+  function showScreen(name) { Object.entries(screens).forEach(([k, el]) => el.classList.toggle("visible", k === name)); }
+
+  /* ── State ───────────────────────────────────────────────────── */
+  let socket = null;
+  let currentRoomId = getRoomParam() || null;
+  let latestRoomState = null; // cached so the scoreboard-tap handler (independent of the render flow) can access it
+  let onlineUsers = [];
+  let selectedInvitees = new Set();
+  let latestRoom = null;
+  let prevSnap = null; // for deal-in / trick-sweep animation diffing
+  let timerInterval = null;
+  let pendingJokerCard = null;
+  let selectedJokerChoice = null;
+
+  /* ── Setup screen ────────────────────────────────────────────── */
+  function renderOnlineFriends() {
+    const list = $("onlineFriendsList");
+    if (!onlineUsers.length) {
+      list.innerHTML = `<div class="jk-empty-state">ახლა არავინ არის ონლაინ.<br><small>დაელოდე ვინმეს შემოსვლას.</small></div>`;
+      $("createGameBtn").disabled = true;
+      return;
+    }
+    list.innerHTML = "";
+    onlineUsers.forEach(u => {
+      const row = document.createElement("div");
+      row.className = "jk-pick-row" + (selectedInvitees.has(u.username.toLowerCase()) ? " selected" : "");
+      const avatar = document.createElement("div");
+      avatar.className = "jk-pick-avatar";
+      setAvatar(avatar, u.avatar, u.username);
+      const name = document.createElement("div");
+      name.className = "jk-pick-name";
+      name.textContent = u.username + (u.isGuest ? " (სტუმარი)" : "");
+      const check = document.createElement("div");
+      check.className = "jk-pick-check";
+      check.textContent = "✓";
+      row.appendChild(avatar); row.appendChild(name); row.appendChild(check);
+      row.addEventListener("click", () => {
+        const lc = u.username.toLowerCase();
+        if (selectedInvitees.has(lc)) selectedInvitees.delete(lc);
+        else selectedInvitees.add(lc);
+        row.classList.toggle("selected");
+        $("createGameBtn").disabled = selectedInvitees.size === 0;
+      });
+      list.appendChild(row);
+    });
+    $("createGameBtn").disabled = selectedInvitees.size === 0;
+  }
+
+  function renderPublicGames(rooms) {
+    const list = $("publicGameList");
+    list.innerHTML = "";
+    if (!rooms || !rooms.length) {
+      list.innerHTML = `<div class="jk-empty-state">ახლა აქტიური მაგიდა არ არის.</div>`;
+      return;
+    }
+    rooms.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "jk-public-row";
+      const info = document.createElement("div");
+      info.className = "jk-public-info";
+      const host = document.createElement("div");
+      host.className = "jk-public-host";
+      host.textContent = "🃏 " + r.hostUsername + "-ის მაგიდა";
+      const meta = document.createElement("div");
+      meta.className = "jk-public-meta";
+      meta.textContent = `${r.playerCount}/${r.maxPlayers} მოთამაშე · ${r.status === "playing" ? "მიმდინარეობს" : "ლობი"}`;
+      info.appendChild(host); info.appendChild(meta);
+      const btn = document.createElement("button");
+      btn.className = "jk-join-btn";
+      btn.textContent = "შემოერთება";
+      btn.addEventListener("click", () => socket.emit("joker:join", { roomId: r.roomId }));
+      row.appendChild(info); row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
+  $("createGameBtn").addEventListener("click", () => {
+    socket.emit("joker:invite", { toUsernames: [...selectedInvitees] });
+  });
+
+  /* ── Lobby screen ────────────────────────────────────────────── */
+  let isHost = false;
+  function renderLobby(room) {
+    isHost = room.hostUsername.toLowerCase() === myUsernameLower;
+    $("lobbyCount").textContent = room.players.length;
+    const list = $("lobbyPlayers");
+    list.innerHTML = "";
+    room.players.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "jk-lobby-player";
+      const avatar = document.createElement("div");
+      avatar.className = "jk-pick-avatar";
+      setAvatar(avatar, p.avatar, p.username);
+      const name = document.createElement("div");
+      name.className = "jk-pick-name";
+      name.textContent = p.username;
+      row.appendChild(avatar); row.appendChild(name);
+      if (p.username.toLowerCase() === room.hostUsername.toLowerCase()) {
+        const tag = document.createElement("span"); tag.className = "jk-lobby-tag"; tag.textContent = "მასპინძელი"; row.appendChild(tag);
+      }
+      list.appendChild(row);
+    });
+    for (let i = room.players.length; i < 4; i++) {
+      const slot = document.createElement("div");
+      slot.className = "jk-lobby-slot-empty";
+      slot.textContent = "თავისუფალი ადგილი...";
+      list.appendChild(slot);
+    }
+    $("startGameBtn").style.display = isHost ? "block" : "none";
+    $("startGameBtn").disabled = room.players.length !== 4;
+    $("lobbyWaitHint").textContent = isHost
+      ? (room.players.length < 4 ? `დაელოდე კიდევ ${4 - room.players.length} მოთამაშეს.` : "მზად ხარ დასაწყებად!")
+      : "მასპინძლის მოლოდინში...";
+  }
+
+  /* ── Game screen: seat-relative layout ──────────────────────────
+     mySeat+1 -> LEFT, mySeat+2 -> TOP, mySeat+3 -> RIGHT (clockwise) */
+  function relativePosition(mySeat, seat) {
+    const diff = (seat - mySeat + 4) % 4;
+    if (diff === 1) return "left";
+    if (diff === 2) return "top";
+    if (diff === 3) return "right";
+    return "me";
+  }
+  function slotForRelative(rel) {
+    return { left: "slot-left", top: "slot-top", right: "slot-right", me: "slot-bottom" }[rel];
+  }
+
+  function renderOpponent(room, mySeat, rel) {
+    const el = $({ left: "oppLeft", top: "oppTop", right: "oppRight" }[rel]);
+    const player = room.players.find(p => relativePosition(mySeat, p.seat) === rel);
+    el.innerHTML = "";
+    if (!player) { el.style.visibility = "hidden"; return; }
+    el.style.visibility = "visible";
+    el.classList.toggle("acting", room.phase && room.turnSeat === player.seat && room.status === "playing" && !room.finalResult);
+    el.classList.toggle("disconnected", !player.connected);
+
+    const avatarWrap = document.createElement("div");
+    avatarWrap.className = "jk-opp-avatar-wrap";
+    const img = document.createElement("img");
+    img.className = "jk-opp-avatar";
+    img.src = "/" + (player.avatar || "avatar1.png");
+    img.alt = player.username;
+    avatarWrap.appendChild(img);
+    if (room.dealerSeat === player.seat) {
+      const d = document.createElement("div"); d.className = "jk-dealer-chip"; d.textContent = "D"; avatarWrap.appendChild(d);
+    }
+    if (player.isBot) {
+      const bo = document.createElement("div"); bo.className = "jk-bot-chip"; bo.textContent = "🤖"; avatarWrap.appendChild(bo);
+    }
+    const cc = document.createElement("div");
+    cc.className = "jk-opp-cardcount";
+    cc.textContent = player.handCount;
+    avatarWrap.appendChild(cc);
+    el.appendChild(avatarWrap);
+
+    const name = document.createElement("div");
+    name.className = "jk-opp-name";
+    name.textContent = player.username;
+    el.appendChild(name);
+
+    if (player.isBot) {
+      const botLabel = document.createElement("div");
+      botLabel.className = "jk-bot-label";
+      botLabel.textContent = "ბოტი მოთამაშეობს";
+      el.appendChild(botLabel);
+    }
+
+    const stats = document.createElement("div");
+    stats.className = "jk-opp-stats";
+    const bid = room.bids[player.seat];
+    const tricks = room.tricksWon[player.seat];
+    const total = room.totals[player.seat];
+    stats.innerHTML = `<span>${bid === null || bid === undefined ? "—" : bid}/${tricks}</span><span>· <span class="jk-total-num" data-seat="${player.seat}">${total}</span></span>`;
+    el.appendChild(stats);
+
+    if (prevSnap && prevSnap.totals && prevSnap.totals[player.seat] !== total) {
+      flashScoreEl(stats.querySelector(".jk-total-num"));
+    }
+  }
+
+  function renderTrick(room, mySeat) {
+    const area = $("trickArea");
+
+    // A trick was just won (4 cards were on the table, now the new trick is
+    // empty) — sweep the previous cards toward the winner's avatar before
+    // clearing, instead of just having them vanish.
+    const trickJustResolved = prevSnap && prevSnap.trickSeats && prevSnap.trickSeats.length === 4 && (room.currentTrick || []).length === 0;
+    if (trickJustResolved) {
+      const winnerSeat = room.trickLeader;
+      const winnerAvatar = avatarElFor(mySeat, winnerSeat);
+      area.querySelectorAll(".jk-trick-slot .jk-card").forEach(cardNode => {
+        const clone = cardNode.cloneNode(true);
+        clone.style.width = cardNode.offsetWidth + "px";
+        clone.style.height = cardNode.offsetHeight + "px";
+        flyToken(cardNode, winnerAvatar, clone, 500);
+      });
+    }
+
+    area.querySelectorAll(".jk-trick-slot").forEach(n => n.remove());
+    (room.currentTrick || []).forEach((play, i) => {
+      const rel = relativePosition(mySeat, play.seat);
+      const slotClass = slotForRelative(rel);
+      const slot = document.createElement("div");
+      slot.className = "jk-trick-slot " + slotClass;
+      const wasAlready = prevSnap && prevSnap.trickSeats && prevSnap.trickSeats.includes(play.seat);
+      const card = cardEl(play.card, "jk-card");
+      slot.appendChild(card);
+      if (isJoker(play.card) && play.jokerChoice) {
+        const tag = document.createElement("div");
+        tag.style.cssText = "position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:0.55em;font-weight:800;color:" + (play.jokerChoice === "high" ? "#8b93ff" : "#7d81a0") + ";white-space:nowrap;";
+        tag.textContent = play.jokerChoice === "high" ? "მაღლა" : "დაბლა";
+        slot.appendChild(tag);
+      }
+      area.appendChild(slot);
+
+      if (!wasAlready) {
+        // Fly a clone of the card from whoever played it (their avatar —
+        // mine included) straight to this trick slot, so it's visually
+        // obvious whose card just landed and where it came from, instead
+        // of the card just materializing in place.
+        const fromEl = avatarElFor(mySeat, play.seat);
+        if (fromEl) {
+          card.style.opacity = "0";
+          const clone = cardEl(play.card, "jk-card");
+          clone.style.width = "40px"; clone.style.height = "56px";
+          flyToken(fromEl, card, clone, 420);
+          setTimeout(() => { card.style.opacity = "1"; card.classList.add("jk-play-in"); }, 380);
+        } else {
+          card.classList.add("jk-play-in");
+        }
+      }
+    });
+  }
+
+  function renderTrumpChip(room) {
+    const chip = $("trumpChip");
+    const isNewHand = prevSnap && prevSnap.handIndex !== room.handIndex;
+    chip.innerHTML = "";
+    if (room.trumpCard) {
+      // Show an actual card, not just the suit symbol — if the trump card
+      // happened to be a joker, cardEl() already renders that correctly,
+      // which itself communicates "no trump suit" better than a text label.
+      chip.className = "jk-trump-chip";
+      const label = document.createElement("span");
+      label.className = "jk-trump-chip-label";
+      label.textContent = "კოზირი";
+      chip.appendChild(label);
+      chip.appendChild(cardEl(room.trumpCard, "jk-card jk-trump-chip-card"));
+    } else {
+      chip.className = "jk-trump-chip no-trump";
+      chip.textContent = "უკოზირო";
+    }
+    if (isNewHand) { chip.classList.remove("jk-trump-reveal"); void chip.offsetWidth; chip.classList.add("jk-trump-reveal"); }
+  }
+
+  // Small persistent scoreboard, top-left of the table — always-visible
+  // running totals so you don't have to wait for the hand-end table to see
+  // where everyone stands.
+  function renderScoreboard(room, mySeat) {
+    const board = $("scoreboard");
+    const rows = room.players.slice().sort((a, b) => (room.totals[b.seat] || 0) - (room.totals[a.seat] || 0));
+    const maxScore = Math.max(...room.players.map(p => room.totals[p.seat] || 0));
+    board.innerHTML = "";
+    rows.forEach(p => {
+      const total = room.totals[p.seat] || 0;
+      const row = document.createElement("div");
+      row.className = "jk-sb-row" + (p.seat === mySeat ? " me" : "") + (total === maxScore && maxScore > 0 ? " leader" : "");
+      const name = document.createElement("div");
+      name.className = "jk-sb-name";
+      name.textContent = (p.seat === mySeat ? "შენ" : p.username);
+      const score = document.createElement("div");
+      score.className = "jk-sb-score";
+      score.textContent = total;
+      row.appendChild(name); row.appendChild(score);
+      board.appendChild(row);
+    });
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+  }
+
+  /* ── Expanded scoreboard — bigger totals + a full hand-by-hand history,
+     opened by tapping the small corner scoreboard. All the data (room.history)
+     is already sent to the client for every room update — this just renders it. ── */
+  function openScoreboardModal() {
+    if (!latestRoomState) return;
+    renderScoreboardModal(latestRoomState);
+    $("scoreboardModal").classList.add("show");
+  }
+  function closeScoreboardModal() {
+    $("scoreboardModal").classList.remove("show");
+  }
+  function renderScoreboardModal(room) {
+    const mySeat = room.mySeat;
+    const totalsWrap = $("scoreboardModalTotals");
+    const rows = room.players.slice().sort((a, b) => (room.totals[b.seat] || 0) - (room.totals[a.seat] || 0));
+    const maxScore = Math.max(...room.players.map(p => room.totals[p.seat] || 0));
+    totalsWrap.innerHTML = rows.map(p => {
+      const total = room.totals[p.seat] || 0;
+      const isLeader = total === maxScore && maxScore > 0;
+      const isMe = p.seat === mySeat;
+      return `
+        <div class="jk-sb-modal-row${isLeader ? " leader" : ""}${isMe ? " me" : ""}">
+          <div class="jk-sb-modal-name">${isMe ? "შენ" : esc(p.username)}</div>
+          <div class="jk-sb-modal-score">${total}</div>
+        </div>`;
+    }).join("");
+
+    const historyWrap = $("scoreboardModalHistory");
+    const history = room.history || [];
+    if (!history.length) {
+      historyWrap.innerHTML = `<div class="jk-sb-hand-empty">ისტორია ჯერ ცარიელია — პირველი ხელი ჯერ არ დასრულებულა</div>`;
+      return;
+    }
+    // column-reverse wrapper handles newest-first order, so build oldest→newest here
+    historyWrap.innerHTML = history.map(h => {
+      const playerRowsHtml = room.players.map(p => {
+        const bid = h.bids[p.seat];
+        const actual = h.tricksWon[p.seat];
+        const score = h.scores[p.seat];
+        const scoreClass = score > 0 ? "pos" : (score < 0 ? "neg" : "");
+        const khishti = h.khishtiHit && h.khishtiHit[p.seat] ? " 🎯" : "";
+        const bonusTag = h.setBonuses && h.setBonuses[p.seat] ? `<span class="jk-sb-bonus-tag">+${h.setBonuses[p.seat]} სეტი</span>` : "";
+        const isMe = p.seat === mySeat;
+        return `
+          <div class="jk-sb-hand-row">
+            <div class="jk-sb-hand-name">${isMe ? "შენ" : esc(p.username)}</div>
+            <div class="jk-sb-hand-bid">${bid}/${actual}${khishti}</div>
+            <div class="jk-sb-hand-score ${scoreClass}">${score > 0 ? "+" : ""}${score}${bonusTag}</div>
+          </div>`;
+      }).join("");
+      return `
+        <div class="jk-sb-hand-card">
+          <div class="jk-sb-hand-head"><span>ხელი ${h.handIndex + 1} — ${h.handSize} ბარათი</span></div>
+          ${playerRowsHtml}
+        </div>`;
+    }).join("");
+  }
+  $("scoreboard").addEventListener("click", openScoreboardModal);
+  $("scoreboardModalClose").addEventListener("click", closeScoreboardModal);
+  $("scoreboardModal").addEventListener("click", (e) => { if (e.target.id === "scoreboardModal") closeScoreboardModal(); });
+
+  function myLegalCards(room, mySeat) {
+    if (room.phase !== "playing" || room.turnSeat !== mySeat) return [];
+    const hand = room.myHand;
+    const ledSuit = room.currentTrick.length === 0 ? null : room.ledSuit;
+    const jokers = hand.filter(isJoker);
+    const nonJokers = hand.filter(c => !isJoker(c));
+    if (ledSuit === null) return hand.slice();
+    const followers = nonJokers.filter(c => c[1] === ledSuit);
+    if (followers.length) return [...followers, ...jokers];
+    const trumps = room.trumpSuit ? nonJokers.filter(c => c[1] === room.trumpSuit) : [];
+    if (trumps.length) return [...trumps, ...jokers];
+    return hand.slice();
+  }
+
+  function renderMyHand(room, mySeat) {
+    const wrap = $("myHandEl");
+    const legal = new Set(myLegalCards(room, mySeat));
+    const canAct = room.phase === "playing" && room.turnSeat === mySeat && !room.finalResult;
+    const prevHand = prevSnap ? prevSnap.myHand : [];
+    wrap.innerHTML = "";
+    (room.myHand || []).forEach(card => {
+      const el = cardEl(card, "jk-hand-card");
+      if (!prevHand.includes(card)) el.classList.add("jk-deal-in");
+      if (canAct) el.classList.add(legal.has(card) ? "legal" : "illegal");
+      el.addEventListener("click", () => onMyCardTap(card, canAct && legal.has(card)));
+      wrap.appendChild(el);
+    });
+  }
+
+  function onMyCardTap(card, isLegal) {
+    if (!isLegal || !latestRoom) return;
+    if (isJoker(card)) {
+      pendingJokerCard = card;
+      selectedJokerChoice = null;
+      const isLeading = latestRoom.currentTrick.length === 0;
+      $("jokerSuitRow").style.display = isLeading ? "block" : "none";
+      $("jokerModalTitle").textContent = "ჯოკერი — მაღლა თუ დაბლა?";
+      $("jokerModal").classList.add("show");
+      return;
+    }
+    socket.emit("joker:playCard", { roomId: currentRoomId, card });
+  }
+
+  $("jokerHighBtn").addEventListener("click", () => chooseJokerLevel("high"));
+  $("jokerLowBtn").addEventListener("click", () => chooseJokerLevel("low"));
+  function chooseJokerLevel(level) {
+    selectedJokerChoice = level;
+    const isLeading = latestRoom.currentTrick.length === 0;
+    if (!isLeading) {
+      socket.emit("joker:playCard", { roomId: currentRoomId, card: pendingJokerCard, jokerChoice: level });
+      $("jokerModal").classList.remove("show");
+      pendingJokerCard = null;
+    }
+    // if leading, the suit row is already visible — wait for suit tap
+  }
+  document.querySelectorAll(".jk-suit-choice").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (!pendingJokerCard || !selectedJokerChoice) { showToast("jჯერ აირჩიე მაღლა/დაბლა"); return; }
+      socket.emit("joker:playCard", { roomId: currentRoomId, card: pendingJokerCard, jokerChoice: selectedJokerChoice, declaredSuit: btn.dataset.suit });
+      $("jokerModal").classList.remove("show");
+      pendingJokerCard = null; selectedJokerChoice = null;
+    });
+  });
+
+  /* ── Bidding modal ───────────────────────────────────────────── */
+  function maybeShowBidModal(room, mySeat) {
+    if (room.phase !== "bidding" || room.turnSeat !== mySeat) { $("bidModal").classList.remove("show"); return; }
+    const isLast = room.bidTurnIdx === 3;
+    let priorSum = 0;
+    for (let i = 0; i < room.bidTurnIdx; i++) priorSum += room.bids[room.bidOrder[i]];
+    const forbidden = isLast ? (room.handSize - priorSum) : null;
+
+    $("bidSub").textContent = `ხელში გაქვს ${room.handSize} ბარათი`;
+
+    const trumpSlot = $("bidTrumpCardSlot");
+    trumpSlot.innerHTML = "";
+    if (room.trumpCard) {
+      $("bidTrumpWrap").style.display = "flex";
+      trumpSlot.appendChild(cardEl(room.trumpCard, "jk-trump-card-display"));
+    } else {
+      $("bidTrumpWrap").style.display = "none";
+    }
+
+    const grid = $("bidGrid");
+    grid.innerHTML = "";
+    for (let b = 0; b <= room.handSize; b++) {
+      const btn = document.createElement("button");
+      btn.className = "jk-bid-choice";
+      btn.textContent = b;
+      if (isLast && b === forbidden) btn.disabled = true;
+      btn.addEventListener("click", () => {
+        socket.emit("joker:bid", { roomId: currentRoomId, bid: b });
+        $("bidModal").classList.remove("show");
+      });
+      grid.appendChild(btn);
+    }
+    $("bidModal").classList.add("show");
+  }
+
+  /* ── Hand-end overlay ────────────────────────────────────────── */
+  function showHandEndOverlay(room) {
+    const s = room.lastHandSummary;
+    if (!s) return;
+    $("handEndSub").textContent = `ხელი ${s.handIndex + 1} · ${s.handSize} ბარათი`;
+    const body = $("handEndBody");
+    body.innerHTML = "";
+    room.players.forEach(p => {
+      const seat = p.seat;
+      const tr = document.createElement("tr");
+      const scoreClass = s.scores[seat] > 0 ? "pos" : (s.scores[seat] < 0 ? "neg" : "");
+      tr.innerHTML = `<td>${p.username}${s.khishtiHit[seat] ? '<span class="jk-khishti-tag">ხიშტი!</span>' : ""}</td><td>${s.bids[seat]}</td><td>${s.tricksWon[seat]}</td><td class="${scoreClass}">${s.scores[seat] > 0 ? "+" : ""}${s.scores[seat]}</td>`;
+      body.appendChild(tr);
+    });
+    if (s.setBonuses) {
+      room.players.forEach(p => {
+        if (s.setBonuses[p.seat] > 0) {
+          const tr = document.createElement("tr");
+          tr.className = "jk-set-bonus-row";
+          tr.innerHTML = `<td>${p.username} — სეტის ბონუსი</td><td colspan="2"></td><td class="pos">+${s.setBonuses[p.seat]}</td>`;
+          body.appendChild(tr);
+        }
+      });
+    }
+    $("handEndOverlay").classList.add("show");
+  }
+
+  /* ── Game-end overlay ────────────────────────────────────────── */
+  function showGameEndOverlay(room) {
+    const medals = ["🥇", "🥈", "🥉", "4"];
+    const podium = $("podium");
+    podium.innerHTML = "";
+    room.finalResult.rankings.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "jk-podium-row" + (r.place === 1 ? " first" : "");
+      row.innerHTML = `<div class="jk-podium-medal">${medals[r.place - 1]}</div><div class="jk-podium-name">${r.username}</div><div class="jk-podium-score">${r.total}</div>`;
+      podium.appendChild(row);
+    });
+    $("gameEndOverlay").classList.add("show");
+  }
+
+  /* ── Master render ───────────────────────────────────────────── */
+  function clearTimerInterval() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+
+  function renderGame(room) {
+    latestRoom = room;
+    const mySeat = room.mySeat;
+    const me = room.players.find(p => p.seat === mySeat);
+
+    $("handCounter").textContent = `${room.handIndex + 1}/24`;
+    const setNames = { 1: "სეტი 1 — ზრდადი", 2: "სეტი 2 — 9 ბარათი", 3: "სეტი 3 — კლებადი", 4: "სეტი 4 — 9 ბარათი" };
+    $("setLabel").textContent = setNames[room.setIdx] || "";
+    $("handSizeLabel").textContent = room.trumpCard ? `კოზირი: ${isJoker(room.trumpCard) ? "ჯოკერი" : rankLabel(room.trumpCard) + SUIT_GLYPH[room.trumpCard[1]]}` : "";
+    renderTrumpChip(room);
+    renderScoreboard(room, mySeat);
+
+    ["left", "top", "right"].forEach(rel => renderOpponent(room, mySeat, rel));
+    renderTrick(room, mySeat);
+
+    if (me) {
+      $("meAvatar").src = "/" + (me.avatar || "avatar1.png");
+      $("meName").textContent = me.username;
+      const bid = room.bids[mySeat];
+      $("meStats").innerHTML = `ბიდი: ${bid === null || bid === undefined ? "—" : bid} · აღებული: ${room.tricksWon[mySeat]} · ქულა: <span class="jk-total-num" id="meTotalNum">${room.totals[mySeat]}</span>`;
+      if (prevSnap && prevSnap.totals && prevSnap.totals[mySeat] !== room.totals[mySeat]) flashScoreEl($("meTotalNum"));
+      $("meBar").classList.toggle("acting", room.phase === "playing" && room.turnSeat === mySeat);
+    }
+
+    renderMyHand(room, mySeat);
+    maybeShowBidModal(room, mySeat);
+
+    clearTimerInterval();
+    if (room.actionDeadline && room.status === "playing") {
+      const tick = () => {
+        const msLeft = room.actionDeadline - Date.now();
+        const secs = Math.max(0, Math.ceil(msLeft / 1000));
+        $("meTimer").textContent = room.turnSeat === mySeat ? secs + "წმ" : "";
+        $("meTimer").classList.toggle("low", room.turnSeat === mySeat && secs <= 5);
+        if (msLeft <= 0) clearTimerInterval();
+      };
+      tick();
+      timerInterval = setInterval(tick, 1000);
+    } else {
+      $("meTimer").textContent = "";
+    }
+
+    if (room.phase === "handEnd") showHandEndOverlay(room);
+    else $("handEndOverlay").classList.remove("show");
+
+    if (room.finalResult) { showGameEndOverlay(room); $("handEndOverlay").classList.remove("show"); }
+    else $("gameEndOverlay").classList.remove("show");
+
+    prevSnap = { myHand: (room.myHand || []).slice(), trickSeats: (room.currentTrick || []).map(t => t.seat), totals: room.totals.slice(), handIndex: room.handIndex };
+  }
+
+  /* ── Navigation ──────────────────────────────────────────────── */
+  function flyToken(fromEl, toEl, contentEl, duration) {
+    if (!fromEl || !toEl) return;
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect = toEl.getBoundingClientRect();
+    const startX = fromRect.left + fromRect.width / 2, startY = fromRect.top + fromRect.height / 2;
+    const endX = toRect.left + toRect.width / 2, endY = toRect.top + toRect.height / 2;
+
+    const wrap = document.createElement("div");
+    wrap.className = "jk-flying-card";
+    wrap.style.left = startX + "px";
+    wrap.style.top = startY + "px";
+    wrap.style.transform = "translate(-50%, -50%) scale(1)";
+    wrap.appendChild(contentEl);
+    document.body.appendChild(wrap);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        wrap.style.transform = `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.4)`;
+        wrap.style.opacity = "0.1";
+      });
+    });
+    setTimeout(() => wrap.remove(), (duration || 550) + 80);
+  }
+
+  function avatarElFor(mySeat, seat) {
+    if (seat === mySeat) return $("meAvatar");
+    const rel = relativePosition(mySeat, seat);
+    const id = { left: "oppLeft", top: "oppTop", right: "oppRight" }[rel];
+    return id ? $(id).querySelector(".jk-opp-avatar") : null;
+  }
+
+  function flashScoreEl(el) {
+    if (!el) return;
+    el.classList.remove("jk-score-flash");
+    void el.offsetWidth;
+    el.classList.add("jk-score-flash");
+  }
+
+  function backToSetup() {
+    currentRoomId = null;
+    latestRoom = null;
+    prevSnap = null;
+    clearTimerInterval();
+    $("handEndOverlay").classList.remove("show");
+    $("gameEndOverlay").classList.remove("show");
+    $("bidModal").classList.remove("show");
+    $("jokerModal").classList.remove("show");
+    $("chatMessages").innerHTML = "";
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    chatHasUnread = false;
+    closeChat();
+    history.replaceState(null, "", "/joker.html");
+    showScreen("setup");
+    socket.emit("joker:listPublicRooms");
+  }
+  $("lobbyBackBtn").addEventListener("click", () => { socket.emit("joker:leave"); backToSetup(); });
+  $("lobbyLeaveBtn").addEventListener("click", () => { socket.emit("joker:leave"); backToSetup(); });
+  $("startGameBtn").addEventListener("click", () => { if (currentRoomId) socket.emit("joker:start", { roomId: currentRoomId }); });
+  $("gameBackBtn").addEventListener("click", () => { socket.emit("joker:leave"); backToSetup(); });
+  $("gameEndBackBtn").addEventListener("click", () => { socket.emit("joker:leave"); backToSetup(); });
+
+  /* ── Chat: panel open/close, sending, unread badge, speech bubbles ──── */
+  let chatOpen = false;
+  let chatHasUnread = false;
+
+  function openChat() {
+    chatOpen = true;
+    $("chatPanel").classList.add("show");
+    $("chatBackdrop").classList.add("show");
+    chatHasUnread = false;
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+    setTimeout(() => $("chatInput").focus(), 150);
+  }
+  function closeChat() {
+    chatOpen = false;
+    $("chatPanel").classList.remove("show");
+    $("chatBackdrop").classList.remove("show");
+  }
+  $("chatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("lobbyChatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("chatCloseBtn").addEventListener("click", closeChat);
+  $("chatBackdrop").addEventListener("click", closeChat);
+
+  function appendChatMessage(msg) {
+    const isMine = msg.username.toLowerCase() === myUsernameLower;
+    const row = document.createElement("div");
+    row.className = "jk-chat-msg " + (isMine ? "mine" : "other");
+    const author = document.createElement("div");
+    author.className = "jk-chat-author";
+    author.textContent = msg.username;
+    const body = document.createElement("div");
+    body.textContent = msg.text;
+    row.appendChild(author); row.appendChild(body);
+    $("chatMessages").appendChild(row);
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+
+    if (!chatOpen && !isMine) {
+      chatHasUnread = true;
+      $("chatUnreadDot").classList.add("show");
+      $("lobbyChatUnreadDot").classList.add("show");
+    }
+  }
+
+  function spawnSpeechBubble(msg) {
+    if (!latestRoom || latestRoom.mySeat === null || latestRoom.mySeat === undefined || msg.seat === null || msg.seat === undefined) return;
+    if (!screens.game.classList.contains("visible")) return;
+    const layer = $("bubbleLayer");
+    const mySeat = latestRoom.mySeat;
+    const isMine = msg.seat === mySeat;
+    const anchorEl = isMine ? $("meBar") : avatarElFor(mySeat, msg.seat);
+    if (!anchorEl) return;
+    const tableRect = $("table").getBoundingClientRect();
+    const anchorRect = anchorEl.getBoundingClientRect();
+
+    const bubble = document.createElement("div");
+    bubble.className = "jk-speech-bubble";
+    bubble.textContent = msg.text;
+    // Position relative to the table area, above the sender's avatar.
+    const left = (anchorRect.left + anchorRect.width / 2) - tableRect.left;
+    const top = isMine ? tableRect.height - 40 : (anchorRect.top - tableRect.top) + anchorRect.height + 10;
+    bubble.style.left = left + "px";
+    bubble.style.top = top + "px";
+    bubble.style.transform = "translate(-50%, 0)";
+    layer.appendChild(bubble);
+    setTimeout(() => bubble.remove(), 3700);
+  }
+
+  function sendChat() {
+    const val = $("chatInput").value.trim();
+    if (!val || !currentRoomId) return;
+    socket.emit("joker:chat", { roomId: currentRoomId, text: val });
+    $("chatInput").value = "";
+  }
+  $("chatSendBtn").addEventListener("click", sendChat);
+  $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+
+  /* ── Boot ────────────────────────────────────────────────────── */
+  function init() {
+    socket = io(); attachTempBanGuard(socket);
+    socket.on("connect", () => {
+      if (token) socket.emit("auth:token", { token });
+      else socket.emit("auth:guest", { preferredUsername: sessionStorage.getItem("gaicani_guest_username") || null });
+    });
+
+    socket.on("auth:authenticated", ({ username: authedName, isGuest } = {}) => {
+      if (isGuest && authedName) {
+        myUsernameLower = authedName.toLowerCase();
+        try { sessionStorage.setItem("gaicani_guest_username", authedName); } catch (_) {}
+      }
+      elLoading.classList.add("hidden");
+      socket.emit("users:listOnline");
+      socket.emit("joker:listPublicRooms");
+      if (currentRoomId) socket.emit("joker:join", { roomId: currentRoomId });
+      else showScreen("setup");
+    });
+    socket.on("auth:invalid", () => { window.location.href = "/"; });
+
+    socket.on("users:onlineList", ({ users }) => {
+      onlineUsers = (users || []).filter(u => u.username.toLowerCase() !== myUsernameLower);
+      renderOnlineFriends();
+    });
+    socket.on("users:onlineChanged", () => socket.emit("users:listOnline"));
+
+    socket.on("joker:publicRooms", renderPublicGames);
+
+    socket.on("joker:invited", ({ roomId, fromUsername }) => {
+      const bar = $("jkInviteBar");
+      bar.innerHTML = "";
+      const span = document.createElement("span");
+      span.textContent = `🃏 ${fromUsername}-მა მოგიწვია ჯოკერზე`;
+      const acceptBtn = document.createElement("button");
+      acceptBtn.className = "jk-invite-accept"; acceptBtn.textContent = "✅";
+      const declineBtn = document.createElement("button");
+      declineBtn.className = "jk-invite-decline"; declineBtn.textContent = "❌";
+      bar.appendChild(span); bar.appendChild(acceptBtn); bar.appendChild(declineBtn);
+      bar.classList.add("show");
+      acceptBtn.onclick = () => { bar.classList.remove("show"); socket.emit("joker:join", { roomId }); };
+      declineBtn.onclick = () => { bar.classList.remove("show"); socket.emit("joker:declineInvite", { roomId }); };
+    });
+    socket.on("joker:inviteSent", ({ invited, cooldown }) => {
+      if (invited && invited.length) showToast("მოწვევა გაეგზავნა: " + invited.join(", "));
+      if (cooldown && cooldown.length) showToast(cooldown.join(", ") + " ცოტა ხნის წინ უარი განაცხადა — სცადე მოგვიანებით.");
+    });
+    socket.on("joker:inviteDeclined", ({ username: who }) => showToast(`${who}-მ უარყო მოწვევა.`));
+
+    socket.on("joker:room", (room) => {
+      currentRoomId = room.roomId;
+      latestRoomState = room;
+      history.replaceState(null, "", "/joker.html?room=" + encodeURIComponent(room.roomId));
+      if (room.status === "lobby") { showScreen("lobby"); renderLobby(room); }
+      else { showScreen("game"); renderGame(room); }
+    });
+
+    socket.on("joker:error", ({ message }) => showToast(message));
+
+    socket.on("joker:chatMessage", (msg) => {
+      appendChatMessage(msg);
+      spawnSpeechBubble(msg);
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

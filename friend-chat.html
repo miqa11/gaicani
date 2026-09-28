@@ -1,0 +1,2308 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+  <title>GAICANI – პირადი ჩატი</title>
+  <meta name="theme-color" content="#1e1f22" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    button, a, [role="button"] { touch-action: manipulation; }
+
+    :root {
+      --bg:        #17181d;
+      --surface:   #26272e;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #5865f2;
+      --accent-lt: #8b93ff;
+      --text:      #e4e5ea;
+      --muted:     #7d81a0;
+      --bubble-me: linear-gradient(135deg, #5865f2 0%, #7c5cf2 100%);
+      --bubble-me-text: #fff;
+      --bubble-them: #2b2d36;
+      --bubble-them-text: #e4e5ea;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top: env(safe-area-inset-top, 0px);
+    }
+
+    html, body {
+      height: 100%; height: 100dvh;
+      height: var(--app-height, 100dvh);
+      background: radial-gradient(circle at 50% 0%, #22232c 0%, #17181d 55%);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden;
+      -webkit-text-size-adjust: 100%;
+      overscroll-behavior: contain;
+    }
+
+    /* ── LAYOUT ── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%; height: 100dvh;
+      height: var(--app-height, 100dvh);
+    }
+
+    /* ── HEADER ── */
+    .fc-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      padding-left: max(14px, env(safe-area-inset-left));
+      padding-right: max(14px, env(safe-area-inset-right));
+      padding-top: env(safe-area-inset-top);
+      min-height: 58px;
+      background: linear-gradient(180deg, rgba(38,39,46,0.98) 0%, rgba(30,31,37,0.98) 100%);
+      -webkit-backdrop-filter: blur(16px) saturate(1.3);
+      backdrop-filter: blur(16px) saturate(1.3);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      z-index: 10;
+      box-shadow: 0 2px 14px rgba(0,0,0,0.3);
+    }
+
+    .fc-back {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      border: none;
+      color: var(--text);
+      font-size: 1.1em;
+      cursor: pointer;
+      transition: background 0.15s;
+      flex-shrink: 0;
+      text-decoration: none;
+    }
+    .fc-back:hover { background: rgba(255,255,255,0.12); }
+
+    .fc-avatar {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-lt));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1em; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+      overflow: hidden;
+      box-shadow: 0 0 0 2px rgba(88,101,242,0.25), 0 2px 8px rgba(88,101,242,0.3);
+    }
+    .fc-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    .fc-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .fc-name-row {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .fc-name {
+      font-size: 0.97em;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex-shrink: 1;
+    }
+    .fc-sub {
+      font-size: 0.72em;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .fc-streak {
+      display: none;
+      align-items: center;
+      gap: 3px;
+      margin-left: 6px;
+      font-size: 0.85em;
+      font-weight: 700;
+      color: #ffb347;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .fc-streak.show { display: inline-flex; }
+    .fc-streak.at-risk { color: #f23f42; }
+
+    .fc-expiry-badge {
+      font-size: 0.68em;
+      color: var(--muted);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 10px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    /* ── MESSAGES AREA ── */
+    #fc-messages {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 16px 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Date separator — hidden */
+    .fc-date-sep { display: none; }
+
+    /* Message row */
+    .fc-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      width: 100%;
+      justify-content: flex-start;
+      box-sizing: border-box;
+    }
+    .fc-row.me {
+      justify-content: flex-end;
+    }
+
+    .fc-row-avatar, .fc-row-spacer { display: none; }
+
+    .fc-bubble-wrap {
+      display: flex;
+      flex-direction: column;
+      max-width: min(72%, 480px);
+      gap: 2px;
+    }
+    .fc-row.me .fc-bubble-wrap {
+      align-items: flex-end;
+    }
+
+    .fc-bubble {
+      padding: 10px 14px;
+      border-radius: 19px;
+      font-size: 0.9em;
+      line-height: 1.5;
+      word-break: break-word;
+      white-space: pre-wrap;
+      position: relative;
+      animation: fcBubbleIn 0.18s cubic-bezier(.2,.8,.4,1) both;
+    }
+    @keyframes fcBubbleIn {
+      from { opacity: 0; transform: translateY(6px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    /* Them bubble */
+    .fc-row:not(.me) .fc-bubble {
+      background: var(--bubble-them);
+      color: var(--bubble-them-text);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+    /* Me bubble */
+    .fc-row.me .fc-bubble {
+      background: var(--bubble-me);
+      color: var(--bubble-me-text);
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 3px 10px rgba(88,101,242,0.35);
+    }
+
+    /* Consecutive bubble rounding */
+    .fc-row.consec:not(.me) .fc-bubble { border-top-left-radius: 4px; }
+    .fc-row.consec.me .fc-bubble { border-top-right-radius: 4px; }
+
+    .fc-meta {
+      font-size: 0.66em;
+      color: var(--muted);
+      padding: 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .fc-row.me .fc-meta { justify-content: flex-end; }
+
+    .fc-expiry-hint {
+      font-size: 0.6em;
+      color: #faa61a;
+      opacity: 0.7;
+    }
+
+    .fc-meta-action-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1em;
+      line-height: 1;
+      padding: 2px 3px;
+      cursor: pointer;
+      opacity: 0.55;
+      transition: opacity 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .fc-meta-action-btn:hover  { opacity: 1; color: var(--accent-lt); }
+    .fc-meta-action-btn:active { transform: scale(0.9); }
+
+    /* ── TYPING INDICATOR ── */
+    /* Rendered as a real .fc-row/.fc-bubble in #fc-messages (see showTyping()),
+       so it's pixel-identical to a real incoming message. Only the dots
+       themselves need their own styles. */
+    .typing-dots {
+      display: flex;
+      gap: 3px;
+    }
+    .typing-dots span {
+      width: 5px; height: 5px;
+      background: var(--muted);
+      border-radius: 50%;
+      animation: tdot 1.2s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes tdot {
+      0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    /* ── INPUT BAR ── */
+    #fc-input-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 10px 12px;
+      padding-left: max(12px, env(safe-area-inset-left));
+      padding-right: max(12px, env(safe-area-inset-right));
+      padding-bottom: calc(10px + var(--safe-bottom));
+      background: linear-gradient(180deg, rgba(38,39,46,0.98) 0%, rgba(30,31,37,0.98) 100%);
+      -webkit-backdrop-filter: blur(16px) saturate(1.3);
+      backdrop-filter: blur(16px) saturate(1.3);
+      border-top: 1px solid var(--border);
+    }
+
+    #fc-input {
+      flex: 1;
+      min-height: 40px;
+      max-height: 120px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 22px;
+      padding: 10px 16px;
+      font-size: 0.9em;
+      color: var(--text);
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      line-height: 1.4;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      overflow-y: hidden;
+    }
+    #fc-input::placeholder { color: var(--muted); }
+    #fc-input:focus { border-color: rgba(88,101,242,0.6); box-shadow: 0 0 0 3px rgba(88,101,242,0.15); }
+
+    #fc-send {
+      position: relative;
+      flex-shrink: 0;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-lt) 100%);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 1.1em;
+      box-shadow: 0 2px 10px rgba(88,101,242,0.4);
+      transition: box-shadow 0.15s, transform 0.1s;
+      align-self: flex-end;
+    }
+    #fc-send:hover { box-shadow: 0 3px 14px rgba(88,101,242,0.55); }
+    #fc-send:active { transform: scale(0.93); }
+
+    #fc-send:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+
+    /* ── EMPTY STATE ── */
+    #fc-empty {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.9em;
+      text-align: center;
+      padding: 24px;
+    }
+    #fc-empty .fc-empty-icon { font-size: 2.8em; margin-bottom: 4px; }
+    #fc-empty.visible { display: flex; }
+
+    /* ── LOADING ── */
+    #fc-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 14px;
+      color: var(--muted);
+      font-size: 0.88em;
+    }
+    .fc-spinner {
+      width: 32px; height: 32px;
+      border: 3px solid rgba(88,101,242,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #fc-loading.hidden { display: none; }
+
+    /* ── AUTH REQUIRED ── */
+    #fc-auth-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 14px;
+      color: var(--muted);
+      text-align: center;
+      padding: 24px;
+    }
+    #fc-auth-screen.visible { display: flex; }
+    #fc-auth-screen a {
+      color: var(--accent-lt);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    /* ── TOAST ── */
+    #fc-toast {
+      position: fixed;
+      bottom: calc(80px + var(--safe-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface);
+      border: 1px solid rgba(88,101,242,0.4);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 9px 18px;
+      font-size: 0.85em;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+      max-width: min(90vw, 340px);
+      text-align: center;
+    }
+    #fc-toast.show { opacity: 1; }
+
+    .dg-invite-bar {
+      position: fixed; left: 12px; right: 12px; bottom: calc(12px + var(--safe-bottom)); z-index: 998;
+      background: var(--surface); border: 1px solid var(--accent); border-radius: 12px;
+      padding: 12px 14px; display: none; flex-direction: column; gap: 8px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+    }
+    .dg-invite-bar.show { display: flex; }
+    .dg-invite-bar-row { display: flex; align-items: center; gap: 10px; }
+    .dg-invite-bar span { flex: 1; font-size: 0.86em; }
+    .dg-invite-bar button { border: none; border-radius: 8px; padding: 7px 12px; font-weight: 700; font-size: 0.85em; cursor: pointer; }
+    .dg-invite-accept { background: var(--good, #3ba55d); color: #fff; }
+    .dg-invite-decline { background: var(--surface-2, #2f3037); color: var(--text); }
+    .dg-invite-dnd {
+      background: none; border: none; color: var(--muted); font-size: 0.74em;
+      text-decoration: underline; cursor: pointer; padding: 0; text-align: left;
+    }
+    .dg-invite-dnd:hover { color: var(--text); }
+
+    /* ── Scrollbar ── */
+    #fc-messages::-webkit-scrollbar { width: 4px; }
+    #fc-messages::-webkit-scrollbar-track { background: transparent; }
+    #fc-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+    /* ── Extra input bar buttons (gif/game) ── */
+    .fc-extra-btn {
+      flex-shrink: 0;
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1em;
+      color: var(--text);
+      transition: background 0.15s, transform 0.1s;
+      align-self: flex-end;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .fc-extra-btn:hover  { background: rgba(255,255,255,0.16); }
+    .fc-extra-btn:active { transform: scale(0.9); }
+
+    /* ── GIF messages ── */
+    .fc-gif-img {
+      max-width: 220px;
+      border-radius: 12px;
+      display: block;
+    }
+
+    /* ── Photo reveal (received photos only — sender always sees their own
+       clearly, since they already know what they sent) ── */
+    .fc-photo-wrap { position: relative; display: inline-block; cursor: pointer; }
+    .fc-photo-wrap .fc-gif-img.blurred {
+      filter: blur(22px);
+      transform: scale(1.03); /* hides the sharp edge blur() leaves at the image border */
+      transition: filter 0.25s ease;
+    }
+    .fc-photo-reveal-hint {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 4px;
+      color: #fff; font-size: 0.8em; font-weight: 700;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      pointer-events: none; /* the wrapper itself handles the tap */
+    }
+    .fc-photo-reveal-hint .icon { font-size: 1.7em; }
+
+    /* ── GIF Picker ── */
+    #fc-gif-picker {
+      position: fixed;
+      bottom: -100%;
+      left: 0; right: 0;
+      background: #1a1b1e;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px 18px 0 0;
+      padding: 12px;
+      z-index: 200;
+      transition: bottom 0.25s cubic-bezier(.4,0,.2,1);
+      max-height: 55vh;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #fc-gif-picker.open { bottom: 0; }
+    #fc-gif-search {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 8px 14px;
+      color: var(--text);
+      font-size: 0.88em;
+      outline: none;
+      width: 100%;
+    }
+    #fc-gif-search::placeholder { color: var(--muted); }
+    #fc-gif-results {
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .fc-gif-item {
+      width: 100%;
+      border-radius: 8px;
+      cursor: pointer;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+    }
+    .fc-gif-item:hover { opacity: 0.8; }
+    .gif-placeholder {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85em;
+      padding: 24px 0;
+    }
+
+    /* ── Reply preview bar (above input) ── */
+    #fc-reply-preview {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 14px;
+      background: rgba(88,101,242,0.08);
+      border-top: 1px solid var(--border);
+    }
+    #fc-reply-preview.visible { display: flex; }
+    .fc-reply-preview-inner { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+    .fc-reply-preview-label { color: var(--accent-lt); font-size: 1em; flex-shrink: 0; }
+    .fc-reply-preview-body { display: flex; flex-direction: column; min-width: 0; }
+    #fc-reply-preview-name { font-size: 0.78em; font-weight: 700; color: var(--accent-lt); }
+    #fc-reply-preview-text {
+      font-size: 0.78em; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+    }
+    #fc-reply-preview-close {
+      background: none; border: none; color: var(--muted);
+      font-size: 0.95em; cursor: pointer; padding: 4px 6px; flex-shrink: 0;
+    }
+    #fc-reply-preview-close:hover { color: #fff; }
+
+    /* ── Char counter ── */
+    .fc-char-count {
+      font-size: 0.68em;
+      color: var(--muted);
+      flex-shrink: 0;
+      align-self: flex-end;
+      margin-bottom: 10px;
+      min-width: 30px;
+      text-align: right;
+    }
+    .fc-char-count.warning { color: #f23f42; }
+
+    /* ── Reply quote (rendered inside a bubble) ── */
+    .fc-reply-quote {
+      font-size: 0.78em;
+      padding: 5px 9px;
+      border-radius: 9px;
+      margin-bottom: 4px;
+      background: rgba(0,0,0,0.18);
+      border-left: 3px solid var(--accent-lt);
+      max-width: 100%;
+      overflow: hidden;
+    }
+    .fc-row.me .fc-reply-quote { border-left-color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.12); }
+    .fc-reply-quote-name { display: block; font-weight: 700; color: var(--accent-lt); }
+    .fc-row.me .fc-reply-quote-name { color: rgba(255,255,255,0.85); }
+    .fc-reply-quote-text {
+      display: block; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .fc-row.me .fc-reply-quote-text { color: rgba(255,255,255,0.7); }
+
+    /* ── Reply / react action buttons — inline in the meta row ── */
+    .fc-msg-actions { display: none; } /* removed — buttons now live inside .fc-meta */
+    .fc-action-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      font-size: 0.8em;
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s, transform 0.1s;
+      flex-shrink: 0;
+      padding: 0;
+      line-height: 1;
+    }
+    .fc-bubble-wrap:hover .fc-action-btn { opacity: 0.7; }
+    .fc-action-btn:hover { opacity: 1 !important; background: rgba(255,255,255,0.12); transform: scale(1.15); }
+
+    /* ── Reaction pills ── */
+    .fc-reaction-area { display: flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; }
+    .fc-row.me .fc-reaction-area { justify-content: flex-end; }
+    .fc-reaction-pill {
+      font-size: 0.78em;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1px 7px;
+      display: inline-flex;
+    }
+    .fc-reaction-mine {
+      border-color: var(--accent-lt);
+      background: rgba(88,101,242,0.12);
+    }
+    @keyframes fcReactionPop { 0% { transform: scale(0.4); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+    .fc-reaction-pop { animation: fcReactionPop 0.25s ease; }
+
+    /* ── Reaction emoji picker popup ── */
+    .fc-reaction-picker {
+      position: fixed;
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 8px;
+      z-index: 500;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+      opacity: 0;
+      transform: scale(0.9);
+      transition: opacity 0.12s, transform 0.12s;
+    }
+    .fc-reaction-emoji-btn {
+      background: none; border: none; font-size: 1.2em; cursor: pointer; padding: 2px 4px;
+      transition: transform 0.1s;
+    }
+    .fc-reaction-emoji-btn:hover { transform: scale(1.25); }
+
+    /* ── Seen / read receipt ── */
+    .fc-seen { font-size: 0.62em; color: var(--muted); margin-top: 1px; align-self: flex-end; }
+    .fc-row.me .fc-seen.is-seen { color: var(--accent-lt); }
+
+    /* ── Random question card ── */
+    .fc-question-card {
+      align-self: center;
+      max-width: 82%;
+      margin: 6px auto;
+      background: rgba(88,101,242,0.1);
+      border: 1px solid rgba(88,101,242,0.3);
+      border-radius: 14px;
+      padding: 10px 14px;
+      text-align: center;
+    }
+    .fc-question-card-label { font-size: 0.72em; color: var(--accent-lt); font-weight: 700; margin-bottom: 4px; }
+    .fc-question-card-text { font-size: 0.92em; color: var(--text); }
+    .fc-question-card-ts { font-size: 0.62em; color: var(--muted); margin-top: 5px; }
+
+    /* ── Chat background (wallpaper) picker ─────────────────────────── */
+    .fc-theme-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(255,255,255,0.06); border: none; color: var(--text);
+      font-size: 1.05em; cursor: pointer; flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .fc-theme-btn:hover { background: rgba(255,255,255,0.12); }
+
+    #fc-messages.fc-bg-transition { transition: background 0.35s ease; }
+
+    .fc-theme-backdrop {
+      position: fixed; inset: 0; z-index: 570; background: rgba(0,0,0,0.45);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .fc-theme-backdrop.show { opacity: 1; pointer-events: auto; }
+    .fc-theme-sheet {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 571;
+      background: var(--surface); border-radius: 18px 18px 0 0; border-top: 1px solid var(--border);
+      max-width: 460px; margin: 0 auto;
+      padding: 6px 18px calc(20px + var(--safe-bottom));
+      transform: translateY(105%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1);
+    }
+    .fc-theme-sheet.show { transform: translateY(0); }
+    .fc-theme-sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.18); margin: 10px auto 14px; }
+    .fc-theme-sheet-title { font-weight: 700; font-size: 1em; margin-bottom: 4px; }
+    .fc-theme-sheet-sub { font-size: 0.78em; color: var(--muted); margin-bottom: 16px; }
+    .fc-quick-reaction-row { display: flex; gap: 10px; }
+    .fc-quick-reaction-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 1.6em; padding: 10px 0; border-radius: 14px; cursor: pointer;
+      background: var(--surface-2); border: 2px solid transparent; transition: transform 0.12s, border-color 0.15s;
+    }
+    .fc-quick-reaction-btn:active { transform: scale(0.92); }
+    .fc-quick-reaction-btn.selected { border-color: var(--accent-lt); background: rgba(88,101,242,0.15); }
+    .fc-theme-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    .fc-theme-swatch {
+      aspect-ratio: 1; border-radius: 16px; cursor: pointer; position: relative;
+      border: 2px solid transparent; overflow: hidden;
+      display: flex; align-items: flex-end; justify-content: center;
+      transition: transform 0.12s, border-color 0.15s;
+    }
+    .fc-theme-swatch:active { transform: scale(0.94); }
+    .fc-theme-swatch.selected { border-color: var(--accent-lt); }
+    .fc-theme-swatch.selected::after {
+      content: "✓"; position: absolute; top: 6px; right: 6px;
+      width: 18px; height: 18px; border-radius: 50%; background: var(--accent-lt);
+      color: #17181d; font-size: 0.7em; font-weight: 900;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .fc-theme-swatch-label {
+      width: 100%; font-size: 0.66em; font-weight: 700; text-align: center;
+      color: rgba(255,255,255,0.92); background: rgba(0,0,0,0.28); padding: 4px 2px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    /* ── Double-tap heart burst on a message ─────────────────────────── */
+    .fc-heart-burst {
+      position: absolute; left: 50%; top: 50%; font-size: 2.4em;
+      transform: translate(-50%, -50%) scale(0.3); opacity: 0;
+      pointer-events: none; z-index: 5;
+      animation: fcHeartBurst 0.7s cubic-bezier(0.2,0.9,0.3,1.3) forwards;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+    }
+    @keyframes fcHeartBurst {
+      0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+      35%  { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+      60%  { transform: translate(-50%, -50%) scale(0.95); opacity: 1; }
+      100% { transform: translate(-50%, -60%) scale(0.9); opacity: 0; }
+    }
+
+    /* ── Quick-heart button in the input bar (shown when input is empty,
+       Instagram-style — swaps in for the send button) ── */
+    .fc-heart-send {
+      position: relative; flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+      background: transparent; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3em; align-self: flex-end; transition: transform 0.1s;
+    }
+    .fc-heart-send:active { transform: scale(0.85); }
+
+    /* ── Responsive: small phones ── */
+    @media (max-width: 480px) {
+      .fc-expiry-badge { display: none; }
+      .fc-bubble-wrap { max-width: 82%; }
+    }
+    @media (max-width: 360px) {
+      .fc-header { height: 52px; gap: 8px; padding: 0 10px; }
+      .fc-avatar { width: 34px; height: 34px; }
+      .fc-name { font-size: 0.9em; }
+      #fc-messages { padding: 12px 8px 6px; }
+      .fc-bubble { padding: 8px 12px; font-size: 0.87em; }
+      #fc-input-bar { padding: 8px 8px; gap: 6px; }
+      .fc-extra-btn, #fc-send { width: 36px; height: 36px; }
+    }
+
+    /* iOS zooms the page in if a focused input's font-size is under 16px —
+       force 16px on touch-sized screens so tapping the input never zooms. */
+    @media (max-width: 600px) {
+      #fc-input { font-size: 16px; }
+    }
+
+    /* ── Responsive: tablets / desktop — frame the chat instead of letting
+       it stretch edge-to-edge and look sparse on wide screens ── */
+    /* ── "New message" floating indicator — only appears when you've
+       scrolled up to read history and a new message arrives without
+       yanking your scroll position ── */
+    .fc-new-msg-pill {
+      position: fixed; left: 50%; bottom: calc(72px + var(--safe-bottom)); transform: translateX(-50%) translateY(20px);
+      background: var(--accent); color: #fff; border: none; border-radius: 20px;
+      padding: 9px 16px; font-size: 0.84em; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; z-index: 200;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .fc-new-msg-pill.show { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+
+    @media (min-width: 700px) {
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0e0f13;
+      }
+      #app {
+        width: 100%;
+        max-width: 560px;
+        height: 92vh;
+        height: 92dvh;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+    }
+
+    /* ── Tap-to-preview profile card — a small "mini profile page" for
+       whoever you're chatting with: picture, name, online status, bio ── */
+    .profile-card-backdrop {
+      position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.18s ease;
+      padding: 20px;
+    }
+    .profile-card-backdrop.show { opacity: 1; pointer-events: auto; }
+    .profile-card-modal {
+      background: var(--surface); border-radius: 16px; width: 100%; max-width: 340px;
+      padding: 24px 20px 20px; text-align: center; position: relative;
+      transform: scale(0.92) translateY(8px); transition: transform 0.18s ease;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .profile-card-backdrop.show .profile-card-modal { transform: scale(1) translateY(0); }
+    .profile-card-close {
+      position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+      border-radius: 50%; border: none; background: rgba(255,255,255,0.08);
+      color: var(--muted); font-size: 1em; cursor: pointer;
+    }
+    .profile-card-avatar {
+      width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 12px;
+      background: var(--bg); display: flex; align-items: center; justify-content: center;
+      font-size: 2em; font-weight: 700; color: var(--muted); overflow: hidden;
+      border: 3px solid var(--border);
+    }
+    .profile-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-card-name { font-size: 1.15em; font-weight: 800; color: #fff; margin-bottom: 6px; }
+    .pro-star { font-size: 0.82em; filter: drop-shadow(0 0 3px rgba(242,201,76,0.6)); }
+    .profile-card-status {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 0.82em;
+      font-weight: 600; padding: 4px 12px; border-radius: 20px; margin-bottom: 14px;
+    }
+    .profile-card-status.online { background: rgba(59,165,93,0.16); color: #3ba55d; }
+    .profile-card-status.offline { background: rgba(255,255,255,0.06); color: var(--muted); }
+    .profile-card-status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .profile-card-bio {
+      background: var(--bg); border-radius: 10px; padding: 12px 14px;
+      color: var(--text); font-size: 0.88em; line-height: 1.5; text-align: left;
+      margin-bottom: 4px; word-break: break-word;
+    }
+    .profile-card-bio.empty { color: var(--muted); font-style: italic; text-align: center; }
+    .profile-card-loading { color: var(--muted); font-size: 0.9em; padding: 20px 0; }
+  
+    /* ── iOS input zoom fix ──────────────────────────────────────────────
+       Safari on iPhone zooms the page in when an input under 16px gets
+       focus, and leaves you zoomed. Scoped to touch devices so desktop
+       sizing is unchanged. */
+    @media (pointer: coarse) {
+      #fc-input {
+        font-size: 16px;
+      }
+    }
+  
+    /* ── Touch target size ────────────────────────────────────────────────
+       These close/back buttons are 22-34px, below the ~44px minimum that's
+       comfortable to hit with a thumb. Rather than making them visually
+       bigger (which would change the design), an invisible centred ::after
+       extends only the TAPPABLE area to 44x44. Touch devices only.
+       Deliberately limited to isolated buttons — the same trick on things
+       like the colour swatches or vote arrows would overlap neighbouring
+       hit areas and cause mis-taps.                                     */
+    @media (pointer: coarse) {
+      .profile-card-close::after {
+        content: ""; position: absolute;
+        top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 44px; height: 44px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header class="fc-header">
+    <a href="/dashboard.html" class="fc-back" id="fcBack" title="დაბრუნება">←</a>
+    <div class="fc-avatar" id="fcAvatar">?</div>
+    <div class="fc-info" id="fcInfoTapTarget" style="cursor:pointer;">
+      <div class="fc-name-row">
+        <div class="fc-name" id="fcName">...</div>
+        <span class="fc-streak" id="fcStreak"></span>
+      </div>
+      <div class="fc-sub" id="fcSub">პირადი ჩატი</div>
+    </div>
+    <button class="fc-theme-btn" id="fcThemeBtn" title="პარამეტრები — ფონი და რეაქცია">🎨</button>
+    <div class="fc-expiry-badge">🕐 30 სთ ჩაშლა</div>
+  </header>
+
+  <!-- Chat background picker -->
+  <div id="fcThemeBackdrop" class="fc-theme-backdrop"></div>
+  <div id="fcThemeSheet" class="fc-theme-sheet">
+    <div class="fc-theme-sheet-handle"></div>
+
+    <div class="fc-theme-sheet-title">სწრაფი რეაქცია</div>
+    <div class="fc-theme-sheet-sub">რომელი ემოჯი გაიგზავნოს ორჯერ შეხებაზე — მხოლოდ შენთვის</div>
+    <div class="fc-quick-reaction-row" id="fcQuickReactionRow"></div>
+
+    <div class="fc-theme-sheet-title" style="margin-top:18px;">ჩატის ფონი</div>
+    <div class="fc-theme-sheet-sub">აირჩიე ფონი ამ საუბრისთვის — ორივესთვის იცვლება</div>
+    <div class="fc-theme-grid" id="fcThemeGrid"></div>
+  </div>
+
+  <!-- AUTH REQUIRED -->
+  <div id="fc-auth-screen">
+    <div style="font-size:2em">🔒</div>
+    <div>გთხოვთ შეხვიდეთ სისტემაში</div>
+    <a href="/">მთავარ გვერდზე</a>
+  </div>
+
+  <!-- LOADING -->
+  <div id="fc-loading">
+    <div class="fc-spinner"></div>
+    <span>იტვირთება...</span>
+  </div>
+
+  <!-- MESSAGES -->
+  <div id="fc-messages" style="display:none"></div>
+  <button id="fcNewMsgPill" class="fc-new-msg-pill">↓ ახალი შეტყობინება</button>
+
+  <!-- EMPTY STATE (shown when no messages) -->
+  <div id="fc-empty">
+    <div class="fc-empty-icon">💬</div>
+    <div>დაიწყეთ საუბარი</div>
+    <small style="color:var(--muted);font-size:0.8em">შეტყობინებები ავტომატურად წაიშლება 30 საათში</small>
+  </div>
+
+  <!-- REPLY PREVIEW -->
+  <div id="fc-reply-preview">
+    <div class="fc-reply-preview-inner">
+      <span class="fc-reply-preview-label">↩</span>
+      <div class="fc-reply-preview-body">
+        <span id="fc-reply-preview-name"></span>
+        <span id="fc-reply-preview-text"></span>
+      </div>
+    </div>
+    <button id="fc-reply-preview-close" title="გაუქმება">✕</button>
+  </div>
+
+  <!-- INPUT BAR -->
+  <div id="fc-input-bar" style="display:none">
+    <button class="fc-extra-btn" id="fc-gif-btn" title="GIF">GIF</button>
+    <button class="fc-extra-btn" id="fc-question-btn" title="შემთხვევითი კითხვა">?</button>
+    <!-- Pro-only. Stays hidden (display:none) until JS confirms isPro, so
+         non-pro users — the vast majority — see no extra clutter in an
+         already-tight row. -->
+    <button class="fc-extra-btn" id="fc-photo-btn" title="ფოტოს გაგზავნა" style="display:none">📷</button>
+    <input type="file" id="fc-photo-input" accept="image/*" style="display:none" />
+    <textarea id="fc-input" placeholder="შეტყობინება..." rows="1" maxlength="2000"></textarea>
+    <span id="fc-char-count" class="fc-char-count"></span>
+    <button class="fc-heart-send" id="fc-heart-send" title="გულის გაგზავნა — დააჭირე გასაგრძელებლად ემოჯის შესაცვლელად">🤍</button>
+    <button id="fc-send" title="გაგზავნა" style="display:none">➤</button>
+  </div>
+
+  <!-- GIF PICKER -->
+  <div id="fc-gif-picker">
+    <input id="fc-gif-search" placeholder="GIF-ის ძებნა..." type="text" autocomplete="off">
+    <div id="fc-gif-results"></div>
+  </div>
+
+</div>
+
+<!-- Tap-to-preview profile card — kept OUTSIDE #app on purpose: #app gets
+     overflow:hidden + a constrained size on desktop (the "phone frame"
+     look), which would clip or otherwise interfere with this fixed
+     full-viewport overlay if it were nested inside. -->
+<div id="profileCardBackdrop" class="profile-card-backdrop">
+  <div class="profile-card-modal">
+    <button class="profile-card-close" id="profileCardCloseBtn">✕</button>
+    <div id="profileCardBody"><div class="profile-card-loading">იტვირთება...</div></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="fc-toast"></div>
+<div id="dgInviteBar" class="dg-invite-bar"></div>
+
+<script src="/ban-notice.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  // Keep --app-height in sync with the real visible viewport, so the
+  // on-screen keyboard never leaves a dead gap between the last message
+  // and the input bar (safety net for browsers/WebViews that ignore
+  // interactive-widget=resizes-content).
+  (function () {
+    function setAppHeight() {
+      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    }
+    setAppHeight();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", setAppHeight);
+      window.visualViewport.addEventListener("scroll", setAppHeight);
+    }
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", function () {
+      setTimeout(setAppHeight, 200);
+    });
+  })();
+</script>
+<script>
+(function () {
+  "use strict";
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g,
+      c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+  }
+  function $(id) { return document.getElementById(id); }
+
+  /* ── "Do not disturb" during chat — a device-local preference. Once on,
+     game invites stop popping up over private chat conversations (and,
+     separately, over random chat too — see script.js). Turned back on
+     from the dashboard's settings. ── */
+  const DND_CHAT_INVITES_KEY = "gaicani_dnd_chat_invites";
+  function isChatInviteDndOn() {
+    try { return localStorage.getItem(DND_CHAT_INVITES_KEY) === "1"; } catch (_) { return false; }
+  }
+  function enableChatInviteDnd() {
+    try { localStorage.setItem(DND_CHAT_INVITES_KEY, "1"); } catch (_) {}
+    const bar = $("dgInviteBar");
+    if (bar) { bar.classList.remove("show"); bar.innerHTML = ""; }
+    showToast("🔕 ჩატის დროს შეტყობინებები გამორთულია — ჩართვა შესაძლებელია ჩემი გვერდიდან");
+  }
+  // Renders an invite bar (icon + pre-escaped message HTML + accept/decline)
+  // plus a small opt-out link. Shows nothing and returns false if DND is on
+  // — callers should just skip acting on the invite entirely in that case.
+  function renderChatInviteBar({ icon, messageHtml, onAccept, onDecline }) {
+    if (isChatInviteDndOn()) return false;
+    const bar = $("dgInviteBar");
+    bar.innerHTML = `
+      <div class="dg-invite-bar-row">
+        <span>${icon} ${messageHtml}</span>
+        <button class="dg-invite-accept">✅</button>
+        <button class="dg-invite-decline">❌</button>
+      </div>
+      <button class="dg-invite-dnd">🔕 თუ გსურთ აღარ მოგივიდეთ ჩატის დროს შეტყობინება დააჭირეთ ღილაკს</button>`;
+    bar.classList.add("show");
+    bar.querySelector(".dg-invite-accept").onclick = () => { bar.classList.remove("show"); onAccept(); };
+    bar.querySelector(".dg-invite-decline").onclick = () => { bar.classList.remove("show"); onDecline(); };
+    bar.querySelector(".dg-invite-dnd").onclick = enableChatInviteDnd;
+    return true;
+  }
+
+  /* ── Tap-to-preview profile card — see who you're chatting with: their
+     picture, name, whether they're online right now, and their bio. ── */
+  async function openProfileCard(username) {
+    const backdrop = $("profileCardBackdrop");
+    const body = $("profileCardBody");
+    body.innerHTML = '<div class="profile-card-loading">იტვირთება...</div>';
+    backdrop.classList.add("show");
+
+    try {
+      const r = await fetch(`/api/users/profile?username=${encodeURIComponent(username)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!r.ok) throw new Error("not found");
+      const d = await r.json();
+
+      const avatarHtml = d.avatar
+        ? `<img src="/${esc(d.avatar)}" alt="avatar" />`
+        : esc(d.username).charAt(0).toUpperCase();
+      const statusHtml = d.isOnline
+        ? '<div class="profile-card-status online"><span class="profile-card-status-dot"></span>ონლაინ</div>'
+        : '<div class="profile-card-status offline"><span class="profile-card-status-dot"></span>ოფლაინ</div>';
+      const bioHtml = d.bio
+        ? `<div class="profile-card-bio">${esc(d.bio)}</div>`
+        : '<div class="profile-card-bio empty">ბიოგრაფია ჯერ არ დაუწერია</div>';
+
+      body.innerHTML = `
+        <div class="profile-card-avatar">${avatarHtml}</div>
+        <div class="profile-card-name">${esc(d.username)}${d.isPro ? ' <span class="pro-star" title="Pro">⭐</span>' : ""}</div>
+        ${statusHtml}
+        ${bioHtml}`;
+    } catch (_) {
+      body.innerHTML = '<div class="profile-card-loading">პროფილის ჩატვირთვა ვერ მოხერხდა</div>';
+    }
+  }
+  function closeProfileCard() { $("profileCardBackdrop").classList.remove("show"); }
+  $("profileCardCloseBtn").addEventListener("click", closeProfileCard);
+  $("profileCardBackdrop").addEventListener("click", (e) => {
+    if (e.target.id === "profileCardBackdrop") closeProfileCard();
+  });
+  $("fcAvatar").addEventListener("click", () => openProfileCard(friendName));
+  $("fcInfoTapTarget").addEventListener("click", () => openProfileCard(friendName));
+
+  function showToast(msg, ms = 3000) {
+    const t = $("fc-toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), ms);
+  }
+
+  /* ── Auth from localStorage ──────────────────────────────────── */
+  function loadAuth() {
+    try {
+      return {
+        token:    localStorage.getItem("gaicani_auth_token"),
+        username: localStorage.getItem("gaicani_auth_user")
+      };
+    } catch (_) { return {}; }
+  }
+
+  /* ── Parse ?friend= from URL ─────────────────────────────────── */
+  function getFriendParam() {
+    const u = new URLSearchParams(window.location.search);
+    return (u.get("friend") || "").trim();
+  }
+
+  /* ── Format timestamp ────────────────────────────────────────── */
+  function fmtTime(ts) {
+    const d = ts ? new Date(ts) : new Date();
+    const h = d.getHours(), m = d.getMinutes();
+    const ap = h >= 12 ? "PM" : "AM";
+    return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ap}`;
+  }
+  function fmtDate(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString("ka-GE", { month: "long", day: "numeric" });
+  }
+
+  /* ── Streak badge ─────────────────────────────────────────────── */
+  function updateStreakBadge({ count, atRisk }) {
+    const el = $("fcStreak");
+    if (!el) return;
+    if (!count) { el.classList.remove("show", "at-risk"); el.textContent = ""; return; }
+    el.textContent = `🔥${count}`;
+    el.classList.add("show");
+    el.classList.toggle("at-risk", !!atRisk);
+    el.title = atRisk ? "დღეს მოწერე, თორემ სერია ჩაქრება!" : "სერიის დღეები";
+  }
+
+  /* ── Expiry hint ─────────────────────────────────────────────── */
+  function expiryHint(ts) {
+    const hoursLeft = Math.ceil((new Date(ts) - Date.now()) / 3600000);
+    if (hoursLeft <= 1) return "• <1 სთ";
+    if (hoursLeft <= 3) return `• ${hoursLeft} სთ`;
+    return "";
+  }
+
+  /* ── Main ────────────────────────────────────────────────────── */
+  const { token, username } = loadAuth();
+  const friendName = getFriendParam();
+  let myIsPro = false; // set from the auth:authenticated payload once connected
+  const revealedPhotoIds = new Set(); // photos tapped-to-reveal this session
+
+  const elLoading   = $("fc-loading");
+  const elMessages  = $("fc-messages");
+  const elEmpty     = $("fc-empty");
+  const elInputBar  = $("fc-input-bar");
+  const elInput     = $("fc-input");
+  const elSend      = $("fc-send");
+  const elAuth      = $("fc-auth-screen");
+
+  /* If not logged in or no friend param → auth screen */
+  if (!token || !username) {
+    elLoading.classList.add("hidden");
+    elAuth.classList.add("visible");
+    // Update title
+    document.title = "GAICANI – შესვლა საჭიროა";
+    return;
+  }
+
+  if (!friendName) {
+    window.location.href = "/dashboard.html";
+    return;
+  }
+
+  /* Setup header */
+  $("fcAvatar").textContent = friendName.charAt(0).toUpperCase();
+  $("fcName").textContent   = friendName;
+  document.title = `${friendName} – GAICANI`;
+
+  // Load the friend's real profile picture (falls back to the letter above on failure)
+  fetch("/api/users/avatars", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usernames: [friendName] }),
+  })
+    .then(r => r.json())
+    .then(d => {
+      const file = d?.avatars?.[friendName.toLowerCase()];
+      if (file) $("fcAvatar").innerHTML = `<img src="/${file}" alt="avatar" />`;
+    })
+    .catch(() => {});
+
+  /* ── Chat background (wallpaper) picker ─────────────────────────
+     Shared between both people in the conversation — when either person
+     picks a background, the other sees it change too, the same way a
+     shared chat theme works elsewhere. Synced through the server (see
+     friendChat:setTheme / friendChat:themeChanged) and persisted on the
+     conversation itself, so re-opening the chat later still shows
+     whatever was last chosen. */
+  const FC_THEMES = [
+    { id: "default", label: "სტანდარტული", css: "radial-gradient(circle at 50% 0%, #22232c 0%, #17181d 55%)" },
+    { id: "midnight", label: "შუაღამე", css: "linear-gradient(160deg, #1b1035 0%, #0d0e1a 70%)" },
+    { id: "sunset", label: "მზის ჩასვლა", css: "linear-gradient(160deg, #3a1740 0%, #642a3a 45%, #24121c 100%)" },
+    { id: "ocean", label: "ოკეანე", css: "linear-gradient(160deg, #0d2b3a 0%, #123a4a 45%, #0a1620 100%)" },
+    { id: "rose", label: "ვარდისფერი", css: "linear-gradient(160deg, #3a1024 0%, #591d33 45%, #180a12 100%)" },
+    { id: "forest", label: "ტყე", css: "linear-gradient(160deg, #0f2818 0%, #163a20 45%, #0a140d 100%)" },
+    { id: "charcoal", label: "ნახშირი", css: "#1a1b1f" },
+    { id: "amber", label: "ქარვისფერი", css: "linear-gradient(160deg, #3a2408 0%, #4a3013 45%, #1a1006 100%)" },
+    { id: "aurora", label: "ავრორა", css: "linear-gradient(150deg, #0d2b2a 0%, #1a2f4a 40%, #2a1a4a 75%, #120a20 100%)" },
+  ];
+  let currentThemeId = "default";
+  function fcApplyTheme(themeId) {
+    currentThemeId = themeId;
+    const theme = FC_THEMES.find(t => t.id === themeId) || FC_THEMES[0];
+    elMessages.classList.add("fc-bg-transition");
+    elMessages.style.background = theme.css;
+  }
+  function fcRenderThemeGrid() {
+    const grid = $("fcThemeGrid");
+    grid.innerHTML = "";
+    FC_THEMES.forEach(theme => {
+      const swatch = document.createElement("div");
+      swatch.className = "fc-theme-swatch" + (theme.id === currentThemeId ? " selected" : "");
+      swatch.style.background = theme.css;
+      const label = document.createElement("div");
+      label.className = "fc-theme-swatch-label";
+      label.textContent = theme.label;
+      swatch.appendChild(label);
+      swatch.addEventListener("click", () => {
+        fcApplyTheme(theme.id); // apply immediately — no need to wait on the round-trip
+        if (socket?.connected) socket.emit("friendChat:setTheme", { toUsername: friendName, themeId: theme.id });
+        grid.querySelectorAll(".fc-theme-swatch").forEach(s => s.classList.remove("selected"));
+        swatch.classList.add("selected");
+        setTimeout(closeFCThemeSheet, 220);
+      });
+      grid.appendChild(swatch);
+    });
+  }
+  function fcRenderQuickReactionRow() {
+    const row = $("fcQuickReactionRow");
+    row.innerHTML = "";
+    QUICK_REACTION_OPTIONS.forEach(emoji => {
+      const btn = document.createElement("div");
+      btn.className = "fc-quick-reaction-btn" + (emoji === quickReactionEmoji ? " selected" : "");
+      btn.textContent = emoji;
+      btn.addEventListener("click", () => {
+        setQuickReactionEmoji(emoji);
+        row.querySelectorAll(".fc-quick-reaction-btn").forEach(b => b.classList.remove("selected"));
+        btn.classList.add("selected");
+      });
+      row.appendChild(btn);
+    });
+  }
+  function openFCThemeSheet() {
+    fcRenderThemeGrid();
+    fcRenderQuickReactionRow();
+    $("fcThemeSheet").classList.add("show");
+    $("fcThemeBackdrop").classList.add("show");
+  }
+  function closeFCThemeSheet() {
+    $("fcThemeSheet").classList.remove("show");
+    $("fcThemeBackdrop").classList.remove("show");
+  }
+  $("fcThemeBtn").addEventListener("click", openFCThemeSheet);
+  $("fcThemeBackdrop").addEventListener("click", closeFCThemeSheet);
+  fcApplyTheme("default"); // shown immediately on load, before the history fetch (which carries the real, synced value) resolves
+
+  /* ── Message state ───────────────────────────────────────────── */
+  let messages   = [];   // { id, from, text, ts, replyTo, reactions }
+  let myUsername = username;
+  let typingTimer = null;
+  let isTyping    = false;
+  let socket      = null;
+  let unreadCount = 0;
+  const originalTitle = document.title;
+
+  /* ── Reply state ─────────────────────────────────────────────── */
+  let fcReplyTo  = null; // { text, senderName, messageId }
+  let fcMsgSeq   = 0;
+  function fcGenId() { return `fc_${myUsername}_${Date.now()}_${++fcMsgSeq}`; }
+
+  const REACTION_EMOJIS = ["❤️","😂","😢"];
+  let activeReactionPicker = null;
+
+  /* ── Unread tab badge ────────────────────────────────────────── */
+  function incUnread() {
+    if (document.hidden) {
+      unreadCount++;
+      document.title = `(${unreadCount}) ${originalTitle}`;
+    }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      unreadCount = 0;
+      document.title = originalTitle;
+    }
+  });
+
+  /* ── Build a question card element ───────────────────────────── */
+  function buildQuestionCard(msg) {
+    const isMe = !msg.from || msg.from.toLowerCase() !== friendName.toLowerCase();
+    const card = document.createElement("div");
+    card.className = "fc-question-card";
+    if (msg.id) card.dataset.msgid = msg.id;
+
+    const label = document.createElement("div");
+    label.className = "fc-question-card-label";
+    label.textContent = isMe ? "❓ შენ გამოგზავნე კითხვა" : `❓ ${friendName} გიგზავნის კითხვას`;
+
+    const text = document.createElement("div");
+    text.className = "fc-question-card-text";
+    text.textContent = msg.text;
+
+    const ts = document.createElement("div");
+    ts.className = "fc-question-card-ts";
+    ts.textContent = fmtTime(msg.ts);
+
+    card.appendChild(label);
+    card.appendChild(text);
+    card.appendChild(ts);
+    return card;
+  }
+
+  /* ── Build a single chat row (text / gif) ─────────────── */
+  function buildRow(msg, consec) {
+    // Anchor on friendName (URL param) — more reliable than comparing against
+    // myUsername which may have case mismatches with server's stored lowercase.
+    const isMe = !msg.from || msg.from.toLowerCase() !== friendName.toLowerCase();
+    const isMedia = msg.type === "gif" || msg.type === "photo";
+
+    const row = document.createElement("div");
+    row.className = "fc-row" + (isMe ? " me" : "") + (consec ? " consec" : "");
+    row.dataset.from = msg.from;
+    if (msg.id) row.dataset.msgid = msg.id;
+
+    /* Avatar (or invisible spacer to keep alignment for consecutive messages) */
+    let avatarEl;
+    if (!consec) {
+      avatarEl = document.createElement("div");
+      avatarEl.className = "fc-row-avatar";
+      avatarEl.textContent = msg.from.charAt(0).toUpperCase();
+    } else {
+      avatarEl = document.createElement("div");
+      avatarEl.className = "fc-row-spacer";
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "fc-bubble-wrap";
+
+    const bubble = document.createElement("div");
+    bubble.className = "fc-bubble";
+    if (msg.id) attachFCDoubleTapHeart(bubble, msg.id);
+
+    /* Reply quote (text messages only) */
+    if (!isMedia && msg.replyTo && msg.replyTo.text) {
+      const quote = document.createElement("div");
+      quote.className = "fc-reply-quote";
+      if (msg.replyTo.senderName) {
+        const qn = document.createElement("span");
+        qn.className = "fc-reply-quote-name";
+        qn.textContent = msg.replyTo.senderName;
+        quote.appendChild(qn);
+      }
+      const qt = document.createElement("span");
+      qt.className = "fc-reply-quote-text";
+      const raw = msg.replyTo.text;
+      qt.textContent = raw.length > 80 ? raw.slice(0, 80) + "…" : raw;
+      quote.appendChild(qt);
+      bubble.appendChild(quote);
+    }
+
+    if (msg.type === "gif") {
+      const img = document.createElement("img");
+      img.src = msg.url;
+      img.className = "fc-gif-img";
+      bubble.appendChild(img);
+    } else if (msg.type === "photo") {
+      const img = document.createElement("img");
+      img.src = msg.photoUrl;
+      img.className = "fc-gif-img";
+      img.loading = "lazy";
+
+      // Only photos RECEIVED from the other person start blurred — the
+      // sender already knows what they sent, no need to hide it from them.
+      // Once tapped, a photo stays revealed for the rest of this page
+      // session (revealedPhotoIds), but defaults back to blurred on reload —
+      // a deliberately cautious default rather than persisting it anywhere.
+      const shouldBlur = !isMe && msg.id && !revealedPhotoIds.has(msg.id);
+      if (shouldBlur) {
+        img.classList.add("blurred");
+        const wrap = document.createElement("div");
+        wrap.className = "fc-photo-wrap";
+        const hint = document.createElement("div");
+        hint.className = "fc-photo-reveal-hint";
+        const icon = document.createElement("div");
+        icon.className = "icon";
+        icon.textContent = "👁";
+        const label = document.createElement("div");
+        label.textContent = "შეხე სანახავად";
+        hint.appendChild(icon);
+        hint.appendChild(label);
+        wrap.appendChild(img);
+        wrap.appendChild(hint);
+        wrap.addEventListener("click", (e) => {
+          e.stopPropagation(); // don't also trigger the bubble's double-tap-heart handler
+          img.classList.remove("blurred");
+          hint.remove();
+          if (msg.id) revealedPhotoIds.add(msg.id);
+        });
+        bubble.appendChild(wrap);
+      } else {
+        bubble.appendChild(img);
+      }
+    } else {
+      const textSpan = document.createElement("span");
+      textSpan.textContent = msg.text; // auto-escapes
+      bubble.appendChild(textSpan);
+    }
+
+    wrap.appendChild(bubble);
+
+    const meta = document.createElement("div");
+    meta.className = "fc-meta";
+    meta.textContent = fmtTime(msg.ts);
+    if (msg.expiresAt) {
+      const hint = expiryHint(msg.expiresAt);
+      if (hint) {
+        const sp = document.createElement("span");
+        sp.className = "fc-expiry-hint";
+        sp.textContent = hint;
+        meta.appendChild(sp);
+      }
+    }
+
+    // Reply + react trigger buttons — inline in the meta row (see .fc-msg-actions
+    // CSS comment). These call the already-implemented setFCReplyTo() /
+    // showFCReactionPicker() functions, which previously had no UI hook.
+    if (msg.id) {
+      const replyBtn = document.createElement("button");
+      replyBtn.className = "fc-meta-action-btn";
+      replyBtn.title = "პასუხი";
+      replyBtn.textContent = "↩";
+      replyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        let previewText;
+        if (msg.type === "gif")   previewText = "GIF";
+        else                       previewText = msg.text || "";
+        setFCReplyTo({
+          text:       previewText,
+          senderName: isMe ? myUsername : msg.from,
+          messageId:  msg.id,
+        });
+      });
+      meta.appendChild(replyBtn);
+
+      const reactBtn = document.createElement("button");
+      reactBtn.className = "fc-meta-action-btn";
+      reactBtn.title = "რეაქცია";
+      reactBtn.textContent = "🙂";
+      reactBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showFCReactionPicker(reactBtn, msg.id);
+      });
+      meta.appendChild(reactBtn);
+    }
+
+    wrap.appendChild(meta);
+
+    const reactionArea = document.createElement("div");
+    reactionArea.className = "fc-reaction-area";
+    wrap.appendChild(reactionArea);
+    if (msg.reactions) {
+      Object.entries(msg.reactions).forEach(([who, emoji]) => {
+        displayFCReaction(msg.id, emoji, who.toLowerCase() !== myUsername.toLowerCase(), reactionArea);
+      });
+    }
+
+    /* (seen indicator removed) */
+
+    /* Explicit left-to-right DOM order — no flex-direction tricks.
+       Friend (left-aligned): avatar, bubble
+       Me     (right-aligned): bubble, avatar               */
+    if (isMe) {
+      row.appendChild(wrap);
+      row.appendChild(avatarEl);
+    } else {
+      row.appendChild(avatarEl);
+      row.appendChild(wrap);
+    }
+
+    return row;
+  }
+
+  /* ── Render all messages (initial load) ───────────────────────── */
+  function renderMessages() {
+    elMessages.innerHTML = "";
+    if (!messages.length) {
+      elEmpty.classList.add("visible");
+      return;
+    }
+    elEmpty.classList.remove("visible");
+
+    let lastDate = null;
+    let lastFrom = null;
+
+    messages.forEach((msg) => {
+      const msgDate = fmtDate(msg.ts);
+
+      if (msgDate !== lastDate) {
+        lastDate = msgDate;
+        lastFrom = null;
+        const sep = document.createElement("div");
+        sep.className = "fc-date-sep";
+        sep.textContent = msgDate;
+        elMessages.appendChild(sep);
+      }
+
+      if (msg.type === "question") {
+        lastFrom = null;
+        elMessages.appendChild(buildQuestionCard(msg));
+        return;
+      }
+
+      const consec = lastFrom !== null && lastFrom.toLowerCase() === msg.from.toLowerCase();
+      lastFrom = msg.from;
+      elMessages.appendChild(buildRow(msg, consec));
+    });
+
+    scrollToBottom();
+  }
+
+  function scrollToBottom(smooth) {
+    requestAnimationFrame(() => {
+      if (smooth) elMessages.scrollTo({ top: elMessages.scrollHeight, behavior: "smooth" });
+      else elMessages.scrollTop = elMessages.scrollHeight;
+    });
+  }
+  function isNearBottom(threshold = 120) {
+    return elMessages.scrollHeight - elMessages.scrollTop - elMessages.clientHeight < threshold;
+  }
+  function showNewMsgPill() { $("fcNewMsgPill").classList.add("show"); }
+  function hideNewMsgPill() { $("fcNewMsgPill").classList.remove("show"); }
+  $("fcNewMsgPill").addEventListener("click", () => { scrollToBottom(true); hideNewMsgPill(); });
+  elMessages.addEventListener("scroll", () => { if (isNearBottom(40)) hideNewMsgPill(); }, { passive: true });
+
+  /* ── Append a single message (real-time) ─────────────────────── */
+  function appendMessage(msg) {
+    if (!msg.id) msg.id = fcGenId();
+    const wasNearBottom = isNearBottom();
+    const isMine = msg.from?.toLowerCase() === myUsername.toLowerCase();
+    messages.push(msg);
+    elEmpty.classList.remove("visible");
+
+    if (msg.type === "question") {
+      elMessages.appendChild(buildQuestionCard(msg));
+    } else {
+      const lastRow = elMessages.lastElementChild;
+      const lastFrom = lastRow?.dataset?.from;
+      const consec = lastFrom != null && lastFrom.toLowerCase() === msg.from?.toLowerCase();
+      elMessages.appendChild(buildRow(msg, consec));
+    }
+
+    // I just sent this myself, or I was already basically at the bottom
+    // reading live — either way, follow it down smoothly. But if I've
+    // scrolled up to read older messages and my friend sends something new,
+    // don't yank my scroll position out from under me — just let them know
+    // there's something new to see, waiting whenever they're ready for it.
+    if (isMine || wasNearBottom) {
+      scrollToBottom(true);
+      hideNewMsgPill();
+    } else {
+      showNewMsgPill();
+    }
+    return msg.id;
+  }
+
+  /* ── Reply preview bar ────────────────────────────────────────── */
+  function setFCReplyTo({ text, senderName, messageId }) {
+    fcReplyTo = { text, senderName, messageId };
+    $("fc-reply-preview-name").textContent = senderName || "";
+    $("fc-reply-preview-text").textContent = text.length > 80 ? text.slice(0, 80) + "…" : text;
+    $("fc-reply-preview").classList.add("visible");
+    elInput.focus();
+  }
+  function clearFCReplyTo() {
+    fcReplyTo = null;
+    $("fc-reply-preview").classList.remove("visible");
+  }
+  $("fc-reply-preview-close").addEventListener("click", () => clearFCReplyTo());
+
+  /* ── Reactions ────────────────────────────────────────────────── */
+  function showFCReactionPicker(anchorEl, messageId) {
+    closeFCReactionPicker();
+    const picker = document.createElement("div");
+    picker.className = "fc-reaction-picker";
+    REACTION_EMOJIS.forEach(emoji => {
+      const btn = document.createElement("button");
+      btn.className = "fc-reaction-emoji-btn";
+      btn.textContent = emoji;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        reactToFCMessage(messageId, emoji);
+        closeFCReactionPicker();
+      });
+      picker.appendChild(btn);
+    });
+    document.body.appendChild(picker);
+    activeReactionPicker = picker;
+    requestAnimationFrame(() => {
+      const rect = anchorEl.getBoundingClientRect();
+      const pw = picker.offsetWidth, ph = picker.offsetHeight;
+      let left = rect.left, top = rect.top - ph - 8;
+      if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+      if (top < 4) top = rect.bottom + 8;
+      picker.style.cssText += `left:${left}px;top:${top}px;opacity:1;transform:scale(1)`;
+    });
+  }
+  function closeFCReactionPicker() {
+    activeReactionPicker?.remove();
+    activeReactionPicker = null;
+  }
+  document.addEventListener("click", () => closeFCReactionPicker());
+
+  function reactToFCMessage(messageId, emoji) {
+    if (!socket?.connected) return;
+    socket.emit("friendChat:react", { toUsername: friendName, messageId, emoji });
+    const m = messages.find(mm => mm.id === messageId);
+    if (m) { m.reactions = m.reactions || {}; m.reactions[myUsername.toLowerCase()] = emoji; }
+    const row = elMessages.querySelector(`[data-msgid="${messageId}"]`);
+    const area = row?.querySelector(".fc-reaction-area");
+    if (area) displayFCReaction(messageId, emoji, true, area);
+  }
+
+  /* Which emoji your own double-tap gesture sends — a personal preference,
+     not shared with the other person (only the background is shared). */
+  const QUICK_REACTION_OPTIONS = ["❤️", "😂", "😢"];
+  function quickReactionStorageKey() { return "gaicani_quick_reaction_emoji"; }
+  function loadQuickReactionEmoji() {
+    try {
+      const saved = localStorage.getItem(quickReactionStorageKey());
+      return QUICK_REACTION_OPTIONS.includes(saved) ? saved : "❤️";
+    } catch (_) { return "❤️"; }
+  }
+  let quickReactionEmoji = loadQuickReactionEmoji();
+  // The compose-bar button's icon always matches what it will actually
+  // send/react with — so picking 😂 as your quick reaction means the button
+  // itself shows 😂, not a heart that doesn't match its own behavior.
+  function updateHeartButtonIcon() {
+    const btn = $("fc-heart-send");
+    if (btn) btn.textContent = quickReactionEmoji;
+  }
+  function setQuickReactionEmoji(emoji) {
+    if (!QUICK_REACTION_OPTIONS.includes(emoji)) return;
+    quickReactionEmoji = emoji;
+    updateHeartButtonIcon();
+    try { localStorage.setItem(quickReactionStorageKey(), emoji); } catch (_) { /* private-mode storage may reject writes — just won't persist across sessions */ }
+  }
+  updateHeartButtonIcon(); // reflect a previously-saved preference immediately on load, not just after changing it
+
+  /* Instagram-style double-tap-to-react. Reuses the same reaction pipeline
+     as the picker button — this is just a faster gesture for whichever
+     emoji the person has picked as their quick reaction (❤️ by default),
+     with a burst animation for feedback. */
+  function attachFCDoubleTapHeart(bubbleEl, messageId) {
+    let lastTapAt = 0;
+    function trigger(e) {
+      const now = Date.now();
+      if (now - lastTapAt < 350) {
+        reactToFCMessage(messageId, quickReactionEmoji);
+        spawnFCHeartBurst(bubbleEl, quickReactionEmoji);
+        lastTapAt = 0; // avoid a rapid triple-tap re-triggering immediately
+      } else {
+        lastTapAt = now;
+      }
+    }
+    bubbleEl.addEventListener("click", trigger);
+  }
+  function spawnFCHeartBurst(bubbleEl, emoji) {
+    const heart = document.createElement("div");
+    heart.className = "fc-heart-burst";
+    heart.textContent = emoji || quickReactionEmoji;
+    bubbleEl.appendChild(heart);
+    setTimeout(() => heart.remove(), 720);
+  }
+
+  function displayFCReaction(messageId, emoji, isMine, area) {
+    if (!area) {
+      const row = elMessages.querySelector(`[data-msgid="${messageId}"]`);
+      area = row?.querySelector(".fc-reaction-area");
+    }
+    if (!area) return;
+    const cls = isMine ? "fc-reaction-mine" : "fc-reaction-theirs";
+    let pill = area.querySelector(`.${cls}`);
+    if (pill) {
+      pill.classList.remove("fc-reaction-pop");
+      void pill.offsetWidth;
+      pill.textContent = emoji;
+      pill.classList.add("fc-reaction-pop");
+    } else {
+      pill = document.createElement("span");
+      pill.className = `fc-reaction-pill ${cls} fc-reaction-pop`;
+      pill.textContent = emoji;
+      area.appendChild(pill);
+    }
+  }
+
+  /* ── Seen / read receipts ────────────────────────────────────── */
+  function markFCSeen(messageId) {
+    if (!socket?.connected || !messageId) return;
+    socket.emit("friendChat:seen", { toUsername: friendName, messageId });
+  }
+  function showFCSeen(messageId) {
+    const m = messages.find(mm => mm.id === messageId);
+    if (m) m.seen = true;
+    const row = elMessages.querySelector(`[data-msgid="${messageId}"]`);
+    const seenEl = row?.querySelector(".fc-seen");
+    if (seenEl) { seenEl.textContent = "✓✓"; seenEl.classList.add("is-seen"); }
+  }
+
+  /* ── Typing indicator (inline chat bubble) ──────────────────────
+     Built as a real .fc-row/.fc-bubble and appended to #fc-messages,
+     so it looks identical to a real incoming message and sits right
+     where the friend's next message will land. hideTyping() removes
+     it outright — the four "hideTyping(); appendMessage(...)" call
+     sites below then drop the real message into that same spot. */
+  function showTyping() {
+    if ($("fcLiveTyping")) { scrollToBottom(); return; } // already showing
+    const row = document.createElement("div");
+    row.className = "fc-row";
+    row.id = "fcLiveTyping";
+
+    const wrap = document.createElement("div");
+    wrap.className = "fc-bubble-wrap";
+
+    const bubble = document.createElement("div");
+    bubble.className = "fc-bubble";
+    bubble.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+
+    wrap.appendChild(bubble);
+    row.appendChild(wrap);
+    elMessages.appendChild(row);
+    scrollToBottom();
+  }
+  function hideTyping() {
+    const row = $("fcLiveTyping");
+    if (row) row.remove();
+  }
+
+  /* ── Send message ────────────────────────────────────────────── */
+  function sendMessage(opts) {
+    const focusAfter = !opts || opts.focusAfter !== false;
+    const text = elInput.value.trim();
+    if (!text || !socket?.connected) return;
+
+    elInput.value = "";
+    elInput.style.height = "auto";
+    isTyping = false;
+
+    const msgId = fcGenId();
+    const currentReply = fcReplyTo ? { ...fcReplyTo } : null;
+
+    socket.emit("privateMsg:send", {
+      toUsername: friendName,
+      message: text,
+      messageId: msgId,
+      replyTo: currentReply
+    });
+
+    /* Optimistic local append */
+    appendMessage({ id: msgId, from: myUsername, text, ts: new Date().toISOString(), replyTo: currentReply });
+
+    clearFCReplyTo();
+    updateFCCharCount();
+    updateFCSendButtonMode();
+    // Only re-focus (and pop the keyboard back up) when the send was a real
+    // typed message — the quick-heart button isn't "start typing", so it
+    // must never pull focus onto the input.
+    if (focusAfter) elInput.focus();
+  }
+
+  /* ── Load history ────────────────────────────────────────────── */
+  async function loadHistory() {
+    try {
+      const r = await fetch(
+        `/api/priv/history?username=${encodeURIComponent(myUsername)}&friend=${encodeURIComponent(friendName)}`,
+        { headers: { "Authorization": `Bearer ${token}` } }
+      );
+      if (!r.ok) throw new Error("not ok");
+      const d = await r.json();
+      messages = (d.messages || []).map(m => ({
+        id:        m.messageId || fcGenId(),
+        from:      m.from,
+        text:      m.text,
+        type:      m.type || "text",
+        photoUrl:  m.photoUrl || null,
+        ts:        m.ts,
+        replyTo:   m.replyTo || null,
+        reactions: m.reactions || null,
+        expiresAt: m.expiresAt || null
+      }));
+      fcApplyTheme(d.theme || "default"); // the shared, synced background this conversation has (or the default if nobody's set one yet)
+    } catch (_) {
+      messages = [];
+    }
+  }
+
+  /* ── Verify auth & friendship, then connect ──────────────────── */
+  async function init() {
+    /* 1. Verify token */
+    let verifiedUser = null;
+    try {
+      const r = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token })
+      });
+      const d = await r.json();
+      if (!d.success && !d.ok) throw new Error("auth fail");
+      verifiedUser = d;
+
+      /* 2. Check friendship */
+      const friends = (d.friends || []).map(f => f.toLowerCase());
+      if (!friends.includes(friendName.toLowerCase())) {
+        /* Not friends — redirect home */
+        showToast("⚠️ ეს მომხმარებელი შენი მეგობარი არ არის");
+        setTimeout(() => { window.location.href = "/dashboard.html"; }, 1500);
+        return;
+      }
+    } catch (_) {
+      elLoading.classList.add("hidden");
+      elAuth.classList.add("visible");
+      return;
+    }
+
+    /* 3. Load chat history */
+    await loadHistory();
+
+    /* 4. Show UI */
+    elLoading.classList.add("hidden");
+    elMessages.style.display = "flex";
+    elMessages.style.flexDirection = "column";
+    elInputBar.style.display = "flex";
+    renderMessages();
+
+    /* 5. Connect socket */
+    socket = io({
+      transports: ["websocket", "polling"],
+    });
+    attachTempBanGuard(socket);
+
+
+    socket.on("friendChat:gif", ({ fromUsername, url, timestamp }) => {
+      if (!fromUsername || fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
+      hideTyping();
+      appendMessage({ from: fromUsername, type: "gif", url, ts: timestamp });
+      incUnread();
+    });
+
+    socket.on("connect", () => {
+      socket.emit("auth:login", { token });
+    });
+
+    /* Authenticated → join friend-chat room */
+    socket.on("auth:authenticated", (d) => {
+      myIsPro = !!(d && d.isPro);
+      window.gaicaniAuthUser = Object.assign(window.gaicaniAuthUser || {}, {
+        isPro: myIsPro,
+        adFreeUntil: Number(d && d.adFreeUntil) || 0, // 24h ad-free earned in Flappy Bird
+      });
+      refreshPhotoBtnVisibility();
+      socket.emit("friendChat:join", { friendUsername: friendName });
+    });
+
+    // Pro status changed while this session is live (admin granted/revoked
+    // it just now) — update immediately rather than waiting for a reconnect.
+    // Earned 24h ad-free in Flappy Bird (possibly in another tab).
+    socket.on("ads:adFreeUntil", ({ adFreeUntil }) => {
+      window.gaicaniAuthUser = Object.assign(window.gaicaniAuthUser || {}, { adFreeUntil: Number(adFreeUntil) || 0 });
+    });
+
+    socket.on("auth:proStatusChanged", ({ isPro }) => {
+      myIsPro = !!isPro;
+      window.gaicaniAuthUser = Object.assign(window.gaicaniAuthUser || {}, { isPro: myIsPro });
+      refreshPhotoBtnVisibility();
+    });
+
+    /* Incoming message for THIS friend conversation */
+    socket.on("privateMsg:received", ({ fromUsername, message, timestamp, type, url, photoUrl, messageId, replyTo }) => {
+      /* Only process messages from our specific friend */
+      if (fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
+      hideTyping();
+      if (type === "gif") {
+        appendMessage({ from: fromUsername, type: "gif", url, ts: timestamp });
+      } else if (type === "photo") {
+        appendMessage({ id: messageId, from: fromUsername, type: "photo", photoUrl, ts: timestamp });
+      } else {
+        const newId = appendMessage({ id: messageId, from: fromUsername, text: message, ts: timestamp, replyTo: replyTo || null });
+        if (!document.hidden) markFCSeen(newId);
+      }
+      incUnread();
+    });
+
+    // Response to sending a photo — mirrors the text privateMsg:sent pattern.
+    socket.on("privateMsg:photoSent", ({ success, error, messageId } = {}) => {
+      if (success === false) showToast("⚠️ " + (error || "ფოტო ვერ გაიგზავნა"));
+    });
+
+    /* Message sent confirmation — normally a no-op (already optimistically
+       appended), but if it failed (e.g. a block on either side), let the
+       sender know without revealing why, since server-side this is
+       deliberately vague to avoid confirming a block exists. */
+    socket.on("privateMsg:sent", ({ success } = {}) => {
+      if (success === false) showToast("⚠️ შეტყობინება ვერ გაიგზავნა");
+    });
+
+    /* Friend reacted to one of our messages */
+    socket.on("friendChat:reacted", ({ fromUsername, messageId, emoji }) => {
+      if (fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
+      const m = messages.find(mm => mm.id === messageId);
+      if (m) { m.reactions = m.reactions || {}; m.reactions[fromUsername.toLowerCase()] = emoji; }
+      displayFCReaction(messageId, emoji, false);
+    });
+
+    /* Either person changed the shared chat background — apply it here too,
+       whether it was the other person or an echo of our own change from
+       another open tab/device. */
+    socket.on("friendChat:themeChanged", ({ themeId }) => {
+      fcApplyTheme(themeId);
+    });
+
+    /* Friend has seen one of our messages */
+    socket.on("friendChat:partnerSeen", ({ messageId }) => {
+      showFCSeen(messageId);
+    });
+
+    /* Friend sent a random question card */
+    socket.on("friendChat:question", ({ fromUsername, text }) => {
+      if (fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
+      hideTyping();
+      appendMessage({ from: fromUsername, type: "question", text, ts: new Date().toISOString() });
+      incUnread();
+    });
+
+    /* Typing indicator from friend */
+    socket.on("friendChat:partnerTyping", ({ fromUsername }) => {
+      if (fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
+      showTyping();
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(hideTyping, 3000);
+    });
+
+    /* Streak flame — pushed on join (initial value) and after every send/receive */
+    socket.on("streak:update", ({ friendUsername, count, atRisk }) => {
+      if (!friendUsername || friendUsername.toLowerCase() !== friendName.toLowerCase()) return;
+      updateStreakBadge({ count, atRisk });
+    });
+
+    /* Invited to a Draw & Guess room while chatting */
+    socket.on("drawGuess:invited", ({ roomId, fromUsername }) => {
+      renderChatInviteBar({
+        icon: "🎨", messageHtml: `<strong>${esc(fromUsername)}</strong>-მა მოგიწვია თამაშში`,
+        onAccept: () => { window.location.href = "/draw-guess.html?room=" + encodeURIComponent(roomId); },
+        onDecline: () => socket.emit("drawGuess:declineInvite", { roomId }),
+      });
+    });
+
+    /* Invited to a Poker table while chatting */
+    socket.on("poker:invited", ({ roomId, fromUsername }) => {
+      renderChatInviteBar({
+        icon: "🃏", messageHtml: `<strong>${esc(fromUsername)}</strong>-მა მოგიწვია პოკერზე`,
+        onAccept: () => { window.location.href = "/poker.html?room=" + encodeURIComponent(roomId); },
+        onDecline: () => socket.emit("poker:declineInvite", { roomId }),
+      });
+    });
+
+    /* Invited to a Chess game while chatting */
+    socket.on("chess:invited", ({ roomId, fromUsername }) => {
+      renderChatInviteBar({
+        icon: "♟️", messageHtml: `<strong>${esc(fromUsername)}</strong>-მა მოგიწვია ჭადრაკზე`,
+        onAccept: () => { window.location.href = "/chess.html?room=" + encodeURIComponent(roomId); },
+        onDecline: () => socket.emit("chess:declineInvite", { roomId }),
+      });
+    });
+
+    /* Invited to a Checkers game while chatting */
+    socket.on("checkers:invited", ({ roomId, fromUsername }) => {
+      renderChatInviteBar({
+        icon: "⚪", messageHtml: `<strong>${esc(fromUsername)}</strong>-მა მოგიწვია დამაზე`,
+        onAccept: () => { window.location.href = "/checkers.html?room=" + encodeURIComponent(roomId); },
+        onDecline: () => socket.emit("checkers:declineInvite", { roomId }),
+      });
+    });
+
+    /* Invited to a Joker table while chatting */
+    socket.on("joker:invited", ({ roomId, fromUsername }) => {
+      renderChatInviteBar({
+        icon: "🃏", messageHtml: `<strong>${esc(fromUsername)}</strong>-მა მოგიწვია ჯოკერზე`,
+        onAccept: () => { window.location.href = "/joker.html?room=" + encodeURIComponent(roomId); },
+        onDecline: () => socket.emit("joker:declineInvite", { roomId }),
+      });
+    });
+
+    /* Invited to an Imposter game while chatting */
+    socket.on("imposter:invited", ({ roomId, fromUsername }) => {
+      renderChatInviteBar({
+        icon: "🕵️", messageHtml: `<strong>${esc(fromUsername)}</strong>-მა მოგიწვია იმპოსტორზე`,
+        onAccept: () => { window.location.href = "/imposter.html?room=" + encodeURIComponent(roomId); },
+        onDecline: () => socket.emit("imposter:declineInvite", { roomId }),
+      });
+    });
+
+    /* Invited to a Blackjack table while chatting */
+    socket.on("blackjack:invited", ({ roomId, fromUsername }) => {
+      renderChatInviteBar({
+        icon: "🂡", messageHtml: `<strong>${esc(fromUsername)}</strong>-მა მოგიწვია ბლექჯეკზე`,
+        onAccept: () => { window.location.href = "/blackjack.html?room=" + encodeURIComponent(roomId); },
+        onDecline: () => socket.emit("blackjack:declineInvite", { roomId }),
+      });
+    });
+
+    socket.on("auth:error", () => {
+      elMessages.style.display = "none";
+      elInputBar.style.display = "none";
+      elLoading.classList.add("hidden");
+      elAuth.classList.add("visible");
+    });
+  }
+
+  /* Mark anything currently rendered as seen when the tab gains focus */
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || !messages.length) return;
+    const last = messages[messages.length - 1];
+    if (last && !last.type && last.from.toLowerCase() !== myUsername.toLowerCase()) {
+      markFCSeen(last.id);
+    }
+  });
+
+
+  /* ── Char counter ─────────────────────────────────────────────── */
+  const elCharCount = $("fc-char-count");
+  function updateFCCharCount() {
+    const len = elInput.value.length;
+    if (!len) { elCharCount.textContent = ""; elCharCount.classList.remove("warning"); return; }
+    elCharCount.textContent = `${len}/2000`;
+    elCharCount.classList.toggle("warning", len > 1800);
+  }
+
+  /* ── Input handlers ──────────────────────────────────────────── */
+  elInput.addEventListener("input", () => {
+    /* Auto-resize */
+    elInput.style.height = "auto";
+    elInput.style.height = Math.min(elInput.scrollHeight, 120) + "px";
+    elInput.style.overflowY = elInput.scrollHeight > 120 ? "auto" : "hidden";
+
+    updateFCCharCount();
+    updateFCSendButtonMode();
+
+    /* Typing event */
+    if (!socket?.connected) return;
+    if (!isTyping) {
+      isTyping = true;
+      socket.emit("friendChat:typing", { toUsername: friendName });
+    }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => { isTyping = false; }, 1500);
+  });
+
+  /* Instagram-style: an empty input shows a quick-heart button in place of
+     the send button; typing anything swaps it back to send. */
+  function updateFCSendButtonMode() {
+    const hasText = elInput.value.trim().length > 0;
+    $("fc-send").style.display = hasText ? "flex" : "none";
+    $("fc-heart-send").style.display = hasText ? "none" : "flex";
+  }
+  $("fc-heart-send").addEventListener("click", () => {
+    if (!socket?.connected) return;
+    elInput.value = quickReactionEmoji;
+    sendMessage({ focusAfter: false });
+    updateFCSendButtonMode();
+    elInput.blur(); // belt-and-suspenders — makes sure the keyboard can't be up from some other stray focus either
+  });
+
+  // Long-press the heart button itself to change which emoji it sends —
+  // a much more discoverable entry point than only having this tucked away
+  // in the settings sheet, since it's right where you'd wonder "can I
+  // change this?" in the first place.
+  (function attachHeartLongPress() {
+    const btn = $("fc-heart-send");
+    let pressTimer = null;
+    let longPressed = false;
+    function start(e) {
+      longPressed = false;
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        if (navigator.vibrate) navigator.vibrate(12);
+        openFCThemeSheet();
+      }, 450);
+    }
+    function cancel() { clearTimeout(pressTimer); }
+    btn.addEventListener("touchstart", start, { passive: true });
+    btn.addEventListener("touchend", cancel);
+    btn.addEventListener("touchmove", cancel);
+    btn.addEventListener("mousedown", start);
+    btn.addEventListener("mouseup", cancel);
+    btn.addEventListener("mouseleave", cancel);
+    // Swallow the click that a touch-based long-press also fires, so it
+    // doesn't ALSO send a heart right as the settings sheet opens.
+    btn.addEventListener("click", (e) => { if (longPressed) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  })();
+
+  elInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  elSend.addEventListener("click", sendMessage);
+
+  /* ── Random question button ───────────────────────────────────── */
+  let fcQuestionCooldown = false;
+  const elQuestionBtn = $("fc-question-btn");
+  if (elQuestionBtn) {
+    elQuestionBtn.addEventListener("click", async () => {
+      if (fcQuestionCooldown || !socket?.connected) return;
+      fcQuestionCooldown = true;
+      elQuestionBtn.disabled = true;
+      elQuestionBtn.textContent = "⌛";
+      try {
+        const res = await fetch("/api/random-question");
+        const data = await res.json();
+        if (data.question) {
+          appendMessage({ from: myUsername, type: "question", text: data.question, ts: new Date().toISOString() });
+          socket.emit("friendChat:question", { toUsername: friendName, text: data.question });
+        }
+      } catch (_) {
+        showToast("კითხვა ვერ ჩაიტვირთა 😕");
+      } finally {
+        setTimeout(() => {
+          fcQuestionCooldown = false;
+          elQuestionBtn.disabled = false;
+          elQuestionBtn.textContent = "?";
+        }, 3000);
+      }
+    });
+  }
+
+  /* ── Photo sending (Pro only) ────────────────────────────────── */
+  const elPhotoBtn   = $("fc-photo-btn");
+  const elPhotoInput = $("fc-photo-input");
+  const PHOTO_MAX_BYTES = 20 * 1024 * 1024; // must match the server's raw-input cap
+
+  // Called once we actually know isPro (see the auth:authenticated and
+  // auth:proStatusChanged handlers above) — reveals the button for pro
+  // users, and makes sure it disappears again if pro status is revoked
+  // while this session is still open.
+  function refreshPhotoBtnVisibility() {
+    if (elPhotoBtn) elPhotoBtn.style.display = myIsPro ? "" : "none";
+  }
+
+  if (elPhotoBtn && elPhotoInput) {
+    elPhotoBtn.addEventListener("click", () => {
+      if (!myIsPro) return; // defence in depth — button should be hidden anyway
+      elPhotoInput.click();
+    });
+
+    elPhotoInput.addEventListener("change", () => {
+      const file = elPhotoInput.files && elPhotoInput.files[0];
+      elPhotoInput.value = ""; // reset so picking the SAME file again still fires 'change'
+      if (!file) return;
+
+      // Deliberately lenient here — file.type is reported by the browser
+      // and isn't always reliable (some Android pickers leave it blank for
+      // less common formats like HEIC). The server decodes the actual
+      // bytes with sharp and is the real authority on whether this is a
+      // genuine image; this is just a fast pre-check to skip an obviously
+      // wrong upload (a PDF, a video, etc.) before spending the bandwidth.
+      if (file.type && !file.type.startsWith("image/")) {
+        showToast("⚠️ მხოლოდ სურათის ფაილებია დაშვებული");
+        return;
+      }
+      if (file.size > PHOTO_MAX_BYTES) {
+        showToast("⚠️ ფოტო ზედმეტად დიდია (მაქს. 20MB)");
+        return;
+      }
+      if (!socket?.connected) {
+        showToast("⚠️ კავშირი არ არის");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        // FileReader gives a data: URI ("data:image/png;base64,XXXX") — the
+        // server only wants the base64 payload itself.
+        const commaIdx = String(reader.result).indexOf(",");
+        const base64 = commaIdx >= 0 ? reader.result.slice(commaIdx + 1) : "";
+        if (!base64) { showToast("⚠️ ფოტოს წაკითხვა ვერ მოხერხდა"); return; }
+
+        const msgId = fcGenId();
+        // Optimistic local render, same pattern as text sends — the photo
+        // shows immediately rather than waiting on a round trip, and the
+        // photoSent handler above will surface an error if it actually failed.
+        appendMessage({ id: msgId, from: myUsername, type: "photo", photoUrl: reader.result, ts: new Date().toISOString() });
+
+        socket.emit("privateMsg:sendPhoto", {
+          toUsername: friendName,
+          photoData: base64,
+          mimeType: file.type,
+          messageId: msgId,
+        });
+      };
+      reader.onerror = () => showToast("⚠️ ფოტოს წაკითხვა ვერ მოხერხდა");
+      reader.readAsDataURL(file);
+    });
+  }
+
+
+  const elGifBtn     = $("fc-gif-btn");
+  const elGifPicker  = $("fc-gif-picker");
+  const elGifSearch  = $("fc-gif-search");
+  const elGifResults = $("fc-gif-results");
+  let gifFetchController = null;
+  let gifSearchTimer     = null;
+
+  function openGifPicker() {
+    if (!elGifPicker) return;
+    elGifPicker.style.display = "flex";
+    elGifPicker.getBoundingClientRect(); // force reflow before transition
+    elGifPicker.classList.add("open");
+    if (elGifSearch) { elGifSearch.value = ""; elGifSearch.focus(); }
+    fetchGifs("");
+  }
+  function closeGifPicker() {
+    if (!elGifPicker) return;
+    elGifPicker.classList.remove("open");
+    setTimeout(() => { if (!elGifPicker.classList.contains("open")) elGifPicker.style.display = "none"; }, 250);
+  }
+
+  async function fetchGifs(query) {
+    if (!elGifResults) return;
+    if (gifFetchController) gifFetchController.abort();
+    // Hold our own reference: gifFetchController is shared state and a newer
+    // search may replace it while this one is still awaiting.
+    const myController = new AbortController();
+    gifFetchController = myController;
+    elGifResults.innerHTML = '<div class="gif-placeholder">Loading...</div>';
+    try {
+      const url = query ? `/api/gifs?q=${encodeURIComponent(query)}` : "/api/gifs";
+      const res  = await fetch(url, { signal: myController.signal });
+      const data = await res.json();
+      // Ignore results from a search that has since been superseded, so a
+      // slow older response can't overwrite newer results.
+      if (gifFetchController !== myController) return;
+      renderGifResults(data.results || []);
+    } catch (err) {
+      if (err.name !== "AbortError" && gifFetchController === myController) {
+        elGifResults.innerHTML = '<div class="gif-placeholder">Failed to load GIFs 😢</div>';
+      }
+    } finally {
+      // Only clear it if we're still the current request. Clearing
+      // unconditionally wiped the reference to a NEWER in-flight controller,
+      // so the next search couldn't abort it and two responses would race.
+      if (gifFetchController === myController) gifFetchController = null;
+    }
+  }
+
+  function renderGifResults(results) {
+    if (!elGifResults) return;
+    if (!results.length) {
+      elGifResults.innerHTML = '<div class="gif-placeholder">No GIFs found</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    results.forEach(result => {
+      const media      = result.media && result.media[0];
+      const previewUrl = media?.tinygif?.url || media?.gif?.url;
+      const fullUrl    = media?.gif?.url;
+      if (!previewUrl || !fullUrl) return;
+      const img = document.createElement("img");
+      img.src       = previewUrl;
+      img.className = "fc-gif-item";
+      img.loading   = "lazy";
+      img.decoding  = "async";
+      img.addEventListener("click", () => sendFCGif(fullUrl));
+      frag.appendChild(img);
+    });
+    elGifResults.innerHTML = "";
+    elGifResults.appendChild(frag);
+  }
+
+  function sendFCGif(url) {
+    if (!socket?.connected) return;
+    socket.emit("friendChat:gif", { toUsername: friendName, url });
+    appendMessage({ from: myUsername, type: "gif", url, ts: new Date().toISOString() });
+    closeGifPicker();
+  }
+
+  if (elGifBtn)    elGifBtn.addEventListener("click", openGifPicker);
+  if (elGifSearch) elGifSearch.addEventListener("input", () => {
+    clearTimeout(gifSearchTimer);
+    gifSearchTimer = setTimeout(() => fetchGifs(elGifSearch.value.trim()), 350);
+  });
+
+  /* ── Start ───────────────────────────────────────────────────── */
+  init();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,349 @@
+/* ══════════════════════════════════════════════════════════════════
+   music.css — "Listen Together" (synced YouTube) for GAICANI
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Top-bar button ─────────────────────────────────────────────── */
+.music-btn {
+  background: rgba(88, 101, 242, 0.16);
+  border: 1px solid rgba(88, 101, 242, 0.4);
+  color: #dcddde;
+  cursor: pointer;
+  font-size: 0.85em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.music-btn:hover:not(:disabled)  { background: rgba(88, 101, 242, 0.3); }
+.music-btn:active:not(:disabled) { transform: scale(0.95); }
+.music-btn:disabled              { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 600px) {
+  .music-btn .btn-label { display: none; }
+}
+
+/* ── Request modal ─────────────────────────────────────────────── */
+.music-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(0,0,0,0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.music-modal-box {
+  background: #2b2d31;
+  border-radius: 14px;
+  padding: 20px 18px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.music-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.02em;
+  margin-bottom: 10px;
+}
+
+.music-modal-close {
+  background: rgba(255,255,255,0.08);
+  border: none;
+  color: #b5bac1;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+.music-modal-close:hover { background: rgba(255,255,255,0.16); color: #fff; }
+
+.music-modal-hint {
+  color: #96989d;
+  font-size: 0.82em;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.music-url-input {
+  width: 100%;
+  padding: 11px 13px;
+  background: #1e1f22;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 9px;
+  color: #dcddde;
+  font-size: 0.92em;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+.music-url-input:focus {
+  outline: none;
+  border-color: rgba(88,101,242,0.55);
+}
+
+.music-modal-error {
+  color: #f23f42;
+  font-size: 0.8em;
+  margin-bottom: 8px;
+}
+
+.music-send-btn {
+  width: 100%;
+  padding: 12px;
+  background: #5865f2;
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 0.94em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.music-send-btn:hover { background: #4752c4; }
+
+/* ── Search results (in the request modal) ─────────────────────── */
+.music-search-results {
+  max-height: 260px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.music-search-results::-webkit-scrollbar        { width: 3px; }
+.music-search-results::-webkit-scrollbar-track  { background: transparent; }
+.music-search-results::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.music-search-loading {
+  color: #96989d;
+  font-size: 0.85em;
+  text-align: center;
+  padding: 16px 0;
+}
+
+.music-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.music-result-item:hover,
+.music-result-item:active {
+  background: rgba(88,101,242,0.14);
+  border-color: rgba(88,101,242,0.35);
+}
+
+.music-result-thumb {
+  width: 56px;
+  height: 42px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #1e1f22;
+}
+
+.music-result-info { min-width: 0; flex: 1; }
+
+.music-result-title {
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.music-result-channel {
+  color: #8b8fa8;
+  font-size: 0.74em;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Invite bar (mirrors game-invite-bar styling) ─────────────────── */
+.music-invite-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(88,101,242,0.12);
+  border: 1px solid rgba(88,101,242,0.35);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 8px;
+  flex-wrap: wrap;
+}
+
+.music-invite-text {
+  color: #dcddde;
+  font-size: 0.86em;
+  line-height: 1.4;
+}
+.music-invite-text strong { color: #fff; }
+
+.music-invite-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.music-invite-accept,
+.music-invite-decline {
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.82em;
+  font-weight: 700;
+  cursor: pointer;
+}
+.music-invite-accept  { background: #3ba55d; color: #fff; }
+.music-invite-accept:hover  { background: #359452; }
+.music-invite-decline { background: rgba(242,63,66,0.15); color: #f23f42; }
+.music-invite-decline:hover { background: rgba(242,63,66,0.25); }
+
+/* ── Player widget — inline in the chat feed ───────────────────── */
+.music-widget--inline {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+  flex: 0 0 240px;
+
+  margin: 6px auto 14px;
+  background: #2b2d31;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.28);
+  animation: musicWidgetIn 0.22s ease both;
+}
+
+@keyframes musicWidgetIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.music-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 6px 10px;
+  background: rgba(88,101,242,0.14);
+}
+
+.music-widget-note {
+  color: #cfd2ff;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.music-widget-close {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #dcddde;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-size: 0.75em;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.music-widget-close:hover { background: rgba(242,63,66,0.35); color: #fff; }
+
+.music-widget-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.music-playpause-btn {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #5865f2;
+  border: none;
+  color: #fff;
+  font-size: 1.1em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, opacity 0.15s;
+}
+.music-playpause-btn:hover:not(:disabled) { background: #4752c4; }
+.music-playpause-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* Draws the eye when auto-start didn't work (mainly iOS Safari) and the
+   person needs to tap the button themselves to actually start sound. */
+.music-playpause-btn--pulse {
+  animation: musicTapPulse 1.1s ease-in-out infinite;
+}
+@keyframes musicTapPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88,101,242,0.55); }
+  50%      { box-shadow: 0 0 0 9px rgba(88,101,242,0); }
+}
+
+.music-widget-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.music-widget-title {
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.music-widget-status {
+  color: #8b8fa8;
+  font-size: 0.74em;
+  margin-top: 2px;
+}
+
+/* The YouTube player only supplies audio here — kept in the DOM
+   (required for playback) but visually invisible. */
+.music-player-mount {
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .music-btn .btn-label {
+    display: none;
+  }
+
+  .music-widget--inline {
+    width: 240px;
+    min-width: 240px;
+    max-width: 240px;
+    flex: 0 0 240px;
+  }
+}

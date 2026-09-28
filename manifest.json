@@ -1,0 +1,33 @@
+{
+  "name": "GAICANI",
+  "short_name": "GAICANI",
+  "description": "შემთხვევითი ჩათი, თამაშები, ოთახები და ფორუმი — ერთ ადგილას",
+  "start_url": "/dashboard.html?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#17181c",
+  "theme_color": "#5865f2",
+  "lang": "ka",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

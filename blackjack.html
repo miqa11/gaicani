@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <title>GAICANI – ბლექჯეკი</title>
+  <meta name="theme-color" content="#17181d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    button, a, [role="button"] { touch-action: manipulation; }
+
+    :root {
+      --bg:        #17181d;
+      --surface:   #26272e;
+      --surface-2: #2f3037;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #5865f2;
+      --accent-dk: #4752c4;
+      --accent-lt: #8b93ff;
+      --text:      #e4e5ea;
+      --muted:     #7d81a0;
+      --good:      #3ba55d;
+      --warn:      #faa61a;
+      --danger:    #f23f42;
+      --gold:      #f2c94c;
+      --felt-1:    #1a4d3a;
+      --felt-2:    #0d2a1f;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top:    env(safe-area-inset-top, 0px);
+    }
+
+    html, body {
+      height: 100%; height: 100dvh;
+      height: var(--app-height, 100dvh);
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: contain;
+    }
+    #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; height: var(--app-height, 100dvh); }
+
+    .bj-loading, .bj-center-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; text-align: center; padding: 24px;
+    }
+    .bj-loading.hidden, .bj-center-screen.hidden { display: none; }
+    .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent-lt); animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .bj-center-screen a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.92em; background: var(--accent); padding: 11px 24px; border-radius: 10px; }
+
+    .bj-screen { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+    .bj-screen.visible { display: flex; }
+
+    .bj-header {
+      display: flex; align-items: center; gap: 10px; min-height: 54px; flex-shrink: 0; padding: 0 10px;
+      padding-top: var(--safe-top);
+      padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .bj-icon-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: transparent; border: none; color: var(--text);
+      text-decoration: none; font-size: 1.15em; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .bj-icon-btn:hover { background: rgba(255,255,255,0.08); }
+    .bj-header-title { font-weight: 700; font-size: 1.02em; flex: 1; min-width: 0; }
+    .bj-coin-chip { background: var(--surface-2); border-radius: 14px; padding: 5px 12px; font-weight: 800; font-size: 0.85em; color: var(--gold); }
+
+    /* ── Setup screen ────────────────────────────────────────────── */
+    .bj-setup-body { flex: 1; overflow-y: auto; padding: 16px 14px calc(16px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 16px; }
+    .bj-new-game-btn { border: none; border-radius: 12px; padding: 14px; font-weight: 800; font-size: 0.98em; background: linear-gradient(135deg, #1a4d3a, #0d2a1f); color: #fff; cursor: pointer; }
+    .bj-new-game-btn:disabled { opacity: 0.5; }
+    .bj-section-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .bj-hint { color: var(--muted); font-size: 0.78em; text-align: center; }
+    .bj-pick-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; cursor: pointer; }
+    .bj-pick-row.selected { border-color: var(--felt-1); background: rgba(26,77,58,0.2); }
+    .bj-pick-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+    .bj-pick-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .bj-pick-name { flex: 1; font-size: 0.9em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bj-pick-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7em; }
+    .bj-pick-row.selected .bj-pick-check { background: var(--felt-1); border-color: var(--felt-1); }
+    .bj-empty-state { color: var(--muted); font-size: 0.86em; text-align: center; padding: 20px 10px; line-height: 1.6; }
+
+    .bj-public-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .bj-public-info { flex: 1; min-width: 0; }
+    .bj-public-host { font-weight: 700; font-size: 0.9em; }
+    .bj-public-meta { color: var(--muted); font-size: 0.76em; margin-top: 2px; }
+    .bj-join-btn { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 0.82em; cursor: pointer; background: var(--felt-1); color: #fff; }
+
+    /* ── Lobby screen ────────────────────────────────────────────── */
+    .bj-lobby-body { flex: 1; overflow-y: auto; padding: 16px 14px; }
+    .bj-lobby-player { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .bj-lobby-tag { font-size: 0.68em; font-weight: 700; background: rgba(26,77,58,0.3); color: #6fcf97; padding: 2px 8px; border-radius: 20px; }
+    .bj-lobby-actions { padding: 12px 14px calc(12px + var(--safe-bottom)); border-top: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+    .bj-start-btn { border: none; border-radius: 10px; padding: 13px; font-weight: 800; background: var(--good); color: #fff; cursor: pointer; font-size: 0.95em; }
+    .bj-leave-btn { border: none; border-radius: 10px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 0.88em; background: var(--surface-2); color: var(--danger); }
+    .bj-lobby-hint { text-align: center; color: var(--muted); font-size: 0.8em; padding: 6px 0; }
+
+    /* ── Table screen ────────────────────────────────────────────── */
+    .bj-table-body {
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+      background: radial-gradient(ellipse at 50% 0%, var(--felt-1) 0%, var(--felt-2) 70%);
+      padding: 12px 10px calc(160px + var(--safe-bottom));
+      gap: 14px;
+    }
+
+    .bj-dealer-area { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 6px; }
+    .bj-dealer-label { font-size: 0.72em; color: rgba(255,255,255,0.65); font-weight: 700; letter-spacing: 0.05em; }
+    .bj-card-row { display: flex; gap: 4px; justify-content: center; min-height: 64px; }
+    .bj-card {
+      width: 44px; height: 62px; border-radius: 6px; background: #fff; color: #1a1a1a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.95em; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      flex-shrink: 0;
+    }
+    .bj-card.red { color: #c0392b; }
+    .bj-card.back {
+      background: repeating-linear-gradient(135deg, #2b3a8f, #2b3a8f 4px, #1f2a66 4px, #1f2a66 8px);
+      border: 2px solid rgba(255,255,255,0.4);
+    }
+    .bj-card-suit { font-size: 0.85em; }
+    .bj-dealer-total { font-size: 0.85em; font-weight: 800; color: #fff; background: rgba(0,0,0,0.3); padding: 3px 10px; border-radius: 10px; }
+
+    .bj-players-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .bj-seat {
+      background: rgba(0,0,0,0.28); border-radius: 14px; padding: 10px; min-width: 140px; flex: 1 1 150px; max-width: 220px;
+      border: 2px solid transparent; transition: border-color 0.2s;
+    }
+    .bj-seat.acting { border-color: var(--gold); box-shadow: 0 0 14px rgba(242,201,76,0.35); }
+    .bj-seat.me { background: rgba(0,0,0,0.4); }
+    .bj-seat-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .bj-seat-avatar { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; background: var(--surface-2); flex-shrink: 0; }
+    .bj-seat-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .bj-seat-name { font-size: 0.78em; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .bj-seat-stack { font-size: 0.68em; color: var(--gold); font-weight: 700; }
+    .bj-hand-block { margin-bottom: 6px; }
+    .bj-hand-block:last-child { margin-bottom: 0; }
+    .bj-hand-cards { display: flex; gap: 3px; margin-bottom: 3px; flex-wrap: wrap; }
+    .bj-hand-cards .bj-card { width: 30px; height: 42px; font-size: 0.68em; border-radius: 4px; }
+    .bj-hand-meta { display: flex; align-items: center; gap: 6px; font-size: 0.68em; }
+    .bj-hand-total { color: rgba(255,255,255,0.8); font-weight: 700; }
+    .bj-hand-bet { color: var(--gold); }
+    .bj-hand-result { font-weight: 800; padding: 1px 6px; border-radius: 6px; }
+    .bj-hand-result.win, .bj-hand-result.blackjack { background: rgba(59,165,93,0.25); color: #6fcf97; }
+    .bj-hand-result.lose, .bj-hand-result.bust { background: rgba(242,63,66,0.2); color: #ff8a8d; }
+    .bj-hand-result.push { background: rgba(255,255,255,0.12); color: #ccc; }
+    .bj-no-bet-label { font-size: 0.72em; color: rgba(255,255,255,0.5); font-style: italic; }
+
+    /* ── Bottom action panel (betting or hit/stand/double/split) ─────── */
+    .bj-action-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 400;
+      padding: 10px 14px calc(10px + var(--safe-bottom));
+      padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right));
+      background: var(--surface); border-top: 1px solid var(--border);
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.35);
+    }
+    .bj-bet-row { display: flex; align-items: center; gap: 8px; }
+    .bj-bet-chip-btn {
+      border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+      border-radius: 10px; padding: 10px 6px; font-weight: 700; font-size: 0.85em; cursor: pointer; flex: 1;
+    }
+    .bj-bet-chip-btn.selected { background: var(--felt-1); border-color: #6fcf97; color: #fff; }
+    .bj-bet-submit-btn {
+      border: none; border-radius: 10px; padding: 11px; font-weight: 800; font-size: 0.9em;
+      background: var(--good); color: #fff; cursor: pointer; width: 100%; margin-top: 8px;
+    }
+    .bj-bet-submit-btn:disabled { opacity: 0.45; }
+    .bj-waiting-label { text-align: center; color: var(--muted); font-size: 0.82em; padding: 4px 0; }
+
+    .bj-actions-row { display: flex; gap: 8px; }
+    .bj-act-btn {
+      flex: 1; border: none; border-radius: 10px; padding: 13px 4px; font-weight: 800; font-size: 0.85em;
+      cursor: pointer; color: #fff;
+    }
+    .bj-act-btn:disabled { opacity: 0.3; }
+    .bj-act-btn.hit { background: var(--accent); }
+    .bj-act-btn.stand { background: var(--surface-2); color: var(--text); }
+    .bj-act-btn.double { background: var(--warn); color: #1a1a1a; }
+    .bj-act-btn.split { background: #8b5cf6; }
+
+    .bj-timer-chip { font-weight: 800; font-size: 0.82em; color: var(--muted); text-align: center; margin-bottom: 6px; }
+    .bj-timer-chip.low { color: var(--danger); }
+
+    @keyframes bjDealIn { 0% { transform: translateY(-16px) scale(0.7); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+    .bj-card.deal-in { animation: bjDealIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+    /* ── Chat: header button, unread dot, slide-up panel ─────────────── */
+    .bj-chat-unread-dot {
+      display: none; position: absolute; top: 3px; right: 3px; width: 9px; height: 9px;
+      border-radius: 50%; background: var(--danger); border: 2px solid var(--surface);
+    }
+    .bj-chat-unread-dot.show { display: block; }
+    .bj-chat-backdrop {
+      position: fixed; inset: 0; z-index: 560; background: rgba(0,0,0,0.4);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .bj-chat-backdrop.show { opacity: 1; pointer-events: auto; }
+    .bj-chat-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 561;
+      background: var(--surface); border-radius: 16px 16px 0 0; border-top: 1px solid var(--border);
+      max-width: 460px; margin: 0 auto; height: 52vh; max-height: 460px;
+      display: flex; flex-direction: column;
+      transform: translateY(105%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1);
+    }
+    .bj-chat-panel.show { transform: translateY(0); }
+    .bj-chat-panel-header {
+      display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+      font-weight: 700; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .bj-chat-panel-header button { background: rgba(255,255,255,0.08); border: none; color: var(--muted); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; }
+    .bj-chat-messages { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .bj-chat-msg { max-width: 78%; padding: 7px 11px; border-radius: 12px; font-size: 0.85em; line-height: 1.4; }
+    .bj-chat-msg.other { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+    .bj-chat-msg.mine { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+    .bj-chat-msg .bj-chat-author { font-size: 0.76em; font-weight: 700; color: var(--accent-lt); margin-bottom: 2px; }
+    .bj-chat-msg.mine .bj-chat-author { display: none; }
+    .bj-chat-input-row { display: flex; gap: 8px; padding: 10px 14px calc(10px + var(--safe-bottom)); border-top: 1px solid var(--border); flex-shrink: 0; }
+    #bjChatInput { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; color: var(--text); font-size: 16px; padding: 9px 14px; }
+    #bjChatInput:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    #bjChatSendBtn { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 1em; cursor: pointer; }
+
+    /* ── Card & result animations ─────────────────────────────────── */
+    #bjAnimLayer { position: fixed; inset: 0; pointer-events: none; z-index: 500; overflow: visible; }
+    .bj-flying-card {
+      position: fixed; border-radius: 6px; background: #fff; color: #1a1a1a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 800; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
+      transition: left 0.4s cubic-bezier(0.25,0.46,0.45,0.94), top 0.4s cubic-bezier(0.25,0.46,0.45,0.94),
+                  transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.25s ease 0.25s;
+      will-change: left, top, transform;
+    }
+    .bj-flying-card.red { color: #c0392b; }
+    .bj-flying-card.back {
+      background: repeating-linear-gradient(135deg, #2b3a8f, #2b3a8f 4px, #1f2a66 4px, #1f2a66 8px);
+      border: 2px solid rgba(255,255,255,0.4);
+    }
+
+    @keyframes bjFlipReveal {
+      0%   { transform: rotateY(0deg); }
+      50%  { transform: rotateY(90deg); }
+      100% { transform: rotateY(0deg); }
+    }
+    .bj-card.flip-reveal { animation: bjFlipReveal 0.5s ease-in-out both; }
+
+    @keyframes bjBustShake {
+      0%, 100% { transform: translateX(0); }
+      20%      { transform: translateX(-6px); }
+      40%      { transform: translateX(6px); }
+      60%      { transform: translateX(-4px); }
+      80%      { transform: translateX(4px); }
+    }
+    .bj-hand-block.bust-shake { animation: bjBustShake 0.4s ease; }
+    .bj-hand-block.bust-shake .bj-hand-cards .bj-card { filter: grayscale(0.6) brightness(0.75); }
+
+    @keyframes bjResultPop {
+      0%   { transform: scale(0.3); opacity: 0; }
+      60%  { transform: scale(1.25); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .bj-hand-result.pop-in { animation: bjResultPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+    @keyframes bjCoinSparkle {
+      0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+      35%  { transform: translate(-50%, -80%) scale(1.2); opacity: 1; }
+      100% { transform: translate(-50%, -140%) scale(0.9); opacity: 0; }
+    }
+    .bj-coin-sparkle {
+      position: absolute; left: 50%; top: 0; font-size: 1.3em;
+      animation: bjCoinSparkle 0.9s ease-out forwards; pointer-events: none; z-index: 6;
+    }
+    .bj-seat-stack { position: relative; }
+
+    @keyframes bjDealerRevealGlow {
+      0%, 100% { box-shadow: none; }
+      40%      { box-shadow: 0 0 16px 4px rgba(242,201,76,0.5); }
+    }
+    .bj-dealer-area.reveal-glow { animation: bjDealerRevealGlow 0.9s ease; border-radius: 12px; }
+
+    @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+    /* ── Desktop / big screens — the table gets real room to breathe
+       instead of a mobile-width layout stretched across a wide monitor. ── */
+    @media (min-width: 700px) {
+      body {
+        display: flex; align-items: center; justify-content: center;
+        background: #0e0f13;
+      }
+      #app {
+        width: 100%; max-width: 900px;
+        height: 92vh; height: 92dvh;
+        border-radius: 20px; overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="bjLoading" class="bj-loading"><div class="spinner"></div></div>
+
+  <div id="bjAuthScreen" class="bj-center-screen hidden">
+    <div style="font-size:2.4em;">🔒</div>
+    <p>ბლექჯეკის სათამაშოდ საჭიროა შესვლა.</p>
+    <a href="/">რეგისტრაცია / შესვლა</a>
+  </div>
+
+  <!-- SETUP SCREEN -->
+  <div id="setupScreen" class="bj-screen">
+    <header class="bj-header">
+      <a href="/dashboard.html" class="bj-icon-btn" title="უკან">←</a>
+      <div class="bj-header-title">🂡 ბლექჯეკი</div>
+      <div class="bj-coin-chip">🪙 <span id="setupCoins">—</span></div>
+    </header>
+    <div class="bj-setup-body">
+      <button id="createGameBtn" class="bj-new-game-btn">➕ ახალი მაგიდის შექმნა</button>
+      <div class="bj-hint">შეგიძლია მარტო ითამაშო დილერთან, ან მოიწვიე მეგობრები — მაგიდაზე 5 ადგილია</div>
+      <div>
+        <div class="bj-section-label">მოწვევა — ონლაინ მეგობრები</div>
+        <div id="onlineFriendsList"></div>
+      </div>
+      <div>
+        <div class="bj-section-label">აქტიური მაგიდები</div>
+        <div id="publicGameList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobbyScreen" class="bj-screen">
+    <header class="bj-header">
+      <button id="lobbyBackBtn" class="bj-icon-btn" title="უკან">←</button>
+      <div class="bj-header-title">მაგიდის ლობი (<span id="lobbyCount">0</span>/5)</div>
+      <button id="lobbyChatToggleBtn" class="bj-icon-btn" title="ჩატი" style="position:relative;">
+        💬<span id="lobbyChatUnreadDot" class="bj-chat-unread-dot"></span>
+      </button>
+    </header>
+    <div class="bj-lobby-body">
+      <div id="lobbyPlayers"></div>
+      <div id="lobbyWaitHint" class="bj-lobby-hint"></div>
+    </div>
+    <div class="bj-lobby-actions">
+      <button id="startGameBtn" class="bj-start-btn" style="display:none">🂡 თამაშის დაწყება</button>
+      <button id="lobbyLeaveBtn" class="bj-leave-btn">მაგიდის დატოვება</button>
+    </div>
+  </div>
+
+  <!-- TABLE SCREEN -->
+  <div id="tableScreen" class="bj-screen">
+    <header class="bj-header">
+      <button id="tableBackBtn" class="bj-icon-btn" title="უკან">←</button>
+      <div class="bj-header-title">🂡 ბლექჯეკი</div>
+      <div class="bj-coin-chip">🪙 <span id="tableCoins">—</span></div>
+      <button id="chatToggleBtn" class="bj-icon-btn" title="ჩატი" style="position:relative;">
+        💬<span id="chatUnreadDot" class="bj-chat-unread-dot"></span>
+      </button>
+    </header>
+    <div class="bj-table-body" id="tableBody">
+      <div class="bj-dealer-area">
+        <div class="bj-dealer-label">დილერი</div>
+        <div class="bj-card-row" id="dealerCards"></div>
+        <div class="bj-dealer-total" id="dealerTotal" style="display:none"></div>
+      </div>
+      <div class="bj-players-row" id="playersRow"></div>
+    </div>
+
+    <!-- Betting panel -->
+    <div class="bj-action-panel" id="bettingPanel" style="display:none">
+      <div class="bj-timer-chip" id="betTimerChip"></div>
+      <div id="betWaitingLabel" class="bj-waiting-label" style="display:none"></div>
+      <div id="betPickWrap">
+        <div class="bj-bet-row" id="betChipsRow"></div>
+        <button id="betSubmitBtn" class="bj-bet-submit-btn">ფსონის დადება</button>
+      </div>
+    </div>
+
+    <!-- Hit/Stand/Double/Split panel -->
+    <div class="bj-action-panel" id="playPanel" style="display:none">
+      <div class="bj-timer-chip" id="playTimerChip"></div>
+      <div id="playWaitingLabel" class="bj-waiting-label" style="display:none"></div>
+      <div id="playActionsWrap" class="bj-actions-row">
+        <button id="hitBtn" class="bj-act-btn hit">ჰიტი</button>
+        <button id="standBtn" class="bj-act-btn stand">სტოპ</button>
+        <button id="doubleBtn" class="bj-act-btn double">დაორმაგება</button>
+        <button id="splitBtn" class="bj-act-btn split">გაყოფა</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bjToast"></div>
+  <div id="bjInviteBar" class="bj-invite-bar" style="position:fixed;left:12px;right:12px;bottom:calc(12px + var(--safe-bottom));z-index:998;background:var(--surface);border:1px solid var(--felt-1);border-radius:12px;padding:12px 14px;display:none;align-items:center;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,0.45);max-width:420px;margin:0 auto;"></div>
+</div>
+
+<!-- Chat panel -->
+<div id="bjAnimLayer"></div>
+<div id="chatBackdrop" class="bj-chat-backdrop"></div>
+<div id="chatPanel" class="bj-chat-panel">
+  <div class="bj-chat-panel-header">
+    <div>ჩატი</div>
+    <button id="chatCloseBtn">✕</button>
+  </div>
+  <div id="chatMessages" class="bj-chat-messages"></div>
+  <div class="bj-chat-input-row">
+    <input type="text" id="bjChatInput" maxlength="200" placeholder="დაწერე რამე..." />
+    <button id="bjChatSendBtn">➤</button>
+  </div>
+</div>
+
+<script src="/ban-notice.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  (function () {
+    function setAppHeight() {
+      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    }
+    setAppHeight();
+    if (window.visualViewport) { window.visualViewport.addEventListener("resize", setAppHeight); window.visualViewport.addEventListener("scroll", setAppHeight); }
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+  })();
+</script>
+<script>
+(function () {
+  "use strict";
+
+  function $(id) { return document.getElementById(id); }
+  function showToast(msg, ms = 3200) {
+    const t = $("bjToast");
+    t.style.cssText = "position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:var(--surface-2);color:var(--text);border:1px solid var(--border);padding:10px 18px;border-radius:20px;font-size:0.88em;opacity:0;pointer-events:none;transition:opacity 0.2s,transform 0.2s;z-index:600;max-width:90vw;text-align:center;";
+    t.textContent = msg;
+    requestAnimationFrame(() => { t.style.opacity = "1"; t.style.transform = "translateX(-50%) translateY(0)"; });
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = "0"; t.style.transform = "translateX(-50%) translateY(20px)"; }, ms);
+  }
+  function loadAuth() {
+    try { return { token: localStorage.getItem("gaicani_auth_token"), username: localStorage.getItem("gaicani_auth_user") }; }
+    catch (_) { return {}; }
+  }
+  function getRoomParam() { return (new URLSearchParams(window.location.search).get("room") || "").trim(); }
+  function setAvatar(container, avatarFile, username) {
+    container.innerHTML = "";
+    if (avatarFile) {
+      const img = document.createElement("img");
+      img.src = "/" + avatarFile;
+      img.alt = username || "";
+      container.appendChild(img);
+    } else {
+      container.textContent = (username || "?").charAt(0).toUpperCase();
+    }
+  }
+  const RANK_DISPLAY = { A: "A", T: "10", J: "J", Q: "Q", K: "K" };
+  const SUIT_SYMBOLS = { s: "♠", h: "♥", d: "♦", c: "♣" };
+  function cardEl(card) {
+    const el = document.createElement("div");
+    el.className = "bj-card";
+    if (!card) { el.classList.add("back"); return el; }
+    const rank = card[0], suit = card[1];
+    if (suit === "h" || suit === "d") el.classList.add("red");
+    const r = document.createElement("div");
+    r.textContent = RANK_DISPLAY[rank] || rank;
+    const s = document.createElement("div");
+    s.className = "bj-card-suit";
+    s.textContent = SUIT_SYMBOLS[suit] || "";
+    el.appendChild(r); el.appendChild(s);
+    return el;
+  }
+  function handTotalLabel(cards) {
+    let total = 0, aces = 0;
+    for (const c of cards) {
+      const r = c[0];
+      if (r === "A") { total += 11; aces++; }
+      else if (r === "T" || r === "J" || r === "Q" || r === "K") total += 10;
+      else total += parseInt(r, 10);
+    }
+    while (total > 21 && aces > 0) { total -= 10; aces--; }
+    return total;
+  }
+  const RESULT_LABEL = { win: "მოგება", lose: "წაგება", push: "ფლანგი", bust: "ბასტი", blackjack: "ბლექჯეკი!" };
+
+  const { token, username } = loadAuth();
+  let myUsernameLower = (username || "").toLowerCase();
+
+  const elLoading = $("bjLoading");
+  const elAuth = $("bjAuthScreen");
+  const screens = { setup: $("setupScreen"), lobby: $("lobbyScreen"), table: $("tableScreen") };
+  function showScreen(name) { Object.entries(screens).forEach(([k, el]) => el.classList.toggle("visible", k === name)); }
+
+  let socket = null;
+  let currentRoomId = getRoomParam() || null;
+  let onlineUsers = [];
+  let selectedInvitees = new Set();
+  let latestRoom = null;
+  let timerInterval = null;
+  let selectedBet = 50;
+  const BET_CHIPS = [10, 25, 50, 100, 250];
+
+  /* ── Setup screen ────────────────────────────────────────────── */
+  function renderOnlineFriends() {
+    const list = $("onlineFriendsList");
+    if (!onlineUsers.length) {
+      list.innerHTML = `<div class="bj-empty-state">ახლა არავინ არის ონლაინ.<br><small>შეგიძლია მარტოც ითამაშო — უბრალოდ დააჭირე "ახალი მაგიდის შექმნას".</small></div>`;
+      return;
+    }
+    list.innerHTML = "";
+    onlineUsers.forEach(u => {
+      const row = document.createElement("div");
+      row.className = "bj-pick-row" + (selectedInvitees.has(u.username.toLowerCase()) ? " selected" : "");
+      const avatar = document.createElement("div");
+      avatar.className = "bj-pick-avatar";
+      setAvatar(avatar, u.avatar, u.username);
+      const name = document.createElement("div");
+      name.className = "bj-pick-name";
+      name.textContent = u.username + (u.isGuest ? " (სტუმარი)" : "");
+      const check = document.createElement("div");
+      check.className = "bj-pick-check";
+      check.textContent = "✓";
+      row.appendChild(avatar); row.appendChild(name); row.appendChild(check);
+      row.addEventListener("click", () => {
+        const lc = u.username.toLowerCase();
+        if (selectedInvitees.has(lc)) selectedInvitees.delete(lc);
+        else selectedInvitees.add(lc);
+        row.classList.toggle("selected");
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function renderPublicGames(rooms) {
+    const list = $("publicGameList");
+    list.innerHTML = "";
+    if (!rooms || !rooms.length) {
+      list.innerHTML = `<div class="bj-empty-state">ახლა აქტიური მაგიდა არ არის.</div>`;
+      return;
+    }
+    rooms.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "bj-public-row";
+      const info = document.createElement("div");
+      info.className = "bj-public-info";
+      const host = document.createElement("div");
+      host.className = "bj-public-host";
+      host.textContent = "🂡 " + r.hostUsername + "-ის მაგიდა";
+      const meta = document.createElement("div");
+      meta.className = "bj-public-meta";
+      meta.textContent = `${r.playerCount}/${r.maxPlayers} მოთამაშე · ${r.status === "playing" ? "მიმდინარეობს" : "ლობი"}`;
+      info.appendChild(host); info.appendChild(meta);
+      const btn = document.createElement("button");
+      btn.className = "bj-join-btn";
+      btn.textContent = "შემოერთება";
+      btn.addEventListener("click", () => socket.emit("blackjack:join", { roomId: r.roomId }));
+      row.appendChild(info); row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
+  $("createGameBtn").addEventListener("click", () => {
+    socket.emit("blackjack:invite", { toUsernames: [...selectedInvitees] });
+  });
+
+  /* ── Lobby screen ────────────────────────────────────────────── */
+  let isHost = false;
+  function renderLobby(room) {
+    isHost = room.hostUsername.toLowerCase() === myUsernameLower;
+    $("lobbyCount").textContent = room.players.length;
+    const list = $("lobbyPlayers");
+    list.innerHTML = "";
+    room.players.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "bj-lobby-player";
+      const avatar = document.createElement("div");
+      avatar.className = "bj-pick-avatar";
+      setAvatar(avatar, p.avatar, p.username);
+      const name = document.createElement("div");
+      name.className = "bj-pick-name";
+      name.textContent = p.username;
+      row.appendChild(avatar); row.appendChild(name);
+      if (p.username.toLowerCase() === room.hostUsername.toLowerCase()) {
+        const tag = document.createElement("span"); tag.className = "bj-lobby-tag"; tag.textContent = "მასპინძელი"; row.appendChild(tag);
+      }
+      list.appendChild(row);
+    });
+    $("startGameBtn").style.display = isHost ? "block" : "none";
+    $("lobbyWaitHint").textContent = isHost ? "მზად ხარ დასაწყებად!" : "მასპინძლის მოლოდინში...";
+  }
+
+  /* ── Table screen ────────────────────────────────────────────── */
+  function bjSnapshotRoom(room) {
+    const snap = { dealerCount: (room.dealerCards || []).length, dealerRevealed: !!room.dealerHoleRevealed, hands: {} };
+    room.players.forEach(p => {
+      (p.hands || []).forEach((h, hi) => {
+        snap.hands[p.seat + ":" + hi] = { count: h.cards.length, status: h.status, result: h.result };
+      });
+    });
+    return snap;
+  }
+
+  function bjDealOriginRect() {
+    const dealerEl = $("dealerCards");
+    const r = dealerEl.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  // Animates a card flying from `fromPoint` to wherever `targetEl` actually
+  // sits — the real card underneath stays invisible until the flight lands,
+  // so there's never a flash of it appearing in two places at once.
+  function bjFlyCardToElement(fromPoint, targetEl, cardData, delay) {
+    targetEl.style.visibility = "hidden";
+    setTimeout(() => {
+      const targetRect = targetEl.getBoundingClientRect();
+      const clone = cardEl(cardData);
+      clone.classList.add("bj-flying-card");
+      clone.style.width = targetRect.width + "px";
+      clone.style.height = targetRect.height + "px";
+      clone.style.left = fromPoint.x + "px";
+      clone.style.top = fromPoint.y + "px";
+      $("bjAnimLayer").appendChild(clone);
+      void clone.offsetWidth; // commit the start position as a real rendered frame before the transition below, or it just teleports
+      requestAnimationFrame(() => {
+        clone.style.left = (targetRect.left + targetRect.width / 2) + "px";
+        clone.style.top = (targetRect.top + targetRect.height / 2) + "px";
+        clone.style.transform = "translate(-50%, -50%) scale(1)";
+      });
+      setTimeout(() => {
+        targetEl.style.visibility = "";
+        clone.style.opacity = "0";
+        setTimeout(() => clone.remove(), 300);
+      }, 400);
+    }, delay);
+  }
+
+  function spawnBjCoinSparkle(anchorEl) {
+    const sparkle = document.createElement("div");
+    sparkle.className = "bj-coin-sparkle";
+    sparkle.textContent = "🪙";
+    anchorEl.appendChild(sparkle);
+    setTimeout(() => sparkle.remove(), 950);
+  }
+
+  function renderDealer(room, prevSnap) {
+    const row = $("dealerCards");
+    const cards = room.dealerCards || [];
+    const prevCount = prevSnap ? prevSnap.dealerCount : 0;
+    const wasRevealed = prevSnap ? prevSnap.dealerRevealed : false;
+    const justRevealed = !wasRevealed && room.dealerHoleRevealed;
+    const dealOrigin = bjDealOriginRect();
+
+    row.innerHTML = "";
+    cards.forEach((c, i) => {
+      const el = cardEl(c);
+      row.appendChild(el);
+      if (i >= prevCount && !(justRevealed && i === 1)) {
+        // A genuinely new card (not the hole card being revealed — that one
+        // flips in place below instead of flying in from nowhere).
+        bjFlyCardToElement(dealOrigin, el, c, (i - prevCount) * 140);
+      }
+    });
+    // Show a face-down placeholder for the still-hidden hole card once
+    // dealing has happened but the reveal hasn't, so the table doesn't just
+    // look like the dealer only has one card.
+    if (!room.dealerHoleRevealed && cards.length === 1 && room.phase) {
+      const back = cardEl(null);
+      row.appendChild(back);
+      if (prevCount < 1) bjFlyCardToElement(dealOrigin, back, null, 140);
+    }
+    if (justRevealed && cards.length >= 2) {
+      const revealedEl = row.children[1];
+      if (revealedEl) {
+        revealedEl.classList.add("flip-reveal");
+        $("tableBody").querySelector(".bj-dealer-area").classList.add("reveal-glow");
+        setTimeout(() => $("tableBody").querySelector(".bj-dealer-area").classList.remove("reveal-glow"), 950);
+      }
+    }
+
+    const totalEl = $("dealerTotal");
+    if (room.dealerHoleRevealed && cards.length) {
+      totalEl.style.display = "inline-block";
+      totalEl.textContent = handTotalLabel(cards);
+    } else {
+      totalEl.style.display = "none";
+    }
+  }
+
+  function renderHand(hand, seat, handIdx, isActive, prevSnap, dealOrigin, stackEl) {
+    const block = document.createElement("div");
+    block.className = "bj-hand-block";
+    const key = seat + ":" + handIdx;
+    const prevHand = prevSnap ? prevSnap.hands[key] : null;
+    const prevCount = prevHand ? prevHand.count : 0;
+
+    const cardsRow = document.createElement("div");
+    cardsRow.className = "bj-hand-cards";
+    block.appendChild(cardsRow);
+    hand.cards.forEach((c, i) => {
+      const el = cardEl(c);
+      cardsRow.appendChild(el);
+      if (i >= prevCount) bjFlyCardToElement(dealOrigin, el, c, (i - prevCount) * 140);
+    });
+
+    const meta = document.createElement("div");
+    meta.className = "bj-hand-meta";
+    const total = document.createElement("span");
+    total.className = "bj-hand-total";
+    total.textContent = handTotalLabel(hand.cards);
+    meta.appendChild(total);
+    const bet = document.createElement("span");
+    bet.className = "bj-hand-bet";
+    bet.textContent = "🪙" + hand.bet;
+    meta.appendChild(bet);
+    if (hand.result) {
+      const res = document.createElement("span");
+      res.className = "bj-hand-result " + hand.result;
+      res.textContent = RESULT_LABEL[hand.result] || hand.result;
+      if (!prevHand || !prevHand.result) {
+        res.classList.add("pop-in");
+        if ((hand.result === "win" || hand.result === "blackjack") && stackEl) {
+          setTimeout(() => spawnBjCoinSparkle(stackEl), 150);
+        }
+      }
+      meta.appendChild(res);
+    }
+    block.appendChild(meta);
+
+    if (hand.status === "bust" && (!prevHand || prevHand.status !== "bust")) {
+      block.classList.add("bust-shake");
+    }
+    return block;
+  }
+
+  function renderPlayers(room, prevSnap) {
+    const row = $("playersRow");
+    row.innerHTML = "";
+    const dealOrigin = bjDealOriginRect();
+    room.players.forEach(p => {
+      const seat = document.createElement("div");
+      const isMe = p.username.toLowerCase() === myUsernameLower;
+      const isActing = room.phase === "playing" && room.turnSeat === p.seat;
+      seat.className = "bj-seat" + (isMe ? " me" : "") + (isActing ? " acting" : "");
+
+      const head = document.createElement("div");
+      head.className = "bj-seat-head";
+      const avatar = document.createElement("div");
+      avatar.className = "bj-seat-avatar";
+      setAvatar(avatar, p.avatar, p.username);
+      const name = document.createElement("div");
+      name.className = "bj-seat-name";
+      name.textContent = isMe ? "შენ" : p.username;
+      const stack = document.createElement("div");
+      stack.className = "bj-seat-stack";
+      stack.textContent = "🪙" + p.stack;
+      head.appendChild(avatar); head.appendChild(name); head.appendChild(stack);
+      seat.appendChild(head);
+
+      if (p.hands && p.hands.length) {
+        p.hands.forEach((h, hi) => {
+          const isActiveHand = isActing && hi === room.turnHandIdx;
+          seat.appendChild(renderHand(h, p.seat, hi, isActiveHand, prevSnap, dealOrigin, stack));
+        });
+      } else if (room.phase === "betting") {
+        const lbl = document.createElement("div");
+        lbl.className = "bj-no-bet-label";
+        lbl.textContent = p.hasBet ? "ფსონი დადებულია ✓" : "ფსონის მოლოდინში...";
+        seat.appendChild(lbl);
+      }
+      row.appendChild(seat);
+    });
+  }
+
+  function renderBettingPanel(room) {
+    const me = room.players.find(p => p.username.toLowerCase() === myUsernameLower);
+    const show = room.phase === "betting";
+    $("bettingPanel").style.display = show ? "block" : "none";
+    if (!show) return;
+    const alreadyBet = me && me.hasBet;
+    $("betWaitingLabel").style.display = alreadyBet ? "block" : "none";
+    $("betWaitingLabel").textContent = "ფსონი დადებულია — სხვების მოლოდინში...";
+    $("betPickWrap").style.display = alreadyBet ? "none" : "block";
+
+    if (!alreadyBet) {
+      const chipsRow = $("betChipsRow");
+      const maxAffordable = me ? me.stack : 0;
+      chipsRow.innerHTML = "";
+      BET_CHIPS.forEach(amt => {
+        const btn = document.createElement("button");
+        btn.className = "bj-bet-chip-btn" + (amt === selectedBet ? " selected" : "");
+        btn.textContent = "🪙" + amt;
+        btn.disabled = amt > maxAffordable;
+        btn.addEventListener("click", () => {
+          selectedBet = amt;
+          chipsRow.querySelectorAll(".bj-bet-chip-btn").forEach(b => b.classList.remove("selected"));
+          btn.classList.add("selected");
+        });
+        chipsRow.appendChild(btn);
+      });
+      $("betSubmitBtn").disabled = !me || selectedBet > maxAffordable;
+    }
+  }
+
+  function renderPlayPanel(room) {
+    const myTurn = room.phase === "playing" && room.players[room.turnSeat] && room.players[room.turnSeat].username.toLowerCase() === myUsernameLower;
+    $("playPanel").style.display = room.phase === "playing" ? "block" : "none";
+    if (room.phase !== "playing") return;
+
+    $("playWaitingLabel").style.display = myTurn ? "none" : "block";
+    $("playWaitingLabel").textContent = "მოწინააღმდეგის სვლის მოლოდინში...";
+    $("playActionsWrap").style.display = myTurn ? "flex" : "none";
+
+    if (myTurn) {
+      const me = room.players[room.turnSeat];
+      const hand = me.hands[room.turnHandIdx];
+      $("hitBtn").disabled = false;
+      $("standBtn").disabled = false;
+      $("doubleBtn").disabled = !(hand.cards.length === 2 && me.stack >= hand.bet);
+      const canSplit = hand.cards.length === 2 && hand.cards[0][0] === hand.cards[1][0] && me.hands.length < 2 && me.stack >= hand.bet;
+      $("splitBtn").disabled = !canSplit;
+    }
+  }
+
+  function clearTimerInterval() { clearInterval(timerInterval); timerInterval = null; }
+  function renderTimer(room) {
+    clearTimerInterval();
+    const chipId = room.phase === "betting" ? "betTimerChip" : "playTimerChip";
+    const chip = $(chipId);
+    if (!room.actionDeadline) { chip.textContent = ""; return; }
+    const tick = () => {
+      const secs = Math.max(0, Math.ceil((room.actionDeadline - Date.now()) / 1000));
+      chip.textContent = secs > 0 ? secs + "წმ" : "";
+      chip.classList.toggle("low", secs <= 5);
+      if (secs <= 0) clearTimerInterval();
+    };
+    tick();
+    timerInterval = setInterval(tick, 1000);
+  }
+
+  let prevBjSnap = null;
+
+  function renderGame(room) {
+    // Only diff against a previous snapshot of the SAME table — a fresh
+    // join/reconnect shouldn't animate every card on the table flying in
+    // at once as if it had just been dealt.
+    const snapForDiff = (prevBjSnap && prevBjSnap.roomId === room.roomId) ? prevBjSnap.data : null;
+
+    latestRoom = room;
+    $("setupCoins").textContent = "—";
+    const me = room.players.find(p => p.username.toLowerCase() === myUsernameLower);
+    if (me) $("tableCoins").textContent = me.stack;
+
+    renderDealer(room, snapForDiff);
+    renderPlayers(room, snapForDiff);
+    renderBettingPanel(room);
+    renderPlayPanel(room);
+    renderTimer(room);
+
+    prevBjSnap = { roomId: room.roomId, data: bjSnapshotRoom(room) };
+  }
+
+  /* ── Chat ────────────────────────────────────────────────────── */
+  let chatOpen = false;
+  function openChat() {
+    chatOpen = true;
+    $("chatPanel").classList.add("show");
+    $("chatBackdrop").classList.add("show");
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+    setTimeout(() => $("bjChatInput").focus(), 150);
+  }
+  function closeChat() {
+    chatOpen = false;
+    $("chatPanel").classList.remove("show");
+    $("chatBackdrop").classList.remove("show");
+  }
+  $("chatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("lobbyChatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("chatCloseBtn").addEventListener("click", closeChat);
+  $("chatBackdrop").addEventListener("click", closeChat);
+
+  function appendChatMessage(msg) {
+    const isMine = msg.username.toLowerCase() === myUsernameLower;
+    const row = document.createElement("div");
+    row.className = "bj-chat-msg " + (isMine ? "mine" : "other");
+    const author = document.createElement("div");
+    author.className = "bj-chat-author";
+    author.textContent = msg.username;
+    const body = document.createElement("div");
+    body.textContent = msg.text;
+    row.appendChild(author); row.appendChild(body);
+    $("chatMessages").appendChild(row);
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+    if (!chatOpen && !isMine) {
+      $("chatUnreadDot").classList.add("show");
+      $("lobbyChatUnreadDot").classList.add("show");
+    }
+  }
+  function sendChat() {
+    const val = $("bjChatInput").value.trim();
+    if (!val || !currentRoomId) return;
+    socket.emit("blackjack:chat", { roomId: currentRoomId, text: val });
+    $("bjChatInput").value = "";
+  }
+  $("bjChatSendBtn").addEventListener("click", sendChat);
+  $("bjChatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+
+  /* ── Actions ─────────────────────────────────────────────────── */
+  $("betSubmitBtn").addEventListener("click", () => {
+    if (!currentRoomId) return;
+    socket.emit("blackjack:placeBet", { roomId: currentRoomId, amount: selectedBet });
+  });
+  $("hitBtn").addEventListener("click", () => socket.emit("blackjack:action", { roomId: currentRoomId, action: "hit" }));
+  $("standBtn").addEventListener("click", () => socket.emit("blackjack:action", { roomId: currentRoomId, action: "stand" }));
+  $("doubleBtn").addEventListener("click", () => socket.emit("blackjack:action", { roomId: currentRoomId, action: "double" }));
+  $("splitBtn").addEventListener("click", () => socket.emit("blackjack:action", { roomId: currentRoomId, action: "split" }));
+
+  /* ── Navigation ──────────────────────────────────────────────── */
+  function backToSetup() {
+    currentRoomId = null;
+    latestRoom = null;
+    clearTimerInterval();
+    $("chatMessages").innerHTML = "";
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    closeChat();
+    history.replaceState(null, "", "/blackjack.html");
+    showScreen("setup");
+    socket.emit("blackjack:listPublicRooms");
+  }
+  $("lobbyBackBtn").addEventListener("click", () => { socket.emit("blackjack:leave"); backToSetup(); });
+  $("lobbyLeaveBtn").addEventListener("click", () => { socket.emit("blackjack:leave"); backToSetup(); });
+  $("startGameBtn").addEventListener("click", () => { if (currentRoomId) socket.emit("blackjack:start", { roomId: currentRoomId }); });
+  $("tableBackBtn").addEventListener("click", backToSetup); // stays seated — membership persists
+
+  /* ── Boot ────────────────────────────────────────────────────── */
+  function init() {
+    socket = io(); attachTempBanGuard(socket);
+    socket.on("connect", () => {
+      if (token) socket.emit("auth:token", { token });
+      else socket.emit("auth:guest", { preferredUsername: sessionStorage.getItem("gaicani_guest_username") || null });
+    });
+
+    socket.on("auth:authenticated", ({ username: authedName, isGuest } = {}) => {
+      if (isGuest && authedName) {
+        myUsernameLower = authedName.toLowerCase();
+        try { sessionStorage.setItem("gaicani_guest_username", authedName); } catch (_) {}
+      }
+      elLoading.classList.add("hidden");
+      socket.emit("users:listOnline");
+      socket.emit("blackjack:listPublicRooms");
+      if (currentRoomId) socket.emit("blackjack:join", { roomId: currentRoomId });
+      else showScreen("setup");
+    });
+    socket.on("auth:invalid", () => { window.location.href = "/"; });
+
+    socket.on("users:onlineList", ({ users }) => {
+      onlineUsers = (users || []).filter(u => u.username.toLowerCase() !== myUsernameLower);
+      renderOnlineFriends();
+    });
+    socket.on("users:onlineChanged", () => socket.emit("users:listOnline"));
+
+    socket.on("blackjack:publicRooms", renderPublicGames);
+
+    socket.on("blackjack:invited", ({ roomId, fromUsername }) => {
+      const bar = $("bjInviteBar");
+      bar.innerHTML = "";
+      const span = document.createElement("span");
+      span.style.flex = "1"; span.style.fontSize = "0.86em";
+      span.textContent = `🂡 ${fromUsername}-მა მოგიწვია ბლექჯეკზე`;
+      const acceptBtn = document.createElement("button");
+      acceptBtn.style.cssText = "border:none;border-radius:8px;padding:7px 12px;font-weight:700;font-size:0.85em;cursor:pointer;background:var(--good);color:#fff;";
+      acceptBtn.textContent = "✅";
+      const declineBtn = document.createElement("button");
+      declineBtn.style.cssText = "border:none;border-radius:8px;padding:7px 12px;font-weight:700;font-size:0.85em;cursor:pointer;background:var(--surface-2);color:var(--text);";
+      declineBtn.textContent = "❌";
+      bar.appendChild(span); bar.appendChild(acceptBtn); bar.appendChild(declineBtn);
+      bar.style.display = "flex";
+      acceptBtn.onclick = () => { bar.style.display = "none"; socket.emit("blackjack:join", { roomId }); };
+      declineBtn.onclick = () => { bar.style.display = "none"; socket.emit("blackjack:declineInvite", { roomId }); };
+    });
+    socket.on("blackjack:inviteSent", ({ invited, cooldown }) => {
+      if (invited && invited.length) showToast("მოწვევა გაეგზავნა: " + invited.join(", "));
+      if (cooldown && cooldown.length) showToast(cooldown.join(", ") + " ცოტა ხნის წინ უარი განაცხადა — სცადე მოგვიანებით.");
+    });
+    socket.on("blackjack:inviteDeclined", ({ username: who }) => showToast(`${who}-მ უარყო მოწვევა.`));
+
+    socket.on("blackjack:room", (room) => {
+      currentRoomId = room.roomId;
+      history.replaceState(null, "", "/blackjack.html?room=" + encodeURIComponent(room.roomId));
+      if (room.status === "lobby") { showScreen("lobby"); renderLobby(room); }
+      else { showScreen("table"); renderGame(room); }
+    });
+
+    socket.on("blackjack:error", ({ message }) => showToast(message));
+    socket.on("blackjack:chatMessage", appendChatMessage);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

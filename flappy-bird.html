@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <title>მფრინავი ჩიტი – GAICANI</title>
+  <meta name="theme-color" content="#2b2d31" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/flappy-bird.css" />
+</head>
+<body>
+  <script>
+    (function () {
+      function setAppHeight() {
+        var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty("--app-height", h + "px");
+      }
+      setAppHeight();
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", setAppHeight, { passive: true });
+      } else {
+        window.addEventListener("resize", setAppHeight, { passive: true });
+      }
+      window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+    })();
+  </script>
+
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <a href="/" class="site-name">GAICANI</a>
+      <a href="/dashboard.html" class="back-link">← პროფილი</a>
+    </div>
+    <span class="top-bar-username" id="fbTopUsername"></span>
+  </div>
+
+  <div id="fb-loading"><div class="fb-spinner"></div></div>
+
+  <!-- Guest gate — shown when there's no valid login -->
+  <div id="fb-guest-gate">
+    <div class="fb-guest-icon">🔒</div>
+    <div class="fb-guest-message">თამაშის დასაწყებად გაიარე რეგისტრაცია</div>
+    <div class="fb-guest-sub">„მფრინავი ჩიტი" ხელმისაწვდომია მხოლოდ რეგისტრირებული მომხმარებლებისთვის — შენი რეკორდი ინახება შენს ანგარიშზე.</div>
+    <a href="/" class="fb-guest-btn">რეგისტრაცია / შესვლა</a>
+  </div>
+
+  <!-- Main app -->
+  <div id="fb-app">
+
+    <div class="fb-header-row">
+      <div class="fb-title">🐦 მფრინავი ჩიტი</div>
+      <div class="fb-best-chip">🏆 <span id="fbBestScore">0</span></div>
+    </div>
+
+    <div class="fb-leaderboard">
+      <div class="fb-leaderboard-label">ტოპ 3 — ყველა დროის რეკორდი</div>
+      <div class="fb-podium" id="fbPodium">
+        <div class="fb-podium-slot rank-1"><div class="fb-podium-empty">—</div></div>
+        <div class="fb-podium-slot rank-2"><div class="fb-podium-empty">—</div></div>
+        <div class="fb-podium-slot rank-3"><div class="fb-podium-empty">—</div></div>
+      </div>
+    </div>
+
+    <div class="fb-game-wrap">
+      <div class="fb-canvas-box" id="fbCanvasBox">
+        <canvas id="fbCanvas"></canvas>
+        <div class="fb-hud-score" id="fbHudScore">0</div>
+
+        <!-- Start / idle overlay -->
+        <div class="fb-overlay visible" id="fbStartOverlay">
+          <div class="fb-overlay-title">მზად ხარ?</div>
+          <div class="fb-overlay-sub">შეხებით ან <strong>Space</strong>-ით ფრინავს აფრენ. მოერიდე მილებს!</div>
+          <div class="fb-tap-hint">▲ შეეხე დასაწყებად ▲</div>
+        </div>
+
+        <!-- Game over overlay -->
+        <div class="fb-overlay" id="fbGameOverOverlay">
+          <div class="fb-overlay-title">თამაში დასრულდა</div>
+          <div class="fb-score-big" id="fbFinalScore">0</div>
+          <div class="fb-score-best-line">შენი რეკორდი: <strong id="fbGameOverBest">0</strong></div>
+          <div class="fb-new-best-badge" id="fbNewBestBadge" style="display:none">🎉 ახალი რეკორდი!</div>
+          <button class="fb-restart-btn" id="fbRestartBtn">🔄 თავიდან თამაში</button>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="fb-controls-hint">შეხება / კლიკი / Space — ფრენა</div>
+
+  </div>
+
+  <div id="fb-toast-container"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/flappy-bird.js"></script>
+</body>
+</html>

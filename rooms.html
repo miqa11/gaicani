@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <title>GAICANI – ოთახები</title>
+  <meta name="theme-color" content="#17181d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #17181d;
+      --surface:   #26272e;
+      --surface-2: #2f3037;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #5865f2;
+      --accent-dk: #4752c4;
+      --accent-lt: #8b93ff;
+      --text:      #e4e5ea;
+      --muted:     #7d81a0;
+      --good:      #3ba55d;
+      --warn:      #faa61a;
+      --danger:    #f23f42;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top:    env(safe-area-inset-top, 0px);
+    }
+
+    html, body {
+      height: 100%; height: 100dvh;
+      height: var(--app-height, 100dvh);
+      background: radial-gradient(circle at 50% 0%, #22232c 0%, #17181d 55%);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+    button, a, [role="button"] { touch-action: manipulation; }
+
+    #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; height: var(--app-height, 100dvh); }
+
+    .rm-loading, .rm-center-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; text-align: center; padding: 24px;
+    }
+    .rm-loading.hidden, .rm-center-screen.hidden { display: none; }
+    .spinner {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 3px solid var(--border); border-top-color: var(--accent-lt);
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .rm-center-screen p { color: var(--text); font-size: 1em; max-width: 280px; line-height: 1.5; }
+    .rm-center-screen a {
+      color: #fff; text-decoration: none; font-weight: 700; font-size: 0.92em;
+      background: var(--accent); padding: 11px 24px; border-radius: 10px;
+    }
+
+    .rm-screen { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+    .rm-screen.visible { display: flex; }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    .rm-header {
+      display: flex; align-items: center; gap: 8px;
+      min-height: 54px; flex-shrink: 0; padding: 0 10px;
+      padding-top: var(--safe-top);
+      padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .rm-icon-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: transparent; border: none; color: var(--text);
+      text-decoration: none; font-size: 1.15em; cursor: pointer;
+      transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .rm-icon-btn:hover { background: rgba(255,255,255,0.08); }
+    .rm-icon-btn.danger { color: var(--danger); }
+    .rm-icon-btn.hidden { display: none; }
+
+    .rm-header-title { font-weight: 700; font-size: 1.02em; flex: 1; min-width: 0; }
+    .rm-header-title-group { flex: 1; min-width: 0; }
+    .rm-header-title-group .rm-header-title {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .rm-header-sub { color: var(--muted); font-size: 0.76em; margin-top: 1px; }
+
+    /* ── List screen ─────────────────────────────────────────────── */
+    .rm-list { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
+    .rm-empty {
+      color: var(--muted); font-size: 0.92em; text-align: center;
+      padding: 60px 20px; line-height: 1.6;
+    }
+    .rm-empty.hidden { display: none; }
+
+    .rm-room-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 13px 14px; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .rm-room-row:active { background: var(--surface-2); }
+    .rm-room-row--banned { opacity: 0.5; cursor: default; }
+    .rm-room-icon {
+      width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(88,101,242,0.16); color: var(--accent-lt);
+      display: flex; align-items: center; justify-content: center; font-size: 1.15em;
+      position: relative;
+    }
+    .rm-room-unread-dot {
+      position: absolute; top: -2px; right: -2px; width: 12px; height: 12px;
+      border-radius: 50%; background: var(--danger); border: 2px solid var(--surface);
+      animation: rmUnreadPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes rmUnreadPulse {
+      0%, 100% { transform: scale(1);   opacity: 1; }
+      50%       { transform: scale(1.3); opacity: 0.7; }
+    }
+    .rm-room-info { flex: 1; min-width: 0; }
+    .rm-room-name {
+      font-weight: 700; font-size: 0.96em;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .rm-room-meta { color: var(--muted); font-size: 0.78em; margin-top: 2px; }
+    .rm-badge {
+      font-size: 0.68em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      padding: 3px 8px; border-radius: 20px; flex-shrink: 0;
+    }
+    .rm-badge--danger { background: rgba(242,63,66,0.16); color: var(--danger); }
+
+    /* ── Chat screen ─────────────────────────────────────────────── */
+    .rm-messages {
+      flex: 1; overflow-y: auto; padding: 14px 14px 6px;
+      display: flex; flex-direction: column; gap: 12px;
+      -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    }
+    .rm-msg { display: flex; flex-direction: column; gap: 2px; animation: rmMsgIn 0.15s ease-out both; }
+    @keyframes rmMsgIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .rm-msg-meta { display: flex; align-items: center; gap: 8px; }
+    .rm-msg-name { font-weight: 700; font-size: 0.86em; color: var(--accent-lt); }
+    .rm-msg--me .rm-msg-name { color: var(--good); }
+    .pro-star { font-size: 0.85em; filter: drop-shadow(0 0 3px rgba(242,201,76,0.6)); }
+    .rm-msg-time { font-size: 0.7em; color: var(--muted); }
+    .rm-msg-del {
+      margin-left: auto; background: none; border: none; color: var(--muted);
+      font-size: 0.82em; cursor: pointer; padding: 2px 4px; opacity: 0.7;
+    }
+    .rm-msg-del:hover { color: var(--danger); opacity: 1; }
+    .rm-msg-text {
+      font-size: 0.92em; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 8px 12px; align-self: flex-start; max-width: 88%;
+    }
+    .rm-msg--me .rm-msg-text { background: rgba(88,101,242,0.14); border-color: rgba(88,101,242,0.3); }
+
+    .rm-empty-chat { color: var(--muted); font-size: 0.88em; text-align: center; padding: 40px 20px; }
+
+    /* ── Input bar ───────────────────────────────────────────────── */
+    .rm-input-bar {
+      display: flex; align-items: flex-end; gap: 8px;
+      padding: 10px 12px; padding-bottom: calc(10px + var(--safe-bottom));
+      background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+    #chatInput {
+      flex: 1; min-height: 40px; max-height: 110px; resize: none;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 20px;
+      color: var(--text); font-size: 16px; font-family: inherit; line-height: 1.4;
+      padding: 10px 15px; overflow-y: auto;
+    }
+    #chatInput:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    #chatSendBtn {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--accent); border: none; color: #fff; font-size: 1.05em; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: background 0.15s;
+    }
+    #chatSendBtn:hover { background: var(--accent-dk); }
+    #chatSendBtn:active { transform: scale(0.94); }
+
+    /* ── Modals (room form + members) ───────────────────────────── */
+    .rm-modal {
+      position: fixed; inset: 0; z-index: 500; display: none;
+      align-items: flex-end; justify-content: center;
+      background: rgba(0,0,0,0.55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    }
+    .rm-modal.show { display: flex; }
+    @media (min-width: 560px) { .rm-modal { align-items: center; padding: 20px; } }
+    .rm-modal-box {
+      background: var(--surface); width: 100%; max-width: 420px;
+      border-radius: 18px 18px 0 0; padding: 20px 18px calc(20px + var(--safe-bottom));
+      box-shadow: 0 -6px 40px rgba(0,0,0,0.5);
+      max-height: 80vh; display: flex; flex-direction: column;
+    }
+    @media (min-width: 560px) { .rm-modal-box { border-radius: 16px; padding: 20px; } }
+    .rm-modal-box h3 { font-size: 1.02em; margin-bottom: 14px; }
+    .rm-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .rm-modal-header button {
+      background: rgba(255,255,255,0.08); border: none; color: var(--muted);
+      width: 30px; height: 30px; border-radius: 50%; font-size: 0.95em; cursor: pointer;
+    }
+    #roomFormInput {
+      width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 0.95em; font-family: inherit; margin-bottom: 14px;
+    }
+    #roomFormInput:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    .rm-modal-actions { display: flex; gap: 10px; }
+    .rm-modal-actions button {
+      flex: 1; border: none; border-radius: 10px; padding: 12px; font-weight: 700;
+      font-size: 0.92em; cursor: pointer;
+    }
+    #roomFormCancel { background: var(--surface-2); color: var(--text); }
+    #roomFormSave { background: var(--accent); color: #fff; }
+
+    /* ── Members panel ──────────────────────────────────────────── */
+    #membersList, #bannedList { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+    .rm-member-row {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
+    }
+    .rm-member-name { flex: 1; min-width: 0; font-weight: 600; font-size: 0.9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rm-member-action {
+      border: none; border-radius: 7px; padding: 6px 10px; font-size: 0.76em; font-weight: 700;
+      cursor: pointer; background: var(--surface-2); color: var(--text); flex-shrink: 0;
+    }
+    .rm-member-action--danger { background: rgba(242,63,66,0.16); color: var(--danger); }
+    #bannedSection { margin-top: 16px; }
+    #bannedSection h4 { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    #bannedSection.hidden { display: none; }
+
+    #rmToast {
+      position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 18px; border-radius: 20px; font-size: 0.88em;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 600;
+      max-width: 90vw; text-align: center;
+    }
+    #rmToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  
+    /* ── iOS input zoom fix ──────────────────────────────────────────────
+       Safari on iPhone zooms the page in when an input under 16px gets
+       focus, and leaves you zoomed. Scoped to touch devices so desktop
+       sizing is unchanged. */
+    @media (pointer: coarse) {
+      #roomFormInput {
+        font-size: 16px;
+      }
+    }
+  
+    /* ── Tap-a-user profile card ──────────────────────────────────────────
+       Opened by tapping a message author's avatar or name in room chat.
+       Mirrors the dashboard's card so it feels like the same component. */
+    .profile-card-backdrop {
+      position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,0.6);
+      -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.18s ease; padding: 20px;
+    }
+    .profile-card-backdrop.show { opacity: 1; pointer-events: auto; }
+    .profile-card-modal {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 16px;
+      width: 100%; max-width: 340px; padding: 26px 20px 20px; text-align: center; position: relative;
+      transform: scale(0.94) translateY(8px); transition: transform 0.18s ease;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+    }
+    .profile-card-backdrop.show .profile-card-modal { transform: scale(1) translateY(0); }
+    .profile-card-close {
+      position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+      border-radius: 50%; border: none; background: rgba(255,255,255,0.09);
+      color: var(--text); font-size: 1em; cursor: pointer;
+    }
+    .profile-card-avatar {
+      width: 86px; height: 86px; border-radius: 50%; margin: 0 auto 12px;
+      background: var(--bg); display: flex; align-items: center; justify-content: center;
+      font-size: 2em; font-weight: 700; color: var(--muted); overflow: hidden;
+      border: 3px solid var(--border);
+    }
+    .profile-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-card-name { font-size: 1.18em; font-weight: 800; color: #fff; margin-bottom: 7px; }
+    .profile-card-status {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 0.82em;
+      font-weight: 700; padding: 4px 13px; border-radius: 20px; margin-bottom: 14px;
+    }
+    .profile-card-status.online  { background: rgba(59,165,93,0.16); color: var(--good); }
+    .profile-card-status.offline { background: rgba(255,255,255,0.06); color: var(--muted); }
+    .profile-card-status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .profile-card-bio {
+      background: var(--bg); border-radius: 8px; padding: 13px 14px; color: var(--text);
+      font-size: 0.88em; line-height: 1.55; text-align: left; margin-bottom: 16px; word-break: break-word;
+    }
+    .profile-card-bio.empty { color: var(--muted); font-style: italic; text-align: center; }
+    .profile-card-msg-btn {
+      width: 100%; border: none; border-radius: 8px; padding: 11px; font-weight: 700;
+      font-size: 0.88em; cursor: pointer; background: var(--accent); color: #fff;
+    }
+    .profile-card-msg-btn:hover { background: var(--accent-dk); }
+    .profile-card-report-btn {
+      width: 100%; margin-top: 8px; border: none; border-radius: 8px; padding: 9px;
+      font-weight: 600; font-size: 0.8em; cursor: pointer; background: none;
+      color: var(--muted); text-decoration: underline;
+    }
+    .profile-card-report-btn:hover { color: var(--danger); }
+    .profile-card-loading { color: var(--muted); font-size: 0.9em; padding: 20px 0; }
+
+    /* Tappable author avatar + name in chat */
+    .rm-msg-avatar {
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+      background: rgba(88,101,242,0.22); display: flex; align-items: center; justify-content: center;
+      font-size: 0.62em; font-weight: 700; color: var(--accent-lt); cursor: pointer;
+    }
+    .rm-msg-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .rm-msg-name { cursor: pointer; }
+
+    /* Report reason modal */
+    .rm-report-backdrop {
+      position: fixed; inset: 0; z-index: 950; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.18s ease; padding: 20px;
+    }
+    .rm-report-backdrop.show { opacity: 1; pointer-events: auto; }
+    .rm-report-modal {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 16px;
+      width: 100%; max-width: 330px; padding: 22px 20px;
+    }
+    .rm-report-title { font-weight: 800; font-size: 1.04em; margin-bottom: 4px; color: #fff; }
+    .rm-report-sub { font-size: 0.78em; color: var(--muted); margin-bottom: 14px; line-height: 1.45; }
+    .rm-report-input {
+      width: 100%; padding: 11px 13px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg); color: #fff; font-size: 16px; min-height: 80px;
+      resize: vertical; font-family: inherit; margin-bottom: 6px;
+    }
+    .rm-report-input:focus { outline: none; border-color: var(--accent); }
+    .rm-report-error { font-size: 0.76em; color: var(--danger); min-height: 16px; margin-bottom: 8px; }
+    .rm-report-actions { display: flex; gap: 8px; }
+    .rm-report-btn {
+      flex: 1; border: none; border-radius: 8px; padding: 11px; font-weight: 700;
+      font-size: 0.86em; cursor: pointer;
+    }
+    .rm-report-cancel { background: #40444b; color: var(--text); }
+    .rm-report-send { background: var(--danger); color: #fff; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <div id="rmLoading" class="rm-loading"><div class="spinner"></div></div>
+
+  <div id="rmAuthScreen" class="rm-center-screen hidden">
+    <div style="font-size:2.4em;">🔒</div>
+    <p>ოთახების სანახავად საჭიროა შესვლა — შენი ანგარიშით შეგიძლია შეუერთდე ნებისმიერ თემას.</p>
+    <a href="/">რეგისტრაცია / შესვლა</a>
+  </div>
+
+  <!-- LIST SCREEN -->
+  <div id="listScreen" class="rm-screen">
+    <header class="rm-header">
+      <a href="/dashboard.html" class="rm-icon-btn" title="უკან">←</a>
+      <div class="rm-header-title">🗨️ ოთახები</div>
+      <button id="newRoomBtn" class="rm-icon-btn" style="display:none" title="ახალი ოთახი">➕</button>
+    </header>
+    <div id="roomList" class="rm-list"></div>
+    <div id="roomListEmpty" class="rm-empty hidden">ჯერ არცერთი ოთახი არ შექმნილა.<br>დაბრუნდი მოგვიანებით!</div>
+  </div>
+
+  <!-- CHAT SCREEN -->
+  <div id="chatScreen" class="rm-screen">
+    <header class="rm-header">
+      <button id="chatBackBtn" class="rm-icon-btn" title="უკან">←</button>
+      <div class="rm-header-title-group">
+        <div id="chatRoomName" class="rm-header-title"></div>
+        <div id="chatMemberCount" class="rm-header-sub"></div>
+      </div>
+      <button id="membersBtn" class="rm-icon-btn" title="წევრები">👥</button>
+      <button id="editRoomBtn" class="rm-icon-btn admin-only hidden" title="რედაქტირება">✏️</button>
+      <button id="deleteRoomBtn" class="rm-icon-btn admin-only hidden danger" title="ოთახის წაშლა">🗑️</button>
+    </header>
+    <div id="chatMessages" class="rm-messages"></div>
+    <div class="rm-input-bar">
+      <textarea id="chatInput" rows="1" maxlength="2000" placeholder="შეტყობინება..."></textarea>
+      <button id="chatSendBtn" title="გაგზავნა">➤</button>
+    </div>
+  </div>
+
+  <div id="rmToast"></div>
+</div>
+
+<!-- New / Edit room modal (admin only) -->
+<div id="roomFormModal" class="rm-modal">
+  <div class="rm-modal-box">
+    <h3 id="roomFormTitle">ახალი ოთახი</h3>
+    <input type="text" id="roomFormInput" maxlength="80" placeholder="თემა, მაგ: სად დავლიო?" />
+    <div class="rm-modal-actions">
+      <button id="roomFormCancel">გაუქმება</button>
+      <button id="roomFormSave">შენახვა</button>
+    </div>
+  </div>
+</div>
+
+<!-- Members panel -->
+<div id="membersModal" class="rm-modal">
+  <div class="rm-modal-box">
+    <div class="rm-modal-header">
+      <h3 style="margin:0;">წევრები</h3>
+      <button id="membersClose">✕</button>
+    </div>
+    <div id="membersList"></div>
+    <div id="bannedSection" class="hidden">
+      <h4>დაბლოკილები ამ ოთახში</h4>
+      <div id="bannedList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tap-a-user profile card — opened from a message author's avatar/name -->
+<div id="profileCardBackdrop" class="profile-card-backdrop">
+  <div class="profile-card-modal">
+    <button class="profile-card-close" id="profileCardCloseBtn">✕</button>
+    <div id="profileCardBody"><div class="profile-card-loading">იტვირთება...</div></div>
+  </div>
+</div>
+
+<!-- Report reason modal -->
+<div id="rmReportBackdrop" class="rm-report-backdrop">
+  <div class="rm-report-modal">
+    <div class="rm-report-title">🚩 მომხმარებლის დარეპორტება</div>
+    <div class="rm-report-sub" id="rmReportSub"></div>
+    <textarea id="rmReportInput" class="rm-report-input" maxlength="300" placeholder="მიუთითეთ მიზეზი (სავალდებულოა)..."></textarea>
+    <div class="rm-report-error" id="rmReportError"></div>
+    <div class="rm-report-actions">
+      <button class="rm-report-btn rm-report-cancel" id="rmReportCancel">გაუქმება</button>
+      <button class="rm-report-btn rm-report-send" id="rmReportSend">🚩 გაგზავნა</button>
+    </div>
+  </div>
+</div>
+
+<script src="/ban-notice.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  (function () {
+    function setAppHeight() {
+      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    }
+    setAppHeight();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", setAppHeight);
+      window.visualViewport.addEventListener("scroll", setAppHeight);
+    }
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+  })();
+</script>
+<script>
+(function () {
+  "use strict";
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  function $(id) { return document.getElementById(id); }
+  function showToast(msg, ms = 3000) {
+    const t = $("rmToast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), ms);
+  }
+  function loadAuth() {
+    try {
+      return { token: localStorage.getItem("gaicani_auth_token"), username: localStorage.getItem("gaicani_auth_user") };
+    } catch (_) { return {}; }
+  }
+  function getRoomParam() {
+    const u = new URLSearchParams(window.location.search);
+    return (u.get("room") || "").trim();
+  }
+  function fmtTime(iso) {
+    try {
+      return new Date(iso).toLocaleTimeString("ka-GE", { hour: "2-digit", minute: "2-digit" });
+    } catch (_) { return ""; }
+  }
+  function fmtMeta(iso) {
+    if (!iso) return "შეტყობინებები ჯერ არ არის";
+    try {
+      const d = new Date(iso);
+      const today = new Date();
+      const sameDay = d.toDateString() === today.toDateString();
+      return sameDay
+        ? "ბოლო აქტივობა " + d.toLocaleTimeString("ka-GE", { hour: "2-digit", minute: "2-digit" })
+        : "ბოლო აქტივობა " + d.toLocaleDateString("ka-GE");
+    } catch (_) { return ""; }
+  }
+
+  let { token, username } = loadAuth();
+  let myUsernameLower = (username || "").toLowerCase();
+  let isAdminGlobal = false;
+  let amGuest = false; // guests cannot report — server rejects them, so we hide the button
+
+  const elLoading = $("rmLoading");
+  const elAuth    = $("rmAuthScreen");
+  const screens   = { list: $("listScreen"), chat: $("chatScreen") };
+
+  function showScreen(name) {
+    Object.entries(screens).forEach(([k, el]) => el.classList.toggle("visible", k === name));
+  }
+
+  /* ── State ───────────────────────────────────────────────────── */
+  let socket = null;
+  let currentRoomId   = getRoomParam() || null;
+  let currentRoomName = "";
+  let roomsCache      = [];
+  let currentMembers  = []; // display usernames
+  let currentBanned   = []; // display usernames — populated only for admins
+
+  /* ── Room list ───────────────────────────────────────────────── */
+  function fetchRoomsList() {
+    fetch("/api/rooms", { headers: { Authorization: "Bearer " + token } })
+      .then(r => r.json())
+      .then(data => {
+        if (!data || !Array.isArray(data.rooms)) return;
+        roomsCache = data.rooms;
+        isAdminGlobal = !!data.isAdmin;
+        $("newRoomBtn").style.display = isAdminGlobal ? "flex" : "none";
+        renderRoomList();
+      })
+      .catch(() => showToast("ოთახების სიის ჩატვირთვა ვერ მოხერხდა"));
+  }
+
+  function renderRoomList() {
+    const list = $("roomList");
+    list.innerHTML = "";
+    $("roomListEmpty").classList.toggle("hidden", roomsCache.length > 0);
+
+    roomsCache.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "rm-room-row" + (r.isBanned ? " rm-room-row--banned" : "");
+
+      const icon = document.createElement("div");
+      icon.className = "rm-room-icon";
+      icon.textContent = "💬";
+      if (r.hasUnread) {
+        const dot = document.createElement("span");
+        dot.className = "rm-room-unread-dot";
+        icon.appendChild(dot);
+      }
+
+      const info = document.createElement("div");
+      info.className = "rm-room-info";
+      const nameEl = document.createElement("div");
+      nameEl.className = "rm-room-name";
+      nameEl.textContent = r.name;
+      const metaEl = document.createElement("div");
+      metaEl.className = "rm-room-meta";
+      metaEl.textContent = `${r.memberCount} წევრი · ${fmtMeta(r.lastMessageAt)}`;
+      info.appendChild(nameEl);
+      info.appendChild(metaEl);
+
+      row.appendChild(icon);
+      row.appendChild(info);
+
+      if (r.isBanned) {
+        const badge = document.createElement("span");
+        badge.className = "rm-badge rm-badge--danger";
+        badge.textContent = "შეზღუდული";
+        row.appendChild(badge);
+      } else {
+        row.addEventListener("click", () => openRoom(r.id));
+      }
+
+      list.appendChild(row);
+    });
+  }
+
+  function openRoom(roomId) {
+    if (!socket) return;
+    history.replaceState(null, "", "/rooms.html?room=" + encodeURIComponent(roomId));
+    socket.emit("rooms:join", { roomId });
+  }
+
+  function backToList() {
+    currentRoomId = null;
+    history.replaceState(null, "", "/rooms.html");
+    showScreen("list");
+    fetchRoomsList();
+  }
+
+  /* ── Chat screen ─────────────────────────────────────────────── */
+  function renderChatHeader() {
+    $("chatRoomName").textContent = currentRoomName;
+    $("chatMemberCount").textContent = currentMembers.length + " წევრი";
+    document.querySelectorAll(".admin-only").forEach(el => el.classList.toggle("hidden", !isAdminGlobal));
+  }
+
+  function appendMessageEl(m) {
+    const isMe = m.fromUsername.toLowerCase() === myUsernameLower;
+
+    const wrap = document.createElement("div");
+    wrap.className = "rm-msg" + (isMe ? " rm-msg--me" : "");
+    wrap.dataset.id = m.id;
+
+    const meta = document.createElement("div");
+    meta.className = "rm-msg-meta";
+
+    // Tappable author icon — opens the profile card. Built with DOM nodes so
+    // the username is never interpolated into HTML.
+    const av = document.createElement("div");
+    av.className = "rm-msg-avatar";
+    av.title = m.fromUsername;
+    if (m.avatar) {
+      const img = document.createElement("img");
+      img.src = "/" + m.avatar;
+      img.alt = m.fromUsername;
+      av.appendChild(img);
+    } else {
+      av.textContent = (m.fromUsername || "?").charAt(0).toUpperCase();
+    }
+    av.addEventListener("click", () => openProfileCard(m.fromUsername));
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "rm-msg-name";
+    nameSpan.textContent = m.fromUsername; // textContent — auto-escapes
+    nameSpan.addEventListener("click", () => openProfileCard(m.fromUsername));
+    if (m.isPro) {
+      const star = document.createElement("span");
+      star.className = "pro-star";
+      star.title = "Pro";
+      star.textContent = " ⭐";
+      nameSpan.appendChild(star);
+    }
+
+    const timeSpan = document.createElement("span");
+    timeSpan.className = "rm-msg-time";
+    timeSpan.textContent = fmtTime(m.ts);
+    meta.appendChild(av);
+    meta.appendChild(nameSpan);
+    meta.appendChild(timeSpan);
+
+    if (isAdminGlobal) {
+      const delBtn = document.createElement("button");
+      delBtn.className = "rm-msg-del";
+      delBtn.textContent = "🗑";
+      delBtn.title = "წაშლა";
+      delBtn.addEventListener("click", () => {
+        if (confirm("წავშალო ეს შეტყობინება?")) {
+          socket.emit("rooms:deleteMessage", { roomId: currentRoomId, messageId: m.id });
+        }
+      });
+      meta.appendChild(delBtn);
+    }
+
+    const body = document.createElement("div");
+    body.className = "rm-msg-text";
+    body.textContent = m.text; // textContent — auto-escapes, never innerHTML
+
+    wrap.appendChild(meta);
+    wrap.appendChild(body);
+    $("chatMessages").appendChild(wrap);
+  }
+
+  /* ── Tap-a-user profile card ──────────────────────────────────────────
+     Opened from a message author's avatar or name. Fetches the live profile
+     so the picture/bio/online state are current, rather than whatever was
+     true when the message was sent. */
+  async function openProfileCard(username) {
+    if (!username) return;
+    const backdrop = $("profileCardBackdrop");
+    const body = $("profileCardBody");
+    body.innerHTML = '<div class="profile-card-loading">იტვირთება...</div>';
+    backdrop.classList.add("show");
+    try {
+      const res = await fetch("/api/users/profile?username=" + encodeURIComponent(username), {
+        headers: { Authorization: "Bearer " + token },
+      });
+      if (!res.ok) throw new Error("not ok");
+      const d = await res.json();
+
+      body.innerHTML = "";
+
+      const av = document.createElement("div");
+      av.className = "profile-card-avatar";
+      if (d.avatar) {
+        const img = document.createElement("img");
+        img.src = "/" + d.avatar; img.alt = d.username;
+        av.appendChild(img);
+      } else {
+        av.textContent = (d.username || "?").charAt(0).toUpperCase();
+      }
+
+      const nameEl = document.createElement("div");
+      nameEl.className = "profile-card-name";
+      nameEl.textContent = d.username;
+      if (d.isPro) {
+        const star = document.createElement("span");
+        star.className = "pro-star";
+        star.title = "Pro";
+        star.textContent = " ⭐";
+        nameEl.appendChild(star);
+      }
+
+      const status = document.createElement("div");
+      status.className = "profile-card-status " + (d.isOnline ? "online" : "offline");
+      const dot = document.createElement("span");
+      dot.className = "profile-card-status-dot";
+      status.appendChild(dot);
+      status.appendChild(document.createTextNode(d.isOnline ? "ონლაინ" : "ოფლაინ"));
+
+      const bio = document.createElement("div");
+      bio.className = "profile-card-bio" + (d.bio ? "" : " empty");
+      bio.textContent = d.bio || "ბიოგრაფია ჯერ არ დაუწერია";
+
+      body.appendChild(av); body.appendChild(nameEl);
+      body.appendChild(status); body.appendChild(bio);
+
+      const isMe = (d.username || "").toLowerCase() === myUsernameLower;
+      if (!isMe) {
+        const msgBtn = document.createElement("button");
+        msgBtn.className = "profile-card-msg-btn";
+        msgBtn.textContent = "💬 პირადი მიწერა";
+        msgBtn.addEventListener("click", () => {
+          window.location.href = "/friend-chat.html?friend=" + encodeURIComponent(d.username);
+        });
+        body.appendChild(msgBtn);
+
+        // Guests aren't reportable — their names are temporary and get reused,
+        // so a report could later point at an unrelated person. A guest also
+        // can't file one (the server rejects it silently), so hide the button
+        // in that case rather than leave it hanging with no response.
+        if (!d.isGuest && !amGuest) {
+          const repBtn = document.createElement("button");
+          repBtn.className = "profile-card-report-btn";
+          repBtn.textContent = "🚩 რეპორტი";
+          repBtn.addEventListener("click", () => openReportModal(d.username));
+          body.appendChild(repBtn);
+        }
+      }
+    } catch {
+      body.innerHTML = '<div class="profile-card-loading">პროფილის ჩატვირთვა ვერ მოხერხდა</div>';
+    }
+  }
+  function closeProfileCard() { $("profileCardBackdrop").classList.remove("show"); }
+
+  /* ── Report modal ─────────────────────────────────────────────────── */
+  let reportTarget = null;
+  function openReportModal(username) {
+    reportTarget = username;
+    $("rmReportSub").textContent = 'რატომ დარეპორტებთ "' + username + '"-ს?';
+    $("rmReportInput").value = "";
+    $("rmReportError").textContent = "";
+    closeProfileCard();
+    $("rmReportBackdrop").classList.add("show");
+  }
+  function closeReportModal() { $("rmReportBackdrop").classList.remove("show"); }
+
+  function bindProfileCardUI() {
+    $("profileCardCloseBtn").addEventListener("click", closeProfileCard);
+    $("profileCardBackdrop").addEventListener("click", (e) => {
+      if (e.target.id === "profileCardBackdrop") closeProfileCard();
+    });
+    $("rmReportCancel").addEventListener("click", closeReportModal);
+    $("rmReportBackdrop").addEventListener("click", (e) => {
+      if (e.target.id === "rmReportBackdrop") closeReportModal();
+    });
+    $("rmReportSend").addEventListener("click", () => {
+      const reason = $("rmReportInput").value.trim();
+      if (reason.length < 3) { $("rmReportError").textContent = "გთხოვთ, მიუთითოთ მიზეზი"; return; }
+      $("rmReportError").textContent = "";
+      $("rmReportSend").disabled = true;
+      socket.emit("user:report", { targetUsername: reportTarget, reason });
+    });
+  }
+
+  function scrollChatToBottom() {
+    const el = $("chatMessages");
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function renderMembers() {
+    const list = $("membersList");
+    list.innerHTML = "";
+
+    if (!currentMembers.length) {
+      const empty = document.createElement("div");
+      empty.className = "rm-empty-chat";
+      empty.style.padding = "10px 0";
+      empty.textContent = "წევრები ჯერ არ არიან";
+      list.appendChild(empty);
+    }
+
+    currentMembers.forEach(name => {
+      const row = document.createElement("div");
+      row.className = "rm-member-row";
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "rm-member-name";
+      nameSpan.textContent = name;
+      row.appendChild(nameSpan);
+
+      if (isAdminGlobal && name.toLowerCase() !== myUsernameLower) {
+        const kickBtn = document.createElement("button");
+        kickBtn.className = "rm-member-action";
+        kickBtn.textContent = "გაძევება";
+        kickBtn.addEventListener("click", () => {
+          if (confirm(`${name} ამოვიღო ამ ოთახიდან?`)) {
+            socket.emit("rooms:kickUser", { roomId: currentRoomId, username: name });
+          }
+        });
+        const banBtn = document.createElement("button");
+        banBtn.className = "rm-member-action rm-member-action--danger";
+        banBtn.textContent = "დაბლოკვა";
+        banBtn.addEventListener("click", () => {
+          if (confirm(`${name} დავბლოკო ამ ოთახში მონაწილეობისთვის?`)) {
+            socket.emit("rooms:banUser", { roomId: currentRoomId, username: name });
+          }
+        });
+        row.appendChild(kickBtn);
+        row.appendChild(banBtn);
+      }
+      list.appendChild(row);
+    });
+
+    const bannedSection = $("bannedSection");
+    if (isAdminGlobal && currentBanned.length) {
+      bannedSection.classList.remove("hidden");
+      const bl = $("bannedList");
+      bl.innerHTML = "";
+      currentBanned.forEach(name => {
+        const row = document.createElement("div");
+        row.className = "rm-member-row";
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "rm-member-name";
+        nameSpan.textContent = name;
+        const unbanBtn = document.createElement("button");
+        unbanBtn.className = "rm-member-action";
+        unbanBtn.textContent = "განბლოკვა";
+        unbanBtn.addEventListener("click", () => {
+          socket.emit("rooms:unbanUser", { roomId: currentRoomId, username: name });
+        });
+        row.appendChild(nameSpan);
+        row.appendChild(unbanBtn);
+        bl.appendChild(row);
+      });
+    } else {
+      bannedSection.classList.add("hidden");
+    }
+  }
+
+  /* ── Room create/edit modal ─────────────────────────────────── */
+  let roomFormMode = "create";
+  function openRoomFormModal(mode) {
+    roomFormMode = mode;
+    $("roomFormTitle").textContent = mode === "create" ? "ახალი ოთახი" : "ოთახის რედაქტირება";
+    $("roomFormInput").value = mode === "edit" ? currentRoomName : "";
+    $("roomFormModal").classList.add("show");
+    setTimeout(() => $("roomFormInput").focus(), 50);
+  }
+  function closeRoomFormModal() {
+    $("roomFormModal").classList.remove("show");
+  }
+
+  /* ── Boot ────────────────────────────────────────────────────── */
+  function init() {
+    socket = io(); attachTempBanGuard(socket);
+    socket.on("connect", () => {
+      if (token) socket.emit("auth:token", { token });
+      else socket.emit("auth:guest", { preferredUsername: sessionStorage.getItem("gaicani_guest_username") || null });
+    });
+
+    socket.on("auth:authenticated", ({ username: authedName, isAdmin, isGuest, guestToken }) => {
+      amGuest = !!isGuest;
+      if (isGuest && authedName) {
+        myUsernameLower = authedName.toLowerCase();
+        token = guestToken; // needed for the REST fetches below — reading is allowed as a guest
+        try { sessionStorage.setItem("gaicani_guest_username", authedName); } catch (_) {}
+      }
+      isAdminGlobal = !!isAdmin;
+      elLoading.classList.add("hidden");
+      $("newRoomBtn").style.display = isAdminGlobal ? "flex" : "none";
+      fetchRoomsList();
+
+      if (currentRoomId) {
+        socket.emit("rooms:join", { roomId: currentRoomId });
+      } else {
+        showScreen("list");
+      }
+    });
+
+    socket.on("user:reportResult", ({ success, error }) => {
+      $("rmReportSend").disabled = false;
+      if (!success) { $("rmReportError").textContent = error || "ვერ მოხერხდა"; return; }
+      closeReportModal();
+      showToast("🚩 რეპორტი გაიგზავნა — მადლობა!");
+    });
+
+    socket.on("auth:invalid", () => { window.location.href = "/"; });
+
+    socket.on("guest:registerRequired", () => {
+      showToast("🔒 ოთახებში წერისთვის საჭიროა რეგისტრაცია — კითხვა შეგიძლიათ სტუმრადაც");
+    });
+
+    socket.on("rooms:updated", fetchRoomsList);
+
+    socket.on("rooms:room", (data) => {
+      currentRoomId   = data.room.id;
+      currentRoomName = data.room.name;
+      isAdminGlobal   = !!data.isAdmin;
+      currentMembers  = data.members || [];
+      currentBanned   = data.bannedUsers || [];
+
+      history.replaceState(null, "", "/rooms.html?room=" + encodeURIComponent(currentRoomId));
+      showScreen("chat");
+      renderChatHeader();
+
+      $("chatMessages").innerHTML = "";
+      if (!data.messages || !data.messages.length) {
+        const empty = document.createElement("div");
+        empty.className = "rm-empty-chat";
+        empty.textContent = "ჯერ არცერთი შეტყობინება — დაწერე პირველი!";
+        $("chatMessages").appendChild(empty);
+      } else {
+        data.messages.forEach(appendMessageEl);
+      }
+      scrollChatToBottom();
+      renderMembers();
+    });
+
+    socket.on("rooms:message", ({ roomId, message }) => {
+      if (roomId !== currentRoomId) return; // not the room currently open
+      const empty = $("chatMessages").querySelector(".rm-empty-chat");
+      if (empty) empty.remove();
+      appendMessageEl(message);
+      scrollChatToBottom();
+    });
+
+    socket.on("rooms:messageDeleted", ({ roomId, messageId }) => {
+      if (roomId !== currentRoomId) return;
+      const el = $("chatMessages").querySelector('[data-id="' + messageId + '"]');
+      if (el) el.remove();
+    });
+
+    socket.on("rooms:memberJoined", ({ roomId, username: who }) => {
+      if (roomId !== currentRoomId) return;
+      if (!currentMembers.includes(who)) currentMembers.push(who);
+      $("chatMemberCount").textContent = currentMembers.length + " წევრი";
+      renderMembers();
+    });
+
+    socket.on("rooms:memberLeft", ({ roomId, username: who }) => {
+      if (roomId !== currentRoomId) return;
+      currentMembers = currentMembers.filter(n => n !== who);
+      $("chatMemberCount").textContent = currentMembers.length + " წევრი";
+      renderMembers();
+    });
+
+    socket.on("rooms:roomEdited", ({ roomId, name }) => {
+      if (roomId !== currentRoomId) return;
+      currentRoomName = name;
+      $("chatRoomName").textContent = name;
+    });
+
+    socket.on("rooms:roomDeleted", ({ roomId }) => {
+      if (roomId !== currentRoomId) return;
+      showToast("ეს ოთახი წაშლილია ადმინისტრატორის მიერ");
+      backToList();
+    });
+
+    socket.on("rooms:kicked", ({ roomId, roomName }) => {
+      showToast(`თქვენ ამოგიღეს ოთახიდან „${roomName}"`);
+      if (roomId === currentRoomId) backToList(); else fetchRoomsList();
+    });
+
+    socket.on("rooms:banned", ({ roomId, roomName }) => {
+      showToast(`ადმინისტრატორმა შეგზღუდათ მონაწილეობა ოთახში „${roomName}"`);
+      if (roomId === currentRoomId) backToList(); else fetchRoomsList();
+    });
+
+    socket.on("rooms:created", ({ roomId }) => {
+      closeRoomFormModal();
+      openRoom(roomId);
+    });
+
+    socket.on("rooms:left", () => { /* membership cleared server-side — list already reflects it on next fetch */ });
+
+    socket.on("rooms:error", ({ message }) => {
+      showToast(message);
+      // A failed deep-link join (?room=xxx pointing at a deleted/banned room)
+      // would otherwise leave neither screen visible — fall back to the list.
+      if (!document.querySelector(".rm-screen.visible")) backToList();
+    });
+
+    /* ── UI bindings ───────────────────────────────────────────── */
+    $("newRoomBtn").addEventListener("click", () => openRoomFormModal("create"));
+    $("editRoomBtn").addEventListener("click", () => openRoomFormModal("edit"));
+    $("chatBackBtn").addEventListener("click", backToList);
+
+    $("deleteRoomBtn").addEventListener("click", () => {
+      if (!currentRoomId) return;
+      if (confirm("ნამდვილად წავშალო ეს ოთახი? ყველა შეტყობინება სამუდამოდ წაიშლება.")) {
+        socket.emit("rooms:delete", { roomId: currentRoomId });
+      }
+    });
+
+    $("membersBtn").addEventListener("click", () => {
+      renderMembers();
+      $("membersModal").classList.add("show");
+    });
+    $("membersClose").addEventListener("click", () => $("membersModal").classList.remove("show"));
+
+    $("roomFormCancel").addEventListener("click", closeRoomFormModal);
+    $("roomFormSave").addEventListener("click", () => {
+      const val = $("roomFormInput").value.trim();
+      if (!val) return;
+      if (roomFormMode === "create") {
+        socket.emit("rooms:create", { name: val });
+      } else {
+        socket.emit("rooms:edit", { roomId: currentRoomId, name: val });
+        closeRoomFormModal();
+      }
+    });
+    $("roomFormInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); $("roomFormSave").click(); }
+    });
+
+    function sendMessage() {
+      const val = $("chatInput").value.trim();
+      if (!val || !currentRoomId) return;
+      socket.emit("rooms:send", { roomId: currentRoomId, text: val });
+      $("chatInput").value = "";
+      $("chatInput").style.height = "auto";
+    }
+    $("chatSendBtn").addEventListener("click", sendMessage);
+    $("chatInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+    $("chatInput").addEventListener("input", function () {
+      this.style.height = "auto";
+      this.style.height = Math.min(this.scrollHeight, 110) + "px";
+    });
+    bindProfileCardUI();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

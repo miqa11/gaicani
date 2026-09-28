@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ჩაიწერე გაიცანი აპლიკაციად – GAICANI</title>
+  <meta name="description" content="დააინსტალირე GAICANI შენს ტელეფონზე ან კომპიუტერზე — ინსტრუქცია Android, iPhone და კომპიუტერისთვის." />
+  <meta name="theme-color" content="#17181c" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GAICANI" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --bg:        #17181c;
+      --surface:   #212227;
+      --raised:    #2a2c33;
+      --border:    rgba(255,255,255,0.07);
+      --border-2:  rgba(255,255,255,0.11);
+      --text:      #eceef2;
+      --text-dim:  #c7cad3;
+      --muted:     #8a8d9c;
+      --accent:    #5865f2;
+      --accent-lt: #828ef8;
+      --accent-dk: #4247b0;
+      --success:   #3ba55d;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    html, body {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      background-image: radial-gradient(circle at 15% 0%, rgba(88,101,242,0.10), transparent 45%);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100%;
+      min-height: 100dvh;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: contain;
+      padding-bottom: env(safe-area-inset-bottom);
+      letter-spacing: 0.01em;
+    }
+    button, a { touch-action: manipulation; font-family: inherit; }
+
+    .top-bar {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(23,24,28,0.86);
+      -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+      padding-top: env(safe-area-inset-top);
+      min-height: 54px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .top-back-btn {
+      width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+      background: var(--raised); border: none; color: var(--text);
+      font-size: 1.1em; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      text-decoration: none;
+    }
+    .top-bar-title { font-weight: 800; font-size: 1.02em; color: #fff; }
+
+    .page { max-width: 480px; margin: 0 auto; padding: 26px 16px 60px; }
+
+    .install-hero { text-align: center; margin-bottom: 22px; }
+    .install-hero-icon {
+      width: 76px; height: 76px; border-radius: 22px; margin: 0 auto 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-lt));
+      display: flex; align-items: center; justify-content: center; font-size: 2.2em;
+      box-shadow: 0 12px 32px rgba(88,101,242,0.4);
+    }
+    .install-hero-title { font-weight: 800; font-size: 1.25em; color: #fff; letter-spacing: -0.01em; }
+    .install-hero-sub { font-size: 0.85em; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 14px; }
+
+    .install-tabs { display: flex; gap: 6px; padding: 14px 14px 0; }
+    .install-tab {
+      flex: 1; background: var(--raised); border: 1px solid var(--border);
+      color: var(--text-dim); border-radius: var(--radius-sm); padding: 10px 6px;
+      font-size: 0.8em; font-weight: 700; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+    }
+    .install-tab.active { background: rgba(88,101,242,0.18); border-color: var(--accent); color: var(--accent-lt); }
+    .install-panel { padding: 16px; }
+    .install-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 12px; }
+    .install-steps li { font-size: 0.9em; color: var(--text-dim); line-height: 1.55; }
+    .install-steps b { color: #fff; }
+    .install-glyph {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 5px; background: rgba(255,255,255,0.1);
+      font-size: 0.9em; margin: 0 1px;
+    }
+    .install-native-btn {
+      width: 100%; border: none; border-radius: var(--radius-md); padding: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-lt)); color: #fff;
+      font-weight: 800; font-size: 0.95em; cursor: pointer; margin-bottom: 16px;
+      box-shadow: 0 10px 26px rgba(88,101,242,0.38);
+    }
+    .install-native-btn:hover { filter: brightness(1.06); }
+    .install-already {
+      background: rgba(59,165,93,0.14); color: var(--success); border-radius: var(--radius-lg);
+      padding: 20px; font-size: 0.92em; font-weight: 700; text-align: center; line-height: 1.6;
+    }
+    .install-already-icon { font-size: 2em; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <a href="/dashboard.html" class="top-back-btn" title="უკან">←</a>
+    <div class="top-bar-title">ჩაიწერე გაიცანი</div>
+  </div>
+
+  <div class="page">
+    <div class="install-hero">
+      <div class="install-hero-icon">📲</div>
+      <div class="install-hero-title">გაიცანი, აპლიკაციად</div>
+      <div class="install-hero-sub">სწრაფი წვდომა მთავარი ეკრანიდან — ბრაუზერის გარეშე, ისე როგორც ჩვეულებრივი აპლიკაცია</div>
+    </div>
+
+    <div class="section" id="installMainSection">
+      <div class="install-tabs" id="installTabs">
+        <button class="install-tab" data-platform="android">🤖 Android</button>
+        <button class="install-tab" data-platform="ios">🍎 iPhone</button>
+        <button class="install-tab" data-platform="desktop">💻 კომპიუტერი</button>
+      </div>
+
+      <div class="install-panel" id="installPanelAndroid">
+        <button class="install-native-btn" id="installNativeBtnAndroid" style="display:none">⬇️ დააინსტალირე ახლავე</button>
+        <ol class="install-steps" id="installStepsAndroid">
+          <li>გახსენით საიტი <b>Chrome</b>-ში</li>
+          <li>დააჭირეთ ზედა მარჯვენა კუთხეში ⋮ ღილაკს</li>
+          <li>აირჩიეთ <b>„აპის ინსტალაცია"</b> ან <b>„მთავარ ეკრანზე დამატება"</b></li>
+          <li>დაადასტურეთ — მზადაა! 🎉</li>
+        </ol>
+      </div>
+
+      <div class="install-panel" id="installPanelIos" style="display:none">
+        <ol class="install-steps">
+          <li>გახსენით საიტი <b>Safari</b>-ში (სხვა ბრაუზერში არ მუშაობს)</li>
+          <li>დააჭირეთ გაზიარების ღილაკს <span class="install-glyph">⎋</span> ქვედა ზოლში</li>
+          <li>ჩამოსქროლეთ და აირჩიეთ <b>„მთავარ ეკრანზე დამატება"</b> (Add to Home Screen)</li>
+          <li>დააჭირეთ <b>„დამატება"</b> ზედა მარჯვენა კუთხეში — მზადაა! 🎉</li>
+        </ol>
+      </div>
+
+      <div class="install-panel" id="installPanelDesktop" style="display:none">
+        <button class="install-native-btn" id="installNativeBtnDesktop" style="display:none">⬇️ დააინსტალირე ახლავე</button>
+        <ol class="install-steps" id="installStepsDesktop">
+          <li>გახსენით საიტი <b>Chrome</b>-ში ან <b>Edge</b>-ში</li>
+          <li>მისამართის ველის ბოლოში იხილავთ ⊕ ხატულას — დააჭირეთ მას</li>
+          <li>აირჩიეთ <b>„Install"</b></li>
+          <li>გაიხსნება ცალკე ფანჯარაში, საკუთარი ხატულით — მზადაა! 🎉</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="install-already" id="installAlready" style="display:none">
+      <div class="install-already-icon">✅</div>
+      გაიცანი უკვე დაინსტალირებულია<br>შენს მოწყობილობაზე
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const tabs = document.querySelectorAll(".install-tab");
+      const panels = {
+        android: document.getElementById("installPanelAndroid"),
+        ios: document.getElementById("installPanelIos"),
+        desktop: document.getElementById("installPanelDesktop"),
+      };
+      const alreadyBox = document.getElementById("installAlready");
+      const mainSection = document.getElementById("installMainSection");
+
+      function showPlatform(platform) {
+        tabs.forEach((t) => t.classList.toggle("active", t.dataset.platform === platform));
+        Object.entries(panels).forEach(([key, el]) => { el.style.display = key === platform ? "" : "none"; });
+      }
+
+      tabs.forEach((t) => t.addEventListener("click", () => showPlatform(t.dataset.platform)));
+
+      const ua = navigator.userAgent || "";
+      const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const isAndroid = /Android/.test(ua);
+      showPlatform(isIOS ? "ios" : isAndroid ? "android" : "desktop");
+
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
+      if (isStandalone) {
+        mainSection.style.display = "none";
+        alreadyBox.style.display = "block";
+      }
+
+      let deferredPrompt = null;
+      const nativeBtns = [
+        document.getElementById("installNativeBtnAndroid"),
+        document.getElementById("installNativeBtnDesktop"),
+      ].filter(Boolean);
+
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        nativeBtns.forEach((btn) => { btn.style.display = "block"; });
+      });
+
+      nativeBtns.forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!deferredPrompt) return;
+          // Claim the prompt BEFORE awaiting. Nulling it only after the await
+          // left a window where a second tap (easy to do on mobile) passed the
+          // guard above and called prompt() a second time, which throws
+          // "The prompt() method may only be called once".
+          const promptEvent = deferredPrompt;
+          deferredPrompt = null;
+          nativeBtns.forEach((b) => { b.style.display = "none"; });
+          try {
+            promptEvent.prompt();
+            await promptEvent.userChoice;
+          } catch {
+            // If the browser refused the prompt, put the button back so the
+            // user isn't left with no way to install.
+            deferredPrompt = promptEvent;
+            nativeBtns.forEach((b) => { b.style.display = "block"; });
+          }
+        });
+      });
+
+      window.addEventListener("appinstalled", () => {
+        nativeBtns.forEach((b) => { b.style.display = "none"; });
+        mainSection.style.display = "none";
+        alreadyBox.style.display = "block";
+      });
+    })();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <title>GAICANI – ფორუმი</title>
+  <meta name="theme-color" content="#17181d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #17181d;
+      --surface:   #26272e;
+      --surface-2: #2f3037;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #5865f2;
+      --accent-dk: #4752c4;
+      --accent-lt: #8b93ff;
+      --text:      #e4e5ea;
+      --muted:     #7d81a0;
+      --good:      #3ba55d;
+      --warn:      #faa61a;
+      --danger:    #f23f42;
+      --gold:      #f2c94c;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top:    env(safe-area-inset-top, 0px);
+    }
+
+    html, body {
+      height: 100%; height: 100dvh; height: var(--app-height, 100dvh);
+      background: radial-gradient(circle at 50% 0%, #22232c 0%, #17181d 55%);
+      color: var(--text); font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden; -webkit-text-size-adjust: 100%;
+      overscroll-behavior: contain;
+    }
+    button, a, [role="button"] { touch-action: manipulation; }
+    #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; height: var(--app-height, 100dvh); }
+
+    .fo-loading, .fo-center-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; text-align: center; padding: 24px;
+    }
+    .fo-loading.hidden, .fo-center-screen.hidden { display: none; }
+    .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent-lt); animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .fo-center-screen p { max-width: 280px; line-height: 1.5; }
+    .fo-center-screen a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.92em; background: var(--accent); padding: 11px 24px; border-radius: 10px; }
+
+    .fo-screen { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+    .fo-screen.visible { display: flex; }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    .fo-header {
+      display: flex; align-items: center; gap: 8px;
+      min-height: 54px; flex-shrink: 0; padding: 0 10px; padding-top: var(--safe-top);
+      padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .fo-icon-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: transparent; border: none; color: var(--text);
+      text-decoration: none; font-size: 1.15em; cursor: pointer;
+      transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .fo-icon-btn:hover { background: rgba(255,255,255,0.08); }
+    .fo-icon-btn.danger { color: var(--danger); }
+    .fo-icon-btn.hidden { display: none; }
+    .fo-header-title { font-weight: 700; font-size: 1.02em; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Feed screen ─────────────────────────────────────────────── */
+    .fo-sort-row { display: flex; gap: 8px; padding: 10px 14px 0; }
+    .fo-sort-btn {
+      border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+      border-radius: 20px; padding: 6px 14px; font-size: 0.8em; font-weight: 700; cursor: pointer;
+    }
+    .fo-sort-btn.active { background: rgba(88,101,242,0.16); border-color: var(--accent); color: var(--accent-lt); }
+
+    .fo-feed-body { flex: 1; overflow-y: auto; padding: 10px 14px calc(80px + var(--safe-bottom)); }
+    .fo-empty-state { color: var(--muted); font-size: 0.88em; text-align: center; padding: 60px 20px; line-height: 1.6; }
+
+    .fo-post-card {
+      display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px; margin-bottom: 10px; cursor: pointer;
+    }
+    .fo-post-card:active { background: var(--surface-2); }
+    .fo-post-card--unread { border-left: 3px solid var(--danger); }
+    .fo-post-unread-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--danger); margin-right: 6px; vertical-align: middle;
+      animation: foUnreadPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes foUnreadPulse {
+      0%, 100% { transform: scale(1);   opacity: 1; }
+      50%       { transform: scale(1.3); opacity: 0.7; }
+    }
+    .fo-post-main { flex: 1; min-width: 0; }
+    .fo-post-title { font-weight: 700; font-size: 0.94em; line-height: 1.35; margin-bottom: 4px; word-break: break-word; }
+    .fo-post-meta { color: var(--muted); font-size: 0.76em; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .fo-post-meta .comment-count { display: flex; align-items: center; gap: 3px; }
+
+    /* ── Vote widget (shared by posts + comments) ───────────────── */
+    .fo-vote {
+      display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; width: 34px;
+    }
+    .fo-vote-btn {
+      background: none; border: none; color: var(--muted); font-size: 1.1em; cursor: pointer;
+      width: 30px; height: 26px; display: flex; align-items: center; justify-content: center;
+      border-radius: 6px; transition: color 0.15s, transform 0.1s;
+    }
+    .fo-vote-btn:active { transform: scale(0.85); }
+    .fo-vote-btn.up.voted { color: var(--good); }
+    .fo-vote-btn.down.voted { color: var(--danger); }
+    .fo-vote-score { font-size: 0.84em; font-weight: 800; color: var(--text); }
+
+    .fo-new-post-btn {
+      position: fixed; right: 16px; bottom: calc(16px + var(--safe-bottom)); z-index: 300;
+      width: 52px; height: 52px; border-radius: 50%; border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dk)); color: #fff;
+      font-size: 1.5em; cursor: pointer; box-shadow: 0 4px 16px rgba(88,101,242,0.5);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .fo-new-post-btn:active { transform: scale(0.94); }
+
+    /* ── Post detail screen ──────────────────────────────────────── */
+    .fo-detail-body { flex: 1; overflow-y: auto; padding: 14px 14px calc(90px + var(--safe-bottom)); }
+    .fo-detail-post { display: flex; gap: 12px; margin-bottom: 20px; }
+    .fo-detail-title { font-weight: 800; font-size: 1.1em; line-height: 1.4; margin-bottom: 8px; word-break: break-word; }
+    .fo-detail-meta { color: var(--muted); font-size: 0.8em; margin-bottom: 10px; }
+    .fo-detail-text { font-size: 0.92em; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .fo-detail-vote .fo-vote-btn { width: 38px; height: 32px; font-size: 1.3em; }
+    .fo-detail-vote .fo-vote-score { font-size: 0.95em; }
+
+    .fo-comments-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 4px 0 10px; }
+    .fo-comment-row { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+    .fo-comment-row:first-child { border-top: none; }
+    .fo-comment-main { flex: 1; min-width: 0; }
+    .fo-comment-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+    .fo-comment-author { font-weight: 700; font-size: 0.84em; color: var(--accent-lt); }
+    .fo-comment-time { font-size: 0.72em; color: var(--muted); }
+    .fo-comment-body { font-size: 0.88em; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .fo-comment-del { background: none; border: none; color: var(--muted); font-size: 0.85em; cursor: pointer; margin-left: auto; flex-shrink: 0; }
+    .fo-comment-del:hover { color: var(--danger); }
+    .fo-comment-vote { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+    .fo-comment-vote .fo-vote-btn { width: 24px; height: 22px; font-size: 0.95em; }
+    .fo-comment-vote .fo-vote-score { font-size: 0.78em; }
+
+    .fo-comment-bar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 400;
+      padding: 8px 10px calc(8px + var(--safe-bottom)); background: var(--surface); border-top: 1px solid var(--border);
+      padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+      display: none; align-items: flex-end; gap: 8px;
+    }
+    .fo-comment-bar.show { display: flex; }
+    #commentInput {
+      flex: 1; min-height: 40px; max-height: 100px; resize: none;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 20px;
+      color: var(--text); font-size: 16px; font-family: inherit; line-height: 1.4; padding: 10px 15px;
+    }
+    #commentInput:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    #sendCommentBtn {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; border: none;
+      background: var(--accent); color: #fff; font-size: 1.05em; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── New post modal ──────────────────────────────────────────── */
+    .fo-modal { position: fixed; inset: 0; z-index: 500; display: none; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0.55); }
+    .fo-modal.show { display: flex; }
+    @media (min-width: 560px) { .fo-modal { align-items: center; padding: 20px; } }
+    .fo-modal-box { background: var(--surface); width: 100%; max-width: 480px; border-radius: 18px 18px 0 0; padding: 18px; max-height: 85vh; display: flex; flex-direction: column; }
+    @media (min-width: 560px) { .fo-modal-box { border-radius: 16px; } }
+    .fo-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .fo-modal-header button { background: rgba(255,255,255,0.08); border: none; color: var(--muted); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
+    #postTitleInput {
+      width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 0.95em; font-family: inherit; margin-bottom: 10px;
+    }
+    #postBodyInput {
+      width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 0.92em; font-family: inherit; margin-bottom: 14px;
+      min-height: 140px; resize: vertical; line-height: 1.5;
+    }
+    #postTitleInput:focus, #postBodyInput:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    .fo-modal-actions { display: flex; gap: 10px; }
+    .fo-modal-actions button { flex: 1; border: none; border-radius: 10px; padding: 12px; font-weight: 700; font-size: 0.92em; cursor: pointer; }
+    #postCancelBtn { background: var(--surface-2); color: var(--text); }
+    #postSubmitBtn { background: var(--accent); color: #fff; }
+
+    #foToast {
+      position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 18px; border-radius: 20px; font-size: 0.88em;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 600; max-width: 90vw; text-align: center;
+    }
+    #foToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+  
+    /* ── iOS input zoom fix ──────────────────────────────────────────────
+       Safari on iPhone zooms the page in when an input under 16px gets
+       focus, and leaves you zoomed. Scoped to touch devices so desktop
+       sizing is unchanged. */
+    @media (pointer: coarse) {
+      #postTitleInput,
+      #postBodyInput {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="foLoading" class="fo-loading"><div class="spinner"></div></div>
+
+  <div id="foAuthScreen" class="fo-center-screen hidden">
+    <div style="font-size:2.4em;">🔒</div>
+    <p>ფორუმის სანახავად საჭიროა შესვლა.</p>
+    <a href="/">რეგისტრაცია / შესვლა</a>
+  </div>
+
+  <!-- FEED SCREEN -->
+  <div id="feedScreen" class="fo-screen">
+    <header class="fo-header">
+      <a href="/dashboard.html" class="fo-icon-btn" title="უკან">←</a>
+      <div class="fo-header-title">💬 ფორუმი</div>
+    </header>
+    <div class="fo-sort-row">
+      <button class="fo-sort-btn active" id="sortNewBtn">ახალი</button>
+      <button class="fo-sort-btn" id="sortTopBtn">პოპულარული</button>
+    </div>
+    <div class="fo-feed-body" id="feedBody">
+      <div id="postList"></div>
+    </div>
+    <button class="fo-new-post-btn" id="newPostBtn" title="ახალი პოსტი">➕</button>
+  </div>
+
+  <!-- POST DETAIL SCREEN -->
+  <div id="detailScreen" class="fo-screen">
+    <header class="fo-header">
+      <button id="detailBackBtn" class="fo-icon-btn" title="უკან">←</button>
+      <div class="fo-header-title" id="detailHeaderTitle">პოსტი</div>
+      <button id="deletePostBtn" class="fo-icon-btn danger hidden" title="პოსტის წაშლა">🗑️</button>
+    </header>
+    <div class="fo-detail-body" id="detailBody">
+      <div class="fo-detail-post">
+        <div class="fo-vote fo-detail-vote" id="postVoteWidget"></div>
+        <div style="flex:1;min-width:0;">
+          <div class="fo-detail-title" id="detailTitle"></div>
+          <div class="fo-detail-meta" id="detailMeta"></div>
+          <div class="fo-detail-text" id="detailBodyText"></div>
+        </div>
+      </div>
+      <div class="fo-comments-label" id="commentsLabel">კომენტარები</div>
+      <div id="commentsList"></div>
+    </div>
+    <div class="fo-comment-bar" id="commentBar">
+      <textarea id="commentInput" rows="1" maxlength="2000" placeholder="დაწერე კომენტარი..."></textarea>
+      <button id="sendCommentBtn">➤</button>
+    </div>
+  </div>
+
+  <div id="foToast"></div>
+</div>
+
+<!-- New post modal -->
+<div id="newPostModal" class="fo-modal">
+  <div class="fo-modal-box">
+    <div class="fo-modal-header"><h3 style="margin:0;">ახალი პოსტი</h3><button id="postModalClose">✕</button></div>
+    <input type="text" id="postTitleInput" maxlength="120" placeholder="სათაური" />
+    <textarea id="postBodyInput" maxlength="5000" placeholder="დაწერე რაც გინდა... (არასავალდებულო)"></textarea>
+    <div class="fo-modal-actions">
+      <button id="postCancelBtn">გაუქმება</button>
+      <button id="postSubmitBtn">გამოქვეყნება</button>
+    </div>
+  </div>
+</div>
+
+<script src="/ban-notice.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  (function () {
+    function setAppHeight() {
+      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    }
+    setAppHeight();
+    if (window.visualViewport) { window.visualViewport.addEventListener("resize", setAppHeight); window.visualViewport.addEventListener("scroll", setAppHeight); }
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+  })();
+</script>
+<script>
+(function () {
+  "use strict";
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  function $(id) { return document.getElementById(id); }
+  function showToast(msg, ms = 3200) {
+    const t = $("foToast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), ms);
+  }
+  function loadAuth() {
+    try { return { token: localStorage.getItem("gaicani_auth_token"), username: localStorage.getItem("gaicani_auth_user") }; }
+    catch (_) { return {}; }
+  }
+  function fmtTime(iso) {
+    try {
+      const d = new Date(iso), now = new Date();
+      const diffMs = now - d;
+      const mins = Math.floor(diffMs / 60000);
+      if (mins < 1) return "ახლახანს";
+      if (mins < 60) return mins + " წთ წინ";
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return hrs + " სთ წინ";
+      const days = Math.floor(hrs / 24);
+      if (days < 7) return days + " დღის წინ";
+      return d.toLocaleDateString("ka-GE");
+    } catch (_) { return ""; }
+  }
+
+  let { token, username } = loadAuth();
+  let myUsernameLower = (username || "").toLowerCase();
+  let isAdminGlobal = false;
+  let isGuestMode = false;
+
+  const elLoading = $("foLoading");
+  const elAuth = $("foAuthScreen");
+  const screens = { feed: $("feedScreen"), detail: $("detailScreen") };
+  function showScreen(name) { Object.entries(screens).forEach(([k, el]) => el.classList.toggle("visible", k === name)); }
+
+  /* ── State ───────────────────────────────────────────────────── */
+  let socket = null;
+  let currentSort = "new";
+  let postsCache = [];
+  let currentPost = null; // full post detail currently open, or null
+
+  /* ── Vote widget ─────────────────────────────────────────────── */
+  function buildVoteWidget(score, myVote, onVote) {
+    const wrap = document.createElement("div");
+    wrap.className = "fo-vote";
+    const up = document.createElement("button");
+    up.className = "fo-vote-btn up" + (myVote === 1 ? " voted" : "");
+    up.textContent = "▲";
+    const scoreEl = document.createElement("div");
+    scoreEl.className = "fo-vote-score";
+    scoreEl.textContent = score;
+    const down = document.createElement("button");
+    down.className = "fo-vote-btn down" + (myVote === -1 ? " voted" : "");
+    down.textContent = "▼";
+    up.addEventListener("click", (e) => { e.stopPropagation(); onVote(myVote === 1 ? 0 : 1); });
+    down.addEventListener("click", (e) => { e.stopPropagation(); onVote(myVote === -1 ? 0 : -1); });
+    wrap.appendChild(up); wrap.appendChild(scoreEl); wrap.appendChild(down);
+    return wrap;
+  }
+
+  /* ── Feed screen ─────────────────────────────────────────────── */
+  function fetchFeed() {
+    fetch(`/api/forum/posts?sort=${currentSort}`, { headers: { Authorization: "Bearer " + token } })
+      .then(r => r.json())
+      .then(data => {
+        if (!data || !Array.isArray(data.posts)) return;
+        postsCache = data.posts;
+        isAdminGlobal = !!data.isAdmin;
+        renderFeed();
+      })
+      .catch(() => showToast("პოსტების ჩატვირთვა ვერ მოხერხდა"));
+  }
+
+  function renderFeed() {
+    const list = $("postList");
+    list.innerHTML = "";
+    if (!postsCache.length) {
+      list.innerHTML = `<div class="fo-empty-state">ჯერ არცერთი პოსტი არ არის.<br>იყავი პირველი!</div>`;
+      return;
+    }
+    postsCache.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "fo-post-card" + (p.hasUnread ? " fo-post-card--unread" : "");
+      card.dataset.postId = p.id;
+
+      const vote = buildVoteWidget(p.score, p.myVote, (dir) => {
+        socket.emit("forum:vote", { postId: p.id, direction: dir });
+      });
+      card.appendChild(vote);
+
+      const main = document.createElement("div");
+      main.className = "fo-post-main";
+      const title = document.createElement("div");
+      title.className = "fo-post-title";
+      title.innerHTML = (p.hasUnread ? '<span class="fo-post-unread-dot"></span>' : "") + escText(p.title);
+      const meta = document.createElement("div");
+      meta.className = "fo-post-meta";
+      meta.innerHTML = `<span>${escText(p.authorUsername)}</span><span>· ${fmtTime(p.createdAt)}</span>`;
+      const commentSpan = document.createElement("span");
+      commentSpan.className = "comment-count";
+      commentSpan.textContent = "💬 " + p.commentCount;
+      meta.appendChild(commentSpan);
+      main.appendChild(title); main.appendChild(meta);
+      card.appendChild(main);
+
+      card.addEventListener("click", () => openPost(p.id));
+      list.appendChild(card);
+    });
+  }
+  function escText(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+  $("sortNewBtn").addEventListener("click", () => {
+    currentSort = "new";
+    $("sortNewBtn").classList.add("active"); $("sortTopBtn").classList.remove("active");
+    fetchFeed();
+  });
+  $("sortTopBtn").addEventListener("click", () => {
+    currentSort = "top";
+    $("sortTopBtn").classList.add("active"); $("sortNewBtn").classList.remove("active");
+    fetchFeed();
+  });
+
+  /* ── New post modal ──────────────────────────────────────────── */
+  $("newPostBtn").addEventListener("click", () => {
+    $("postTitleInput").value = ""; $("postBodyInput").value = "";
+    $("newPostModal").classList.add("show");
+    setTimeout(() => $("postTitleInput").focus(), 50);
+  });
+  $("postModalClose").addEventListener("click", () => $("newPostModal").classList.remove("show"));
+  $("postCancelBtn").addEventListener("click", () => $("newPostModal").classList.remove("show"));
+  $("postSubmitBtn").addEventListener("click", () => {
+    const title = $("postTitleInput").value.trim();
+    if (!title) { showToast("სათაური სავალდებულოა"); return; }
+    socket.emit("forum:createPost", { title, body: $("postBodyInput").value.trim() });
+  });
+
+  /* ── Post detail screen ──────────────────────────────────────── */
+  function openPost(postId) {
+    fetch(`/api/forum/posts/${postId}`, { headers: { Authorization: "Bearer " + token } })
+      .then(r => r.json())
+      .then(data => {
+        if (!data || !data.post) { showToast("პოსტი ვერ მოიძებნა"); return; }
+        isAdminGlobal = !!data.isAdmin;
+        currentPost = data.post;
+        history.replaceState(null, "", "/forum.html?post=" + encodeURIComponent(postId));
+        showScreen("detail");
+        renderDetail();
+      })
+      .catch(() => showToast("პოსტის ჩატვირთვა ვერ მოხერხდა"));
+  }
+
+  function renderDetail() {
+    const p = currentPost;
+    $("detailHeaderTitle").textContent = p.title;
+    $("detailTitle").textContent = p.title;
+    $("detailMeta").textContent = `${p.authorUsername} · ${fmtTime(p.createdAt)}`;
+    $("detailBodyText").textContent = p.body || "";
+    $("deletePostBtn").classList.toggle("hidden", !isAdminGlobal);
+
+    const voteWrap = $("postVoteWidget");
+    voteWrap.innerHTML = "";
+    voteWrap.appendChild(buildVoteWidget(p.score, p.myVote, (dir) => {
+      socket.emit("forum:vote", { postId: p.id, direction: dir });
+    }));
+
+    renderComments();
+    $("commentBar").classList.add("show");
+  }
+
+  function renderComments() {
+    const list = $("commentsList");
+    list.innerHTML = "";
+    $("commentsLabel").textContent = `კომენტარები (${currentPost.comments.length})`;
+    if (!currentPost.comments.length) {
+      list.innerHTML = `<div class="fo-empty-state" style="padding:24px 0;">ჯერ კომენტარი არ არის — იყავი პირველი!</div>`;
+      return;
+    }
+    currentPost.comments.forEach(c => {
+      const row = document.createElement("div");
+      row.className = "fo-comment-row";
+      row.dataset.commentId = c.id;
+
+      const main = document.createElement("div");
+      main.className = "fo-comment-main";
+      const meta = document.createElement("div");
+      meta.className = "fo-comment-meta";
+      const author = document.createElement("span");
+      author.className = "fo-comment-author";
+      author.textContent = c.authorUsername;
+      const time = document.createElement("span");
+      time.className = "fo-comment-time";
+      time.textContent = fmtTime(c.createdAt);
+      meta.appendChild(author); meta.appendChild(time);
+      if (isAdminGlobal) {
+        const del = document.createElement("button");
+        del.className = "fo-comment-del";
+        del.textContent = "🗑";
+        del.addEventListener("click", () => {
+          if (confirm("წავშალო ეს კომენტარი?")) socket.emit("forum:deleteComment", { postId: currentPost.id, commentId: c.id });
+        });
+        meta.appendChild(del);
+      }
+      const body = document.createElement("div");
+      body.className = "fo-comment-body";
+      body.textContent = c.body;
+
+      const voteRow = document.createElement("div");
+      voteRow.className = "fo-comment-vote";
+      voteRow.appendChild(buildVoteWidget(c.score, c.myVote, (dir) => {
+        socket.emit("forum:voteComment", { postId: currentPost.id, commentId: c.id, direction: dir });
+      }));
+
+      main.appendChild(meta); main.appendChild(body); main.appendChild(voteRow);
+      row.appendChild(main);
+      list.appendChild(row);
+    });
+  }
+
+  function backToFeed() {
+    currentPost = null;
+    history.replaceState(null, "", "/forum.html");
+    $("commentBar").classList.remove("show");
+    showScreen("feed");
+    fetchFeed();
+  }
+  $("detailBackBtn").addEventListener("click", backToFeed);
+
+  $("deletePostBtn").addEventListener("click", () => {
+    if (!currentPost) return;
+    if (confirm("ნამდვილად წავშალო ეს პოსტი? ყველა კომენტარი დაიკარგება.")) {
+      socket.emit("forum:deletePost", { postId: currentPost.id });
+    }
+  });
+
+  function sendComment() {
+    const val = $("commentInput").value.trim();
+    if (!val || !currentPost) return;
+    socket.emit("forum:comment", { postId: currentPost.id, body: val });
+    $("commentInput").value = "";
+    $("commentInput").style.height = "auto";
+  }
+  $("sendCommentBtn").addEventListener("click", sendComment);
+  $("commentInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendComment(); }
+  });
+  $("commentInput").addEventListener("input", function () {
+    this.style.height = "auto";
+    this.style.height = Math.min(this.scrollHeight, 100) + "px";
+  });
+
+  /* ── Boot ────────────────────────────────────────────────────── */
+  function init() {
+    socket = io(); attachTempBanGuard(socket);
+    socket.on("connect", () => {
+      if (token) socket.emit("auth:token", { token });
+      else socket.emit("auth:guest", { preferredUsername: sessionStorage.getItem("gaicani_guest_username") || null });
+    });
+
+    socket.on("auth:authenticated", ({ username: authedName, isGuest, guestToken } = {}) => {
+      if (isGuest && authedName) {
+        myUsernameLower = authedName.toLowerCase();
+        isGuestMode = true;
+        token = guestToken; // needed for the REST fetches below — reading is allowed as a guest
+        try { sessionStorage.setItem("gaicani_guest_username", authedName); } catch (_) {}
+      }
+      elLoading.classList.add("hidden");
+      const postParam = (new URLSearchParams(window.location.search).get("post") || "").trim();
+      if (postParam) openPost(postParam);
+      else { showScreen("feed"); fetchFeed(); }
+    });
+    socket.on("auth:invalid", () => { window.location.href = "/"; });
+
+    socket.on("guest:registerRequired", () => {
+      showToast("🔒 ფორუმზე წერისთვის საჭიროა რეგისტრაცია — კითხვა შეგიძლიათ სტუმრადაც");
+    });
+
+    socket.on("forum:postCreatedAck", ({ postId }) => {
+      $("newPostModal").classList.remove("show");
+      openPost(postId);
+    });
+
+    socket.on("forum:postCreated", ({ post }) => {
+      if (!screens.feed.classList.contains("visible")) return;
+      if (currentSort === "new") { postsCache.unshift(post); renderFeed(); }
+    });
+
+    socket.on("forum:postDeleted", ({ postId }) => {
+      postsCache = postsCache.filter(p => p.id !== postId);
+      if (screens.feed.classList.contains("visible")) renderFeed();
+      if (currentPost && currentPost.id === postId) {
+        showToast("ეს პოსტი წაშლილია ადმინისტრატორის მიერ");
+        backToFeed();
+      }
+    });
+
+    socket.on("forum:commentAdded", ({ postId, comment }) => {
+      const cached = postsCache.find(p => p.id === postId);
+      if (cached) cached.commentCount++;
+      if (screens.feed.classList.contains("visible")) renderFeed();
+      if (currentPost && currentPost.id === postId) {
+        currentPost.comments.push(comment);
+        renderComments();
+      }
+    });
+
+    socket.on("forum:commentDeleted", ({ postId, commentId }) => {
+      const cached = postsCache.find(p => p.id === postId);
+      if (cached) cached.commentCount = Math.max(0, cached.commentCount - 1);
+      if (currentPost && currentPost.id === postId) {
+        currentPost.comments = currentPost.comments.filter(c => c.id !== commentId);
+        renderComments();
+      }
+    });
+
+    socket.on("forum:scoreUpdated", ({ postId, commentId, score }) => {
+      if (commentId) {
+        if (currentPost && currentPost.id === postId) {
+          const c = currentPost.comments.find(cc => cc.id === commentId);
+          if (c) { c.score = score; renderComments(); }
+        }
+      } else {
+        const cached = postsCache.find(p => p.id === postId);
+        if (cached) { cached.score = score; if (screens.feed.classList.contains("visible")) renderFeed(); }
+        if (currentPost && currentPost.id === postId) { currentPost.score = score; renderDetail(); }
+      }
+    });
+
+    socket.on("forum:myVoteUpdated", ({ postId, commentId, myVote }) => {
+      if (commentId) {
+        if (currentPost && currentPost.id === postId) {
+          const c = currentPost.comments.find(cc => cc.id === commentId);
+          if (c) { c.myVote = myVote; renderComments(); }
+        }
+      } else {
+        const cached = postsCache.find(p => p.id === postId);
+        if (cached) { cached.myVote = myVote; if (screens.feed.classList.contains("visible")) renderFeed(); }
+        if (currentPost && currentPost.id === postId) { currentPost.myVote = myVote; renderDetail(); }
+      }
+    });
+
+    socket.on("forum:error", ({ message }) => showToast(message));
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

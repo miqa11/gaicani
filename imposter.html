@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <title>GAICANI – იმპოსტორი</title>
+  <meta name="theme-color" content="#17181d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #17181d;
+      --surface:   #26272e;
+      --surface-2: #2f3037;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #5865f2;
+      --accent-dk: #4752c4;
+      --accent-lt: #8b93ff;
+      --text:      #e4e5ea;
+      --muted:     #7d81a0;
+      --good:      #3ba55d;
+      --warn:      #faa61a;
+      --danger:    #f23f42;
+      --gold:      #f2c94c;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top:    env(safe-area-inset-top, 0px);
+    }
+
+    html, body {
+      height: 100%; height: 100dvh; height: var(--app-height, 100dvh);
+      background: radial-gradient(circle at 50% 0%, #241a33 0%, #17181d 55%);
+      color: var(--text); font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden; -webkit-text-size-adjust: 100%;
+      overscroll-behavior: contain;
+    }
+    button, a, [role="button"] { touch-action: manipulation; }
+    #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; height: var(--app-height, 100dvh); }
+
+    .im-loading, .im-center-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; text-align: center; padding: 24px;
+    }
+    .im-loading.hidden, .im-center-screen.hidden { display: none; }
+    .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent-lt); animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .im-center-screen p { max-width: 280px; line-height: 1.5; }
+    .im-center-screen a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.92em; background: var(--accent); padding: 11px 24px; border-radius: 10px; }
+
+    .im-screen { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+    .im-screen.visible { display: flex; }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    .im-header {
+      display: flex; align-items: center; gap: 8px;
+      min-height: 54px; flex-shrink: 0; padding: 0 10px; padding-top: var(--safe-top);
+      padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .im-icon-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: transparent; border: none; color: var(--text);
+      text-decoration: none; font-size: 1.15em; cursor: pointer;
+      transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .im-icon-btn:hover { background: rgba(255,255,255,0.08); }
+    .im-header-title { font-weight: 700; font-size: 1.02em; flex: 1; min-width: 0; }
+
+    /* ── Setup screen ────────────────────────────────────────────── */
+    .im-setup-body { flex: 1; overflow-y: auto; padding: 16px 14px calc(16px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 16px; }
+    .im-new-game-btn { border: none; border-radius: 12px; padding: 14px; font-weight: 800; font-size: 0.98em; background: linear-gradient(135deg, #8b5cf6, #5b21b6); color: #fff; cursor: pointer; }
+    .im-new-game-btn:disabled { opacity: 0.5; }
+    .im-section-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .im-hint { color: var(--muted); font-size: 0.78em; text-align: center; }
+    .im-pick-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; cursor: pointer; }
+    .im-pick-row.selected { border-color: #8b5cf6; background: rgba(139,92,246,0.1); }
+    .im-pick-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+    .im-pick-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .im-pick-name { flex: 1; font-size: 0.9em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .im-pick-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7em; }
+    .im-pick-row.selected .im-pick-check { background: #8b5cf6; border-color: #8b5cf6; }
+    .im-empty-state { color: var(--muted); font-size: 0.86em; text-align: center; padding: 20px 10px; line-height: 1.6; }
+
+    .im-public-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .im-public-info { flex: 1; min-width: 0; }
+    .im-public-host { font-weight: 700; font-size: 0.9em; }
+    .im-public-meta { color: var(--muted); font-size: 0.76em; margin-top: 2px; }
+    .im-join-btn { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 0.82em; cursor: pointer; background: #8b5cf6; color: #fff; }
+
+    /* ── Lobby screen ────────────────────────────────────────────── */
+    .im-lobby-body { flex: 1; overflow-y: auto; padding: 16px 14px; }
+    .im-lobby-player { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .im-lobby-tag { font-size: 0.68em; font-weight: 700; background: rgba(139,92,246,0.18); color: #c4b5fd; padding: 2px 8px; border-radius: 20px; }
+    .im-lobby-actions { padding: 12px 14px calc(12px + var(--safe-bottom)); border-top: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+    .im-start-btn { border: none; border-radius: 10px; padding: 13px; font-weight: 800; background: var(--good); color: #fff; cursor: pointer; font-size: 0.95em; }
+    .im-start-btn:disabled { opacity: 0.45; }
+    .im-leave-btn { border: none; border-radius: 10px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 0.88em; background: var(--surface-2); color: var(--danger); }
+    .im-lobby-hint { text-align: center; color: var(--muted); font-size: 0.8em; padding: 6px 0; }
+
+    /* ── Game screen ─────────────────────────────────────────────── */
+    .im-game-header { display: flex; align-items: center; gap: 10px; padding: 8px 14px; padding-top: var(--safe-top); background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .im-round-label { font-weight: 700; font-size: 0.88em; }
+    .im-phase-label { font-size: 0.7em; color: var(--muted); }
+    .im-timer-chip { margin-left: auto; font-weight: 800; font-size: 0.9em; background: var(--surface-2); border-radius: 14px; padding: 4px 12px; }
+    .im-timer-chip.low { color: var(--danger); }
+
+    .im-game-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 16px; }
+
+    .im-word-card {
+      background: linear-gradient(135deg, #3a2a6a, #1f1440); border: 1px solid rgba(139,92,246,0.4);
+      border-radius: 16px; padding: 18px; text-align: center;
+    }
+    .im-word-label { font-size: 0.74em; color: #c4b5fd; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .im-word-value { font-size: 1.6em; font-weight: 800; }
+
+    .im-round-history { display: flex; flex-direction: column; gap: 10px; }
+    .im-round-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+    .im-round-block-title { font-size: 0.74em; color: var(--muted); margin-bottom: 8px; font-weight: 700; }
+    .im-answer-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .im-answer-chip { background: var(--surface-2); border-radius: 10px; padding: 6px 10px; font-size: 0.82em; }
+    .im-answer-chip .name { color: var(--accent-lt); font-weight: 700; margin-right: 5px; }
+
+    .im-clue-input-wrap { display: flex; gap: 8px; }
+    #clueInput { flex: 1; padding: 13px 16px; background: var(--surface); border: 2px solid var(--border); border-radius: 12px; color: var(--text); font-size: 1em; }
+    #clueInput:focus { outline: none; border-color: #8b5cf6; }
+    #clueSubmitBtn { border: none; border-radius: 12px; padding: 0 20px; background: #8b5cf6; color: #fff; font-weight: 800; cursor: pointer; }
+    #clueSubmitBtn:disabled { opacity: 0.4; }
+
+    .im-waiting-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 10px 0; }
+    .im-waiting-avatar { position: relative; }
+    .im-waiting-avatar img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); display: block; }
+    .im-waiting-avatar.answered img, .im-waiting-avatar.voted img { border-color: var(--good); }
+    .im-waiting-avatar .check { position: absolute; bottom: -3px; right: -3px; width: 16px; height: 16px; border-radius: 50%; background: var(--good); color: #fff; font-size: 0.6em; display: none; align-items: center; justify-content: center; }
+    .im-waiting-avatar.answered .check, .im-waiting-avatar.voted .check { display: flex; }
+    .im-waiting-label { text-align: center; color: var(--muted); font-size: 0.82em; }
+
+    .im-vote-list { display: flex; flex-direction: column; gap: 8px; }
+    .im-vote-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+    .im-vote-row img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+    .im-vote-row .name { flex: 1; font-weight: 700; font-size: 0.9em; }
+    .im-vote-btn { border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; font-size: 0.82em; cursor: pointer; background: var(--danger); color: #fff; }
+    .im-vote-btn:disabled { opacity: 0.4; }
+    .im-vote-row.chosen { border-color: var(--danger); background: rgba(242,63,66,0.08); }
+
+    .im-guess-box { text-align: center; }
+    .im-guess-box input { width: 100%; padding: 13px 16px; background: var(--surface); border: 2px solid var(--border); border-radius: 12px; color: var(--text); font-size: 1em; margin-bottom: 10px; text-align: center; }
+    .im-guess-box button { width: 100%; border: none; border-radius: 12px; padding: 13px; background: #8b5cf6; color: #fff; font-weight: 800; cursor: pointer; }
+
+    /* ── Reveal overlay ──────────────────────────────────────────── */
+    .im-overlay { position: fixed; inset: 0; z-index: 550; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.7); padding: 18px; }
+    .im-overlay.show { display: flex; }
+    .im-overlay-box { background: var(--surface); border-radius: 18px; padding: 22px 20px; max-width: 400px; width: 100%; max-height: 88vh; overflow-y: auto; text-align: center; }
+    .im-overlay-emoji { font-size: 2.4em; margin-bottom: 6px; }
+    .im-overlay-title { font-weight: 800; font-size: 1.15em; margin-bottom: 14px; }
+    .im-reveal-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.9em; }
+    .im-reveal-row .k { color: var(--muted); }
+    .im-reveal-row .v { font-weight: 700; }
+    .im-overlay-actions { margin-top: 16px; }
+    .im-overlay-actions button { width: 100%; border: none; border-radius: 10px; padding: 12px; font-weight: 700; cursor: pointer; font-size: 0.9em; background: #8b5cf6; color: #fff; }
+
+    .im-invite-bar {
+      position: fixed; left: 12px; right: 12px; bottom: calc(12px + var(--safe-bottom)); z-index: 998;
+      background: var(--surface); border: 1px solid #8b5cf6; border-radius: 12px;
+      padding: 12px 14px; display: none; align-items: center; gap: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.45); max-width: 420px; margin: 0 auto;
+    }
+    .im-invite-bar.show { display: flex; }
+    .im-invite-bar span { flex: 1; font-size: 0.86em; }
+    .im-invite-bar button { border: none; border-radius: 8px; padding: 7px 12px; font-weight: 700; font-size: 0.85em; cursor: pointer; }
+    .im-invite-accept { background: var(--good); color: #fff; }
+    .im-invite-decline { background: var(--surface-2); color: var(--text); }
+
+    #imToast {
+      position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 18px; border-radius: 20px; font-size: 0.88em;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 600; max-width: 90vw; text-align: center;
+    }
+    #imToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @keyframes imPopIn { 0% { transform: scale(0.7); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .im-pop-in { animation: imPopIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+    /* ── Chat: header button, unread dot, slide-up panel (no floating
+       speech bubbles here — this game has no seated-avatar table layout
+       to anchor them to, so panel + unread dot is the full treatment) ── */
+    .im-chat-unread-dot {
+      display: none; position: absolute; top: 3px; right: 3px; width: 9px; height: 9px;
+      border-radius: 50%; background: var(--danger); border: 2px solid var(--surface);
+    }
+    .im-chat-unread-dot.show { display: block; }
+
+    .im-chat-backdrop {
+      position: fixed; inset: 0; z-index: 560; background: rgba(0,0,0,0.4);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .im-chat-backdrop.show { opacity: 1; pointer-events: auto; }
+    .im-chat-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 561;
+      background: var(--surface); border-radius: 16px 16px 0 0; border-top: 1px solid var(--border);
+      max-width: 460px; margin: 0 auto; height: 52vh; max-height: 460px;
+      display: flex; flex-direction: column;
+      transform: translateY(105%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1);
+    }
+    .im-chat-panel.show { transform: translateY(0); }
+    .im-chat-panel-header {
+      display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+      font-weight: 700; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .im-chat-panel-header button { background: rgba(255,255,255,0.08); border: none; color: var(--muted); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; }
+    .im-chat-messages { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .im-chat-msg { max-width: 78%; padding: 7px 11px; border-radius: 12px; font-size: 0.85em; line-height: 1.4; }
+    .im-chat-msg.other { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+    .im-chat-msg.mine { align-self: flex-end; background: #8b5cf6; color: #fff; border-bottom-right-radius: 4px; }
+    .im-chat-msg .im-chat-author { font-size: 0.76em; font-weight: 700; color: #c4b5fd; margin-bottom: 2px; }
+    .im-chat-msg.mine .im-chat-author { display: none; }
+    /* Subtly different from a normal message — not flagged as fake, just
+       a shade cooler/greyer, so it registers as slightly "off" without
+       announcing itself. The mystery is the point. */
+    .im-chat-msg.ghost { background: #2a2d3a; }
+    .im-chat-msg.ghost .im-chat-author { color: #8891a8; }
+    .im-chat-system-line { align-self: center; font-size: 0.74em; color: var(--muted); font-style: italic; padding: 2px 10px; text-align: center; }
+    .im-chat-input-row { display: flex; gap: 8px; padding: 10px 14px calc(10px + var(--safe-bottom)); border-top: 1px solid var(--border); flex-shrink: 0; }
+    #imChatInput { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; color: var(--text); font-size: 16px; padding: 9px 14px; }
+    #imChatInput:focus { outline: none; border-color: rgba(139,92,246,0.5); }
+    #imChatSendBtn { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; border: none; background: #8b5cf6; color: #fff; font-size: 1em; cursor: pointer; }
+
+    @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+    /* ── Desktop / big screens — the table gets real room to breathe
+       instead of a mobile-width layout stretched across a wide monitor. ── */
+    @media (min-width: 700px) {
+      body {
+        display: flex; align-items: center; justify-content: center;
+        background: #0e0f13;
+      }
+      #app {
+        width: 100%; max-width: 640px;
+        height: 92vh; height: 92dvh;
+        border-radius: 20px; overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="imLoading" class="im-loading"><div class="spinner"></div></div>
+
+  <div id="imAuthScreen" class="im-center-screen hidden">
+    <div style="font-size:2.4em;">🔒</div>
+    <p>იმპოსტორის სათამაშოდ საჭიროა შესვლა.</p>
+    <a href="/">რეგისტრაცია / შესვლა</a>
+  </div>
+
+  <!-- SETUP SCREEN -->
+  <div id="setupScreen" class="im-screen">
+    <header class="im-header">
+      <a href="/dashboard.html" class="im-icon-btn" title="უკან">←</a>
+      <div class="im-header-title">🕵️ იმპოსტორი</div>
+    </header>
+    <div class="im-setup-body">
+      <button id="createGameBtn" class="im-new-game-btn" disabled>➕ ახალი თამაშის შექმნა</button>
+      <div class="im-hint">საჭიროა მინიმუმ 3 მოთამაშე (მაქს. 8) — ერთს განსხვავებული სიტყვა ექნება</div>
+      <div>
+        <div class="im-section-label">მოწვევა — ონლაინ მეგობრები</div>
+        <div id="onlineFriendsList"></div>
+      </div>
+      <div>
+        <div class="im-section-label">აქტიური თამაშები</div>
+        <div id="publicGameList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobbyScreen" class="im-screen">
+    <header class="im-header">
+      <button id="lobbyBackBtn" class="im-icon-btn" title="უკან">←</button>
+      <div class="im-header-title">ლობი (<span id="lobbyCount">0</span>/8)</div>
+      <button id="lobbyChatToggleBtn" class="im-icon-btn" title="ჩატი" style="position:relative;">
+        💬<span id="lobbyChatUnreadDot" class="im-chat-unread-dot"></span>
+      </button>
+    </header>
+    <div class="im-lobby-body">
+      <div id="lobbyPlayers"></div>
+      <div id="lobbyWaitHint" class="im-lobby-hint"></div>
+    </div>
+    <div class="im-lobby-actions">
+      <button id="startGameBtn" class="im-start-btn" style="display:none">🕵️ თამაშის დაწყება</button>
+      <button id="lobbyLeaveBtn" class="im-leave-btn">თამაშის დატოვება</button>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="gameScreen" class="im-screen">
+    <div class="im-game-header">
+      <button id="gameBackBtn" class="im-icon-btn" title="სია" style="width:32px;height:32px;">←</button>
+      <div>
+        <div class="im-round-label" id="roundLabel">რაუნდი 1/3</div>
+        <div class="im-phase-label" id="phaseLabel"></div>
+      </div>
+      <div class="im-timer-chip" id="timerChip"></div>
+      <button id="chatToggleBtn" class="im-icon-btn" title="ჩატი" style="width:32px;height:32px;position:relative;">
+        💬<span id="chatUnreadDot" class="im-chat-unread-dot"></span>
+      </button>
+    </div>
+    <div class="im-game-body" id="gameBody">
+      <div class="im-word-card">
+        <div class="im-word-label">შენი სიტყვაა</div>
+        <div class="im-word-value" id="myWordValue">—</div>
+      </div>
+
+      <div class="im-round-history" id="roundHistory"></div>
+
+      <!-- Clue phase input -->
+      <div id="clueSection">
+        <div class="im-clue-input-wrap">
+          <input type="text" id="clueInput" maxlength="40" placeholder="ერთი სიტყვით მინიშნება..." />
+          <button id="clueSubmitBtn">გაგზავნა</button>
+        </div>
+        <div class="im-waiting-row" id="clueWaitingRow"></div>
+        <div class="im-waiting-label" id="clueWaitingLabel"></div>
+      </div>
+
+      <!-- Voting phase -->
+      <div id="voteSection" style="display:none;">
+        <div class="im-waiting-label" style="margin-bottom:10px;">ვინ ფიქრობ რომ არის იმპოსტორი?</div>
+        <div class="im-vote-list" id="voteList"></div>
+        <div class="im-waiting-row" id="voteWaitingRow"></div>
+      </div>
+
+      <!-- Imposter guess phase -->
+      <div id="guessSection" style="display:none;">
+        <div class="im-guess-box">
+          <div class="im-waiting-label" style="margin-bottom:10px;">დაგიჭირეს! გამოიცანი ნამდვილი სიტყვა და მოიგე მაინც:</div>
+          <input type="text" id="guessInput" maxlength="40" placeholder="სიტყვა..." />
+          <button id="guessSubmitBtn">გამოცნობა</button>
+        </div>
+      </div>
+      <div id="guessWaitSection" style="display:none;">
+        <div class="im-waiting-label">დაიჭირეს იმპოსტორი — ელოდებით მის ბოლო მცდელობას სიტყვის გამოსაცნობად...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="imToast"></div>
+  <div id="imInviteBar" class="im-invite-bar"></div>
+</div>
+
+<!-- Reveal overlay -->
+<div id="revealOverlay" class="im-overlay">
+  <div class="im-overlay-box">
+    <div class="im-overlay-emoji" id="revealEmoji">🎉</div>
+    <div class="im-overlay-title" id="revealTitle"></div>
+    <div class="im-reveal-row"><span class="k">იმპოსტორი იყო</span><span class="v" id="revealImposter"></span></div>
+    <div class="im-reveal-row"><span class="k">საერთო სიტყვა</span><span class="v" id="revealMajorityWord"></span></div>
+    <div class="im-reveal-row"><span class="k">იმპოსტორის სიტყვა</span><span class="v" id="revealImposterWord"></span></div>
+    <div class="im-reveal-row" id="revealVotedOutRow"><span class="k">გააძევეს</span><span class="v" id="revealVotedOut"></span></div>
+    <div class="im-reveal-row" id="revealGuessRow" style="display:none;"><span class="k">გამოცნობა</span><span class="v" id="revealGuessResult"></span></div>
+    <div class="im-overlay-actions"><button id="revealBackBtn">სიაში დაბრუნება</button></div>
+  </div>
+</div>
+
+<!-- Chat panel — slides up from the bottom, works in both lobby and game -->
+<div id="chatBackdrop" class="im-chat-backdrop"></div>
+<div id="chatPanel" class="im-chat-panel">
+  <div class="im-chat-panel-header">
+    <div>ჩატი</div>
+    <button id="chatCloseBtn">✕</button>
+  </div>
+  <div id="chatMessages" class="im-chat-messages"></div>
+  <div class="im-chat-input-row">
+    <input type="text" id="imChatInput" maxlength="200" placeholder="დაწერე რამე..." />
+    <button id="imChatSendBtn">➤</button>
+  </div>
+</div>
+
+<script src="/ban-notice.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  (function () {
+    function setAppHeight() {
+      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    }
+    setAppHeight();
+    if (window.visualViewport) { window.visualViewport.addEventListener("resize", setAppHeight); window.visualViewport.addEventListener("scroll", setAppHeight); }
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+  })();
+</script>
+<script>
+(function () {
+  "use strict";
+
+  function $(id) { return document.getElementById(id); }
+  function showToast(msg, ms = 3200) {
+    const t = $("imToast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), ms);
+  }
+  function loadAuth() {
+    try { return { token: localStorage.getItem("gaicani_auth_token"), username: localStorage.getItem("gaicani_auth_user") }; }
+    catch (_) { return {}; }
+  }
+  function getRoomParam() { return (new URLSearchParams(window.location.search).get("room") || "").trim(); }
+  function setAvatar(container, avatarFile, username) {
+    container.innerHTML = "";
+    if (avatarFile) {
+      const img = document.createElement("img");
+      img.src = "/" + avatarFile;
+      img.alt = username || "";
+      container.appendChild(img);
+    } else {
+      container.textContent = (username || "?").charAt(0).toUpperCase();
+    }
+  }
+
+  const { token, username } = loadAuth();
+  let myUsernameLower = (username || "").toLowerCase();
+
+  const elLoading = $("imLoading");
+  const elAuth = $("imAuthScreen");
+  const screens = { setup: $("setupScreen"), lobby: $("lobbyScreen"), game: $("gameScreen") };
+  function showScreen(name) { Object.entries(screens).forEach(([k, el]) => el.classList.toggle("visible", k === name)); }
+
+  let socket = null;
+  let currentRoomId = getRoomParam() || null;
+  let onlineUsers = [];
+  let selectedInvitees = new Set();
+  let latestRoom = null;
+  let timerInterval = null;
+  let myVoteChoice = null;
+
+  /* ── Setup screen ────────────────────────────────────────────── */
+  function renderOnlineFriends() {
+    const list = $("onlineFriendsList");
+    if (!onlineUsers.length) {
+      list.innerHTML = `<div class="im-empty-state">ახლა არავინ არის ონლაინ.<br><small>დაელოდე ვინმეს შემოსვლას.</small></div>`;
+      $("createGameBtn").disabled = true;
+      return;
+    }
+    list.innerHTML = "";
+    onlineUsers.forEach(u => {
+      const row = document.createElement("div");
+      row.className = "im-pick-row" + (selectedInvitees.has(u.username.toLowerCase()) ? " selected" : "");
+      const avatar = document.createElement("div");
+      avatar.className = "im-pick-avatar";
+      setAvatar(avatar, u.avatar, u.username);
+      const name = document.createElement("div");
+      name.className = "im-pick-name";
+      name.textContent = u.username + (u.isGuest ? " (სტუმარი)" : "");
+      const check = document.createElement("div");
+      check.className = "im-pick-check";
+      check.textContent = "✓";
+      row.appendChild(avatar); row.appendChild(name); row.appendChild(check);
+      row.addEventListener("click", () => {
+        const lc = u.username.toLowerCase();
+        if (selectedInvitees.has(lc)) {
+          selectedInvitees.delete(lc);
+        } else {
+          if (selectedInvitees.size >= 7) { showToast("მაქსიმუმ 8 მოთამაშეა შესაძლებელი სულ"); return; }
+          selectedInvitees.add(lc);
+        }
+        row.classList.toggle("selected");
+        $("createGameBtn").disabled = selectedInvitees.size === 0;
+      });
+      list.appendChild(row);
+    });
+    $("createGameBtn").disabled = selectedInvitees.size === 0;
+  }
+
+  function renderPublicGames(rooms) {
+    const list = $("publicGameList");
+    list.innerHTML = "";
+    if (!rooms || !rooms.length) {
+      list.innerHTML = `<div class="im-empty-state">ახლა აქტიური თამაში არ არის.</div>`;
+      return;
+    }
+    rooms.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "im-public-row";
+      const info = document.createElement("div");
+      info.className = "im-public-info";
+      const host = document.createElement("div");
+      host.className = "im-public-host";
+      host.textContent = "🕵️ " + r.hostUsername + "-ის თამაში";
+      const meta = document.createElement("div");
+      meta.className = "im-public-meta";
+      meta.textContent = `${r.playerCount}/${r.maxPlayers} მოთამაშე · ${r.status === "playing" ? "მიმდინარეობს" : "ლობი"}`;
+      info.appendChild(host); info.appendChild(meta);
+      const btn = document.createElement("button");
+      btn.className = "im-join-btn";
+      btn.textContent = "შემოერთება";
+      btn.addEventListener("click", () => socket.emit("imposter:join", { roomId: r.roomId }));
+      row.appendChild(info); row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
+  $("createGameBtn").addEventListener("click", () => {
+    socket.emit("imposter:invite", { toUsernames: [...selectedInvitees] });
+  });
+
+  /* ── Lobby screen ────────────────────────────────────────────── */
+  let isHost = false;
+  function renderLobby(room) {
+    isHost = room.hostUsername.toLowerCase() === myUsernameLower;
+    $("lobbyCount").textContent = room.players.length;
+    const list = $("lobbyPlayers");
+    list.innerHTML = "";
+    room.players.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "im-lobby-player";
+      const avatar = document.createElement("div");
+      avatar.className = "im-pick-avatar";
+      setAvatar(avatar, p.avatar, p.username);
+      const name = document.createElement("div");
+      name.className = "im-pick-name";
+      name.textContent = p.username;
+      row.appendChild(avatar); row.appendChild(name);
+      if (p.username.toLowerCase() === room.hostUsername.toLowerCase()) {
+        const tag = document.createElement("span"); tag.className = "im-lobby-tag"; tag.textContent = "მასპინძელი"; row.appendChild(tag);
+      }
+      list.appendChild(row);
+    });
+    $("startGameBtn").style.display = isHost ? "block" : "none";
+    $("startGameBtn").disabled = room.players.length < 3;
+    $("lobbyWaitHint").textContent = isHost
+      ? (room.players.length < 3 ? `დაელოდე მინიმუმ ${3 - room.players.length} მეტ მოთამაშეს.` : "მზად ხარ დასაწყებად!")
+      : "მასპინძლის მოლოდინში...";
+  }
+
+  /* ── Game screen ─────────────────────────────────────────────── */
+  const PHASE_LABELS = { clue: "მინიშნებების რაუნდი", voting: "კენჭისყრა", imposterGuess: "იმპოსტორი იცნობს სიტყვას" };
+
+  function renderRoundHistory(room) {
+    const wrap = $("roundHistory");
+    wrap.innerHTML = "";
+    (room.roundsHistory || []).forEach(r => {
+      const block = document.createElement("div");
+      block.className = "im-round-block im-pop-in";
+      const title = document.createElement("div");
+      title.className = "im-round-block-title";
+      title.textContent = `რაუნდი ${r.round + 1}`;
+      const grid = document.createElement("div");
+      grid.className = "im-answer-grid";
+      r.answers.forEach(a => {
+        const chip = document.createElement("div");
+        chip.className = "im-answer-chip";
+        // Built with DOM nodes + textContent rather than innerHTML: the clue
+        // word is free text typed by a player, so interpolating it into HTML
+        // makes it executable markup. The server strips tag-looking patterns,
+        // but that's a blacklist and blacklists get bypassed — escaping at
+        // the point of output is the part that actually holds.
+        const nameEl = document.createElement("span");
+        nameEl.className = "name";
+        nameEl.textContent = a.username;
+        chip.appendChild(nameEl);
+        chip.appendChild(document.createTextNode(a.word));
+        grid.appendChild(chip);
+      });
+      block.appendChild(title); block.appendChild(grid);
+      wrap.appendChild(block);
+    });
+  }
+
+  function renderClueSection(room) {
+    const iAnswered = room.players.find(p => p.username.toLowerCase() === myUsernameLower)?.hasAnsweredThisRound;
+    $("clueInput").style.display = iAnswered ? "none" : "block";
+    $("clueSubmitBtn").style.display = iAnswered ? "none" : "block";
+    $("clueInput").value = "";
+
+    const row = $("clueWaitingRow");
+    row.innerHTML = "";
+    room.players.forEach(p => {
+      const wrap = document.createElement("div");
+      wrap.className = "im-waiting-avatar" + (p.hasAnsweredThisRound ? " answered" : "");
+      const img = document.createElement("img");
+      img.src = "/" + (p.avatar || "avatar1.png");
+      const check = document.createElement("div");
+      check.className = "check"; check.textContent = "✓";
+      wrap.appendChild(img); wrap.appendChild(check);
+      row.appendChild(wrap);
+    });
+    $("clueWaitingLabel").textContent = iAnswered ? "პასუხი გაგზავნილია — ელოდები დანარჩენებს..." : "";
+  }
+
+  function renderVoteSection(room) {
+    const iVoted = !!room.myVote;
+    const list = $("voteList");
+    list.innerHTML = "";
+    room.players.forEach(p => {
+      if (p.username.toLowerCase() === myUsernameLower) return;
+      const row = document.createElement("div");
+      row.className = "im-vote-row";
+      const img = document.createElement("img");
+      img.src = "/" + (p.avatar || "avatar1.png");
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = p.username;
+      const btn = document.createElement("button");
+      btn.className = "im-vote-btn";
+      btn.textContent = iVoted ? "ხმა მიცემულია" : "ხმის მიცემა";
+      btn.disabled = iVoted;
+      btn.addEventListener("click", () => {
+        socket.emit("imposter:submitVote", { roomId: currentRoomId, votedForUsername: p.username });
+      });
+      row.appendChild(img); row.appendChild(name); row.appendChild(btn);
+      list.appendChild(row);
+    });
+
+    const waitRow = $("voteWaitingRow");
+    waitRow.innerHTML = "";
+    room.players.forEach(p => {
+      const wrap = document.createElement("div");
+      wrap.className = "im-waiting-avatar" + (p.hasVoted ? " voted" : "");
+      const img = document.createElement("img");
+      img.src = "/" + (p.avatar || "avatar1.png");
+      const check = document.createElement("div");
+      check.className = "check"; check.textContent = "✓";
+      wrap.appendChild(img); wrap.appendChild(check);
+      waitRow.appendChild(wrap);
+    });
+  }
+
+  function renderGame(room) {
+    latestRoom = room;
+    $("roundLabel").textContent = room.phase === "clue" ? `რაუნდი ${room.roundIndex + 1}/${room.totalRounds}` : "";
+    $("phaseLabel").textContent = PHASE_LABELS[room.phase] || "";
+    $("myWordValue").textContent = room.myWord || "—";
+
+    renderRoundHistory(room);
+
+    $("clueSection").style.display = room.phase === "clue" ? "block" : "none";
+    $("voteSection").style.display = room.phase === "voting" ? "block" : "none";
+    $("guessSection").style.display = room.phase === "imposterGuess" && room.isImposterPromptedToGuess ? "block" : "none";
+    $("guessWaitSection").style.display = room.phase === "imposterGuess" && !room.isImposterPromptedToGuess ? "block" : "none";
+
+    if (room.phase === "clue") renderClueSection(room);
+    if (room.phase === "voting") renderVoteSection(room);
+
+    clearInterval(timerInterval);
+    if (room.actionDeadline) {
+      const tick = () => {
+        const msLeft = room.actionDeadline - Date.now();
+        const secs = Math.max(0, Math.ceil(msLeft / 1000));
+        $("timerChip").textContent = secs + "წმ";
+        $("timerChip").classList.toggle("low", secs <= 8);
+        if (msLeft <= 0) clearInterval(timerInterval);
+      };
+      tick();
+      timerInterval = setInterval(tick, 1000);
+    } else {
+      $("timerChip").textContent = "";
+    }
+
+    if (room.result) showReveal(room);
+    else $("revealOverlay").classList.remove("show");
+  }
+
+  function showReveal(room) {
+    const r = room.result;
+    const iAmImposter = r.imposterUsername.toLowerCase() === myUsernameLower;
+    const groupWon = r.winner === "group";
+    const iWon = (iAmImposter && !groupWon) || (!iAmImposter && groupWon);
+    $("revealEmoji").textContent = iWon ? "🎉" : "😔";
+    $("revealTitle").textContent = groupWon ? "ჯგუფმა გაიმარჯვა!" : "იმპოსტორმა გაიმარჯვა!";
+    $("revealImposter").textContent = r.imposterUsername;
+    $("revealMajorityWord").textContent = r.majorityWord;
+    $("revealImposterWord").textContent = r.imposterWord;
+    $("revealVotedOutRow").style.display = r.votedOutUsername ? "flex" : "none";
+    $("revealVotedOut").textContent = r.votedOutUsername || "";
+    if (r.imposterCaught) {
+      $("revealGuessRow").style.display = "flex";
+      $("revealGuessResult").textContent = r.imposterGuessedRight ? "სწორად გამოიცნო (მოიპარა გამარჯვება!)" : "ვერ გამოიცნო";
+    } else {
+      $("revealGuessRow").style.display = "none";
+    }
+    $("revealOverlay").classList.add("show");
+  }
+
+  $("clueSubmitBtn").addEventListener("click", () => {
+    const val = $("clueInput").value.trim();
+    if (!val) { showToast("დაწერე ერთი სიტყვა"); return; }
+    socket.emit("imposter:submitClue", { roomId: currentRoomId, word: val });
+  });
+  $("clueInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("clueSubmitBtn").click(); });
+
+  $("guessSubmitBtn").addEventListener("click", () => {
+    const val = $("guessInput").value.trim();
+    if (!val) { showToast("დაწერე შენი მიხვედრა"); return; }
+    socket.emit("imposter:submitGuess", { roomId: currentRoomId, guess: val });
+  });
+  $("guessInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("guessSubmitBtn").click(); });
+
+  /* ── Navigation ──────────────────────────────────────────────── */
+  /* ── Chat: panel open/close, sending, unread badge — no floating
+     speech bubbles here (no seated-avatar table layout to anchor to) ──── */
+  let chatOpen = false;
+  let chatHasUnread = false;
+
+  function openChat() {
+    chatOpen = true;
+    $("chatPanel").classList.add("show");
+    $("chatBackdrop").classList.add("show");
+    chatHasUnread = false;
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+    setTimeout(() => $("imChatInput").focus(), 150);
+  }
+  function closeChat() {
+    chatOpen = false;
+    $("chatPanel").classList.remove("show");
+    $("chatBackdrop").classList.remove("show");
+  }
+  $("chatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("lobbyChatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("chatCloseBtn").addEventListener("click", closeChat);
+  $("chatBackdrop").addEventListener("click", closeChat);
+
+  function appendChatMessage(msg) {
+    if (msg.kind === "ghostSystem") {
+      const line = document.createElement("div");
+      line.className = "im-chat-system-line";
+      line.textContent = `${msg.username} — ${msg.text}`;
+      $("chatMessages").appendChild(line);
+      $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+      if (!chatOpen) { chatHasUnread = true; $("chatUnreadDot").classList.add("show"); }
+      return;
+    }
+    const isMine = msg.username.toLowerCase() === myUsernameLower;
+    const row = document.createElement("div");
+    row.className = "im-chat-msg " + (isMine ? "mine" : "other") + (msg.kind === "ghost" ? " ghost" : "");
+    const author = document.createElement("div");
+    author.className = "im-chat-author";
+    author.textContent = msg.username;
+    const body = document.createElement("div");
+    body.textContent = msg.text;
+    row.appendChild(author); row.appendChild(body);
+    $("chatMessages").appendChild(row);
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+
+    if (!chatOpen && !isMine) {
+      chatHasUnread = true;
+      $("chatUnreadDot").classList.add("show");
+      $("lobbyChatUnreadDot").classList.add("show");
+    }
+  }
+
+  function sendChat() {
+    const val = $("imChatInput").value.trim();
+    if (!val || !currentRoomId) return;
+    socket.emit("imposter:chat", { roomId: currentRoomId, text: val });
+    $("imChatInput").value = "";
+  }
+  $("imChatSendBtn").addEventListener("click", sendChat);
+  $("imChatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+
+  function backToSetup() {
+    currentRoomId = null;
+    latestRoom = null;
+    clearInterval(timerInterval);
+    $("revealOverlay").classList.remove("show");
+    $("chatMessages").innerHTML = "";
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    chatHasUnread = false;
+    closeChat();
+    history.replaceState(null, "", "/imposter.html");
+    showScreen("setup");
+    socket.emit("imposter:listPublicRooms");
+  }
+  $("lobbyBackBtn").addEventListener("click", () => { socket.emit("imposter:leave"); backToSetup(); });
+  $("lobbyLeaveBtn").addEventListener("click", () => { socket.emit("imposter:leave"); backToSetup(); });
+  $("startGameBtn").addEventListener("click", () => { if (currentRoomId) socket.emit("imposter:start", { roomId: currentRoomId }); });
+  $("gameBackBtn").addEventListener("click", () => { socket.emit("imposter:leave"); backToSetup(); });
+  $("revealBackBtn").addEventListener("click", () => { socket.emit("imposter:leave"); backToSetup(); });
+
+  /* ── Boot ────────────────────────────────────────────────────── */
+  function init() {
+    socket = io(); attachTempBanGuard(socket);
+    socket.on("connect", () => {
+      if (token) socket.emit("auth:token", { token });
+      else socket.emit("auth:guest", { preferredUsername: sessionStorage.getItem("gaicani_guest_username") || null });
+    });
+
+    socket.on("auth:authenticated", ({ username: authedName, isGuest } = {}) => {
+      if (isGuest && authedName) {
+        myUsernameLower = authedName.toLowerCase();
+        try { sessionStorage.setItem("gaicani_guest_username", authedName); } catch (_) {}
+      }
+      elLoading.classList.add("hidden");
+      socket.emit("users:listOnline");
+      socket.emit("imposter:listPublicRooms");
+      if (currentRoomId) socket.emit("imposter:join", { roomId: currentRoomId });
+      else showScreen("setup");
+    });
+    socket.on("auth:invalid", () => { window.location.href = "/"; });
+
+    socket.on("users:onlineList", ({ users }) => {
+      onlineUsers = (users || []).filter(u => u.username.toLowerCase() !== myUsernameLower);
+      renderOnlineFriends();
+    });
+    socket.on("users:onlineChanged", () => socket.emit("users:listOnline"));
+
+    socket.on("imposter:publicRooms", renderPublicGames);
+
+    socket.on("imposter:invited", ({ roomId, fromUsername }) => {
+      const bar = $("imInviteBar");
+      bar.innerHTML = "";
+      const span = document.createElement("span");
+      span.textContent = `🕵️ ${fromUsername}-მა მოგიწვია იმპოსტორზე`;
+      const acceptBtn = document.createElement("button");
+      acceptBtn.className = "im-invite-accept"; acceptBtn.textContent = "✅";
+      const declineBtn = document.createElement("button");
+      declineBtn.className = "im-invite-decline"; declineBtn.textContent = "❌";
+      bar.appendChild(span); bar.appendChild(acceptBtn); bar.appendChild(declineBtn);
+      bar.classList.add("show");
+      acceptBtn.onclick = () => { bar.classList.remove("show"); socket.emit("imposter:join", { roomId }); };
+      declineBtn.onclick = () => { bar.classList.remove("show"); socket.emit("imposter:declineInvite", { roomId }); };
+    });
+    socket.on("imposter:inviteSent", ({ invited, cooldown }) => {
+      if (invited && invited.length) showToast("მოწვევა გაეგზავნა: " + invited.join(", "));
+      if (cooldown && cooldown.length) showToast(cooldown.join(", ") + " ცოტა ხნის წინ უარი განაცხადა — სცადე მოგვიანებით.");
+    });
+    socket.on("imposter:inviteDeclined", ({ username: who }) => showToast(`${who}-მ უარყო მოწვევა.`));
+
+    socket.on("imposter:room", (room) => {
+      currentRoomId = room.roomId;
+      history.replaceState(null, "", "/imposter.html?room=" + encodeURIComponent(room.roomId));
+      if (room.status === "lobby") { showScreen("lobby"); renderLobby(room); }
+      else { showScreen("game"); renderGame(room); }
+    });
+
+    socket.on("imposter:error", ({ message }) => showToast(message));
+
+    socket.on("imposter:chatMessage", appendChatMessage);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

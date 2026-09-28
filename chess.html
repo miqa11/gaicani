@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <title>GAICANI – ჭადრაკი</title>
+  <meta name="theme-color" content="#17181d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #17181d;
+      --surface:   #26272e;
+      --surface-2: #2f3037;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #5865f2;
+      --accent-dk: #4752c4;
+      --accent-lt: #8b93ff;
+      --text:      #e4e5ea;
+      --muted:     #7d81a0;
+      --good:      #3ba55d;
+      --warn:      #faa61a;
+      --danger:    #f23f42;
+      --gold:      #f2c94c;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top:    env(safe-area-inset-top, 0px);
+      --sq-light:  #ebe3d0;
+      --sq-dark:   #7c9473;
+    }
+
+    html, body {
+      height: 100%; height: 100dvh; height: var(--app-height, 100dvh);
+      background: radial-gradient(circle at 50% 0%, #22232c 0%, #17181d 55%);
+      color: var(--text); font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden; -webkit-text-size-adjust: 100%;
+      overscroll-behavior: contain;
+    }
+    button, a, [role="button"] { touch-action: manipulation; }
+    #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; height: var(--app-height, 100dvh); }
+
+    .cs-loading, .cs-center-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; text-align: center; padding: 24px;
+    }
+    .cs-loading.hidden, .cs-center-screen.hidden { display: none; }
+    .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent-lt); animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .cs-center-screen p { max-width: 280px; line-height: 1.5; }
+    .cs-center-screen a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.92em; background: var(--accent); padding: 11px 24px; border-radius: 10px; }
+
+    .cs-screen { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+    .cs-screen.visible { display: flex; }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    .cs-header {
+      display: flex; align-items: center; gap: 8px;
+      min-height: 54px; flex-shrink: 0; padding: 0 10px; padding-top: var(--safe-top);
+      padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .cs-icon-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: transparent; border: none; color: var(--text);
+      text-decoration: none; font-size: 1.15em; cursor: pointer;
+      transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .cs-icon-btn:hover { background: rgba(255,255,255,0.08); }
+    .cs-header-title { font-weight: 700; font-size: 1.02em; flex: 1; min-width: 0; }
+
+    /* ── Setup screen ────────────────────────────────────────────── */
+    .cs-setup-body { flex: 1; overflow-y: auto; padding: 16px 14px calc(16px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 16px; }
+    .cs-new-game-btn {
+      border: none; border-radius: 12px; padding: 14px; font-weight: 800; font-size: 0.98em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dk)); color: #fff; cursor: pointer;
+    }
+    .cs-new-game-btn:disabled { opacity: 0.5; }
+
+    /* ── Leaderboard — top 3 by wins ─────────────────────────────── */
+    .cs-leaderboard { background: var(--surface); border-radius: 12px; padding: 10px 10px 12px; }
+    .cs-leaderboard-label { font-size: 0.68em; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; padding: 0 4px 8px; }
+    .cs-podium { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; gap: 8px; }
+    .cs-podium-slot {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 4px 8px; min-height: 64px; justify-content: center;
+    }
+    .cs-podium-slot.rank-1 { order: 2; padding-top: 14px; border-color: rgba(242,201,76,0.4); background: rgba(242,201,76,0.08); }
+    .cs-podium-slot.rank-2 { order: 1; }
+    .cs-podium-slot.rank-3 { order: 3; }
+    .cs-podium-medal { font-size: 1.3em; line-height: 1; }
+    .cs-podium-name { font-size: 0.74em; font-weight: 700; color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cs-podium-score { font-size: 0.9em; font-weight: 800; color: #fff; }
+    .cs-podium-empty { color: var(--muted); font-size: 0.72em; }
+    .cs-section-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .cs-pick-row {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; cursor: pointer;
+    }
+    .cs-pick-row.selected { border-color: var(--accent); background: rgba(88,101,242,0.1); }
+    .cs-pick-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+    .cs-pick-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cs-pick-name { flex: 1; font-size: 0.9em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cs-pick-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7em; }
+    .cs-pick-row.selected .cs-pick-check { background: var(--accent); border-color: var(--accent); }
+    .cs-empty-state { color: var(--muted); font-size: 0.86em; text-align: center; padding: 20px 10px; line-height: 1.6; }
+
+    .cs-public-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .cs-public-info { flex: 1; min-width: 0; }
+    .cs-public-host { font-weight: 700; font-size: 0.9em; }
+    .cs-public-meta { color: var(--muted); font-size: 0.76em; margin-top: 2px; }
+    .cs-join-btn { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 0.82em; cursor: pointer; background: var(--accent); color: #fff; }
+
+    /* ── Lobby screen ────────────────────────────────────────────── */
+    .cs-lobby-body { flex: 1; overflow-y: auto; padding: 16px 14px; }
+    .cs-lobby-player { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .cs-lobby-tag { font-size: 0.68em; font-weight: 700; background: rgba(88,101,242,0.18); color: var(--accent-lt); padding: 2px 8px; border-radius: 20px; }
+    .cs-lobby-actions { padding: 12px 14px calc(12px + var(--safe-bottom)); border-top: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+    .cs-start-btn { border: none; border-radius: 10px; padding: 13px; font-weight: 800; background: var(--good); color: #fff; cursor: pointer; font-size: 0.95em; }
+    .cs-start-btn:disabled { opacity: 0.45; }
+    .cs-leave-btn { border: none; border-radius: 10px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 0.88em; background: var(--surface-2); color: var(--danger); }
+    .cs-lobby-hint { text-align: center; color: var(--muted); font-size: 0.8em; padding: 6px 0; }
+
+    /* ── Game screen ─────────────────────────────────────────────── */
+    .cs-game-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 8px 10px; gap: 6px; position: relative; }
+    .cs-bubble-layer { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+    .cs-player-bar { display: flex; align-items: center; gap: 8px; padding: 6px 4px; }
+    .cs-player-avatar-wrap { position: relative; flex-shrink: 0; }
+    .cs-player-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); display: block; }
+    .cs-player-bar.turn .cs-player-avatar { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,201,76,0.3); }
+    .cs-player-info { min-width: 0; }
+    .cs-player-name { font-size: 0.86em; font-weight: 700; }
+    .cs-player-captured { font-size: 0.85em; letter-spacing: 1px; color: var(--muted); min-height: 1.2em; }
+    .cs-player-timer { margin-left: auto; font-size: 0.78em; font-weight: 700; color: var(--muted); flex-shrink: 0; }
+    .cs-player-timer.low { color: var(--danger); }
+
+    .cs-board-wrap { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+    .cs-board {
+      display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+      width: min(100%, 100%); aspect-ratio: 1 / 1; max-height: 100%; max-width: 100%;
+      border-radius: 8px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,0.45); border: 3px solid #4a3a24;
+    }
+    .cs-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: min(7vw, 34px); user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+    .cs-sq.light { background: var(--sq-light); }
+    .cs-sq.dark { background: var(--sq-dark); }
+    .cs-sq.selected { box-shadow: inset 0 0 0 3px var(--gold); }
+    .cs-sq.last-move { background: rgba(242,201,76,0.35) !important; }
+    .cs-sq.in-check { background: rgba(242,63,66,0.55) !important; }
+    .cs-sq .cs-legal-dot { position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(30,30,30,0.28); pointer-events: none; }
+    .cs-sq .cs-legal-ring { position: absolute; inset: 6%; border-radius: 50%; border: 3px solid rgba(30,30,30,0.3); pointer-events: none; }
+    .cs-piece-w { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.7), 0 0 1px #000; }
+    .cs-piece-b { color: #1a1a1a; text-shadow: 0 1px 1px rgba(255,255,255,0.15); }
+    .cs-sq.flipped-label { }
+
+    .cs-coord-file, .cs-coord-rank { position: absolute; font-size: 0.55em; font-weight: 700; opacity: 0.55; pointer-events: none; }
+    .cs-coord-file { bottom: 1px; right: 3px; }
+    .cs-coord-rank { top: 1px; left: 3px; }
+
+    .cs-controls-row { display: flex; gap: 8px; padding: 4px 2px calc(4px + var(--safe-bottom)); }
+    .cs-controls-row button { flex: 1; border: none; border-radius: 10px; padding: 11px; font-weight: 700; font-size: 0.85em; cursor: pointer; }
+    .cs-resign-btn { background: rgba(242,63,66,0.16); color: var(--danger); }
+    .cs-leave-game-btn { background: var(--surface-2); color: var(--text); }
+
+    /* ── Promotion picker ────────────────────────────────────────── */
+    .cs-promo-modal { position: fixed; inset: 0; z-index: 550; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); }
+    .cs-promo-modal.show { display: flex; }
+    .cs-promo-box { background: var(--surface); border-radius: 16px; padding: 18px; display: flex; gap: 10px; }
+    .cs-promo-choice { width: 56px; height: 56px; border-radius: 10px; background: var(--surface-2); border: 2px solid var(--border); font-size: 2em; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text); }
+    .cs-promo-choice:hover { border-color: var(--accent); }
+
+    /* ── Game-over overlay ───────────────────────────────────────── */
+    .cs-result-overlay { position: fixed; inset: 0; z-index: 550; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.65); padding: 20px; }
+    .cs-result-overlay.show { display: flex; }
+    .cs-result-box { background: var(--surface); border-radius: 16px; padding: 26px 22px; max-width: 340px; width: 100%; text-align: center; }
+    .cs-result-emoji { font-size: 2.4em; margin-bottom: 8px; }
+    .cs-result-title { font-size: 1.15em; font-weight: 800; margin-bottom: 6px; }
+    .cs-result-sub { color: var(--muted); font-size: 0.86em; margin-bottom: 18px; }
+    .cs-result-actions { display: flex; gap: 8px; }
+    .cs-result-actions button { flex: 1; border: none; border-radius: 10px; padding: 12px; font-weight: 700; cursor: pointer; font-size: 0.88em; }
+    .cs-result-newgame { background: var(--accent); color: #fff; }
+    .cs-result-back { background: var(--surface-2); color: var(--text); }
+
+    .cs-invite-bar {
+      position: fixed; left: 12px; right: 12px; bottom: calc(12px + var(--safe-bottom)); z-index: 998;
+      background: var(--surface); border: 1px solid var(--accent); border-radius: 12px;
+      padding: 12px 14px; display: none; align-items: center; gap: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.45); max-width: 420px; margin: 0 auto;
+    }
+    .cs-invite-bar.show { display: flex; }
+    .cs-invite-bar span { flex: 1; font-size: 0.86em; }
+    .cs-invite-bar button { border: none; border-radius: 8px; padding: 7px 12px; font-weight: 700; font-size: 0.85em; cursor: pointer; }
+    .cs-invite-accept { background: var(--good); color: #fff; }
+    .cs-invite-decline { background: var(--surface-2); color: var(--text); }
+
+    #csToast {
+      position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 18px; border-radius: 20px; font-size: 0.88em;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 600; max-width: 90vw; text-align: center;
+    }
+    #csToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Chat: header button, unread dot, slide-up panel ─────────────── */
+    .cs-chat-unread-dot {
+      display: none; position: absolute; top: 3px; right: 3px; width: 9px; height: 9px;
+      border-radius: 50%; background: var(--danger); border: 2px solid var(--surface);
+    }
+    .cs-chat-unread-dot.show { display: block; }
+
+    .cs-chat-backdrop {
+      position: fixed; inset: 0; z-index: 560; background: rgba(0,0,0,0.4);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .cs-chat-backdrop.show { opacity: 1; pointer-events: auto; }
+    .cs-chat-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 561;
+      background: var(--surface); border-radius: 16px 16px 0 0; border-top: 1px solid var(--border);
+      max-width: 460px; margin: 0 auto; height: 52vh; max-height: 460px;
+      display: flex; flex-direction: column;
+      transform: translateY(105%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1);
+    }
+    .cs-chat-panel.show { transform: translateY(0); }
+    .cs-chat-panel-header {
+      display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+      font-weight: 700; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .cs-chat-panel-header button { background: rgba(255,255,255,0.08); border: none; color: var(--muted); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; }
+    .cs-chat-messages { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .cs-chat-msg { max-width: 78%; padding: 7px 11px; border-radius: 12px; font-size: 0.85em; line-height: 1.4; }
+    .cs-chat-msg.other { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+    .cs-chat-msg.mine { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+    .cs-chat-msg .cs-chat-author { font-size: 0.76em; font-weight: 700; color: var(--accent-lt); margin-bottom: 2px; }
+    .cs-chat-msg.mine .cs-chat-author { display: none; }
+    .cs-chat-input-row { display: flex; gap: 8px; padding: 10px 14px calc(10px + var(--safe-bottom)); border-top: 1px solid var(--border); flex-shrink: 0; }
+    #csChatInput { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; color: var(--text); font-size: 16px; padding: 9px 14px; }
+    #csChatInput:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    #csChatSendBtn { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 1em; cursor: pointer; }
+
+    @keyframes csBubbleInOut {
+      0%   { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+      10%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      85%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -8px) scale(0.95); }
+    }
+    .cs-speech-bubble {
+      position: absolute; max-width: 150px; background: #fff; color: #1a1a1a;
+      border-radius: 12px; padding: 6px 10px; font-size: 0.76em; font-weight: 600; line-height: 1.3;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.35); text-align: center; z-index: 30;
+      opacity: 0; animation: csBubbleInOut 3.6s ease forwards; pointer-events: none;
+    }
+    .cs-speech-bubble::after {
+      content: ""; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+      border-width: 6px 6px 0; border-style: solid; border-color: #fff transparent transparent;
+    }
+
+    @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+    /* ── Desktop / big screens — the table gets real room to breathe
+       instead of a mobile-width layout stretched across a wide monitor. ── */
+    @media (min-width: 700px) {
+      body {
+        display: flex; align-items: center; justify-content: center;
+        background: #0e0f13;
+      }
+      #app {
+        width: 100%; max-width: 640px;
+        height: 92vh; height: 92dvh;
+        border-radius: 20px; overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="csLoading" class="cs-loading"><div class="spinner"></div></div>
+
+  <div id="csAuthScreen" class="cs-center-screen hidden">
+    <div style="font-size:2.4em;">🔒</div>
+    <p>ჭადრაკის სათამაშოდ საჭიროა შესვლა.</p>
+    <a href="/">რეგისტრაცია / შესვლა</a>
+  </div>
+
+  <!-- SETUP SCREEN -->
+  <div id="setupScreen" class="cs-screen">
+    <header class="cs-header">
+      <a href="/dashboard.html" class="cs-icon-btn" title="უკან">←</a>
+      <div class="cs-header-title">♟️ ჭადრაკი</div>
+    </header>
+    <div class="cs-setup-body">
+      <button id="createGameBtn" class="cs-new-game-btn" disabled>➕ ახალი თამაშის შექმნა</button>
+
+      <div class="cs-leaderboard">
+        <div class="cs-leaderboard-label">ტოპ 3 — ყველაზე მეტი გამარჯვება</div>
+        <div class="cs-podium" id="csPodium">
+          <div class="cs-podium-slot rank-1"><div class="cs-podium-empty">—</div></div>
+          <div class="cs-podium-slot rank-2"><div class="cs-podium-empty">—</div></div>
+          <div class="cs-podium-slot rank-3"><div class="cs-podium-empty">—</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="cs-section-label">მოწვევა — ონლაინ მეგობრები</div>
+        <div id="onlineFriendsList"></div>
+      </div>
+      <div>
+        <div class="cs-section-label">აქტიური თამაშები</div>
+        <div id="publicGameList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobbyScreen" class="cs-screen">
+    <header class="cs-header">
+      <button id="lobbyBackBtn" class="cs-icon-btn" title="უკან">←</button>
+      <div class="cs-header-title">თამაშის ლობი</div>
+      <button id="lobbyChatToggleBtn" class="cs-icon-btn" title="ჩატი" style="position:relative;">
+        💬<span id="lobbyChatUnreadDot" class="cs-chat-unread-dot"></span>
+      </button>
+    </header>
+    <div class="cs-lobby-body">
+      <div id="lobbyPlayers"></div>
+      <div id="lobbyWaitHint" class="cs-lobby-hint"></div>
+    </div>
+    <div class="cs-lobby-actions">
+      <button id="startGameBtn" class="cs-start-btn" style="display:none">♟️ თამაშის დაწყება</button>
+      <button id="lobbyLeaveBtn" class="cs-leave-btn">თამაშის დატოვება</button>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="gameScreen" class="cs-screen">
+    <header class="cs-header">
+      <button id="gameBackBtn" class="cs-icon-btn" title="უკან">←</button>
+      <div class="cs-header-title" id="gameStatusLabel">ჭადრაკი</div>
+      <button id="chatToggleBtn" class="cs-icon-btn" title="ჩატი" style="position:relative;">
+        💬<span id="chatUnreadDot" class="cs-chat-unread-dot"></span>
+      </button>
+    </header>
+    <div class="cs-game-body">
+      <div class="cs-player-bar" id="oppBar">
+        <div class="cs-player-avatar-wrap"><img id="oppAvatar" class="cs-player-avatar" alt="" /></div>
+        <div class="cs-player-info">
+          <div class="cs-player-name" id="oppName"></div>
+          <div class="cs-player-captured" id="oppCaptured"></div>
+        </div>
+        <div class="cs-player-timer" id="oppTimer"></div>
+      </div>
+
+      <div class="cs-board-wrap"><div class="cs-board" id="board"></div></div>
+
+      <div class="cs-player-bar" id="meBar">
+        <div class="cs-player-avatar-wrap"><img id="meAvatar" class="cs-player-avatar" alt="" /></div>
+        <div class="cs-player-info">
+          <div class="cs-player-name" id="meName"></div>
+          <div class="cs-player-captured" id="meCaptured"></div>
+        </div>
+        <div class="cs-player-timer" id="meTimer"></div>
+      </div>
+
+      <div class="cs-controls-row">
+        <button id="resignBtn" class="cs-resign-btn">🏳️ ჩაბარება</button>
+        <button id="leaveGameBtn" class="cs-leave-game-btn">გასვლა</button>
+      </div>
+      <div class="cs-bubble-layer" id="bubbleLayer"></div>
+    </div>
+  </div>
+
+  <div id="csToast"></div>
+  <div id="csInviteBar" class="cs-invite-bar"></div>
+</div>
+
+<!-- Promotion picker -->
+<div id="promoModal" class="cs-promo-modal">
+  <div class="cs-promo-box" id="promoChoices"></div>
+</div>
+
+<!-- Game-over overlay -->
+<div id="resultOverlay" class="cs-result-overlay">
+  <div class="cs-result-box">
+    <div class="cs-result-emoji" id="resultEmoji">🏆</div>
+    <div class="cs-result-title" id="resultTitle"></div>
+    <div class="cs-result-sub" id="resultSub"></div>
+    <div class="cs-result-actions">
+      <button class="cs-result-back" id="resultBackBtn">სიაში დაბრუნება</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chat panel — slides up from the bottom, works in both lobby and game -->
+<div id="chatBackdrop" class="cs-chat-backdrop"></div>
+<div id="chatPanel" class="cs-chat-panel">
+  <div class="cs-chat-panel-header">
+    <div>ჩატი</div>
+    <button id="chatCloseBtn">✕</button>
+  </div>
+  <div id="chatMessages" class="cs-chat-messages"></div>
+  <div class="cs-chat-input-row">
+    <input type="text" id="csChatInput" maxlength="200" placeholder="დაწერე რამე..." />
+    <button id="csChatSendBtn">➤</button>
+  </div>
+</div>
+
+<script src="/ban-notice.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  (function () {
+    function setAppHeight() {
+      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    }
+    setAppHeight();
+    if (window.visualViewport) { window.visualViewport.addEventListener("resize", setAppHeight); window.visualViewport.addEventListener("scroll", setAppHeight); }
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+  })();
+</script>
+<script>
+(function () {
+  "use strict";
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  function $(id) { return document.getElementById(id); }
+  function showToast(msg, ms = 3200) {
+    const t = $("csToast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), ms);
+  }
+  function loadAuth() {
+    try { return { token: localStorage.getItem("gaicani_auth_token"), username: localStorage.getItem("gaicani_auth_user") }; }
+    catch (_) { return {}; }
+  }
+  function getRoomParam() { return (new URLSearchParams(window.location.search).get("room") || "").trim(); }
+  function setAvatar(container, avatarFile, username) {
+    container.innerHTML = "";
+    if (avatarFile) {
+      const img = document.createElement("img");
+      img.src = "/" + avatarFile;
+      img.alt = username || "";
+      container.appendChild(img);
+    } else {
+      container.textContent = (username || "?").charAt(0).toUpperCase();
+    }
+  }
+
+  const PIECE_GLYPHS = {
+    K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙",
+    k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟",
+  };
+  const FILES = "abcdefgh";
+  function squareName(s) { return FILES[s % 8] + (Math.floor(s / 8) + 1); }
+  function nameToSquare(name) { return FILES.indexOf(name[0]) + (Number(name[1]) - 1) * 8; }
+
+  const { token, username } = loadAuth();
+  let myUsernameLower = (username || "").toLowerCase();
+
+  const elLoading = $("csLoading");
+  const elAuth = $("csAuthScreen");
+  const screens = { setup: $("setupScreen"), lobby: $("lobbyScreen"), game: $("gameScreen") };
+  function showScreen(name) { Object.entries(screens).forEach(([k, el]) => el.classList.toggle("visible", k === name)); }
+
+  /* ── State ───────────────────────────────────────────────────── */
+  let socket = null;
+  let currentRoomId = getRoomParam() || null;
+  let onlineUsers = [];
+  let selectedInvitees = new Set();
+  let latestRoom = null;
+  let myColor = null;       // 'w' | 'b' | null
+  let selectedSquare = null; // square index currently selected for a move
+  let pendingPromotion = null; // { from, to } awaiting a piece choice
+  let timerInterval = null;
+
+  /* ── Leaderboard — top 3 by wins, same pattern as Flappy Bird's ──── */
+  const LEADERBOARD_MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
+  function renderLeaderboard(top3) {
+    const el = $("csPodium");
+    if (!el) return;
+    const byRank = [1, 2, 3].map(rank => (top3 || [])[rank - 1] || null);
+    el.innerHTML = byRank.map((row, i) => {
+      const rank = i + 1;
+      if (!row) return `<div class="cs-podium-slot rank-${rank}"><div class="cs-podium-medal">${LEADERBOARD_MEDALS[rank]}</div><div class="cs-podium-empty">—</div></div>`;
+      return `
+        <div class="cs-podium-slot rank-${rank}">
+          <div class="cs-podium-medal">${LEADERBOARD_MEDALS[rank]}</div>
+          <div class="cs-podium-name">${esc(row.username)}</div>
+          <div class="cs-podium-score">${esc(String(row.score))}</div>
+        </div>`;
+    }).join("");
+  }
+  function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+  async function loadLeaderboardInitial() {
+    try {
+      const r = await fetch("/api/chess/leaderboard");
+      const d = await r.json();
+      renderLeaderboard(d.top3 || []);
+    } catch (_) { /* leaderboard is non-critical — page still works without it */ }
+  }
+
+  /* ── Setup screen ────────────────────────────────────────────── */
+  function renderOnlineFriends() {
+    const list = $("onlineFriendsList");
+    if (!onlineUsers.length) {
+      list.innerHTML = `<div class="cs-empty-state">ახლა არავინ არის ონლაინ.<br><small>დაელოდე ვინმეს შემოსვლას.</small></div>`;
+      $("createGameBtn").disabled = true;
+      return;
+    }
+    list.innerHTML = "";
+    onlineUsers.forEach(u => {
+      const row = document.createElement("div");
+      row.className = "cs-pick-row" + (selectedInvitees.has(u.username.toLowerCase()) ? " selected" : "");
+      const avatar = document.createElement("div");
+      avatar.className = "cs-pick-avatar";
+      setAvatar(avatar, u.avatar, u.username);
+      const name = document.createElement("div");
+      name.className = "cs-pick-name";
+      name.textContent = u.username + (u.isGuest ? " (სტუმარი)" : "");
+      const check = document.createElement("div");
+      check.className = "cs-pick-check";
+      check.textContent = "✓";
+      row.appendChild(avatar); row.appendChild(name); row.appendChild(check);
+      row.addEventListener("click", () => {
+        const lc = u.username.toLowerCase();
+        if (selectedInvitees.has(lc)) selectedInvitees.delete(lc); else selectedInvitees.add(lc);
+        row.classList.toggle("selected");
+        $("createGameBtn").disabled = selectedInvitees.size === 0;
+      });
+      list.appendChild(row);
+    });
+    $("createGameBtn").disabled = selectedInvitees.size === 0;
+  }
+
+  function renderPublicGames(rooms) {
+    const list = $("publicGameList");
+    list.innerHTML = "";
+    if (!rooms || !rooms.length) {
+      list.innerHTML = `<div class="cs-empty-state">ახლა აქტიური თამაში არ არის.</div>`;
+      return;
+    }
+    rooms.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "cs-public-row";
+      const info = document.createElement("div");
+      info.className = "cs-public-info";
+      const host = document.createElement("div");
+      host.className = "cs-public-host";
+      host.textContent = "♟️ " + r.hostUsername + "-ის თამაში";
+      const meta = document.createElement("div");
+      meta.className = "cs-public-meta";
+      meta.textContent = `${r.playerCount}/${r.maxPlayers} მოთამაშე · ${r.status === "playing" ? "მიმდინარეობს" : "ლობი"}`;
+      info.appendChild(host); info.appendChild(meta);
+      const btn = document.createElement("button");
+      btn.className = "cs-join-btn";
+      btn.textContent = "შემოერთება";
+      btn.addEventListener("click", () => socket.emit("chess:join", { roomId: r.roomId }));
+      row.appendChild(info); row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
+  $("createGameBtn").addEventListener("click", () => {
+    socket.emit("chess:invite", { toUsernames: [...selectedInvitees] });
+  });
+
+  /* ── Lobby screen ────────────────────────────────────────────── */
+  let isHost = false;
+  function renderLobby(room) {
+    isHost = room.hostUsername.toLowerCase() === myUsernameLower;
+    const list = $("lobbyPlayers");
+    list.innerHTML = "";
+    room.players.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "cs-lobby-player";
+      const avatar = document.createElement("div");
+      avatar.className = "cs-pick-avatar";
+      setAvatar(avatar, p.avatar, p.username);
+      const name = document.createElement("div");
+      name.className = "cs-pick-name";
+      name.textContent = p.username;
+      row.appendChild(avatar); row.appendChild(name);
+      if (p.username.toLowerCase() === room.hostUsername.toLowerCase()) {
+        const tag = document.createElement("span"); tag.className = "cs-lobby-tag"; tag.textContent = "მასპინძელი"; row.appendChild(tag);
+      }
+      list.appendChild(row);
+    });
+    $("startGameBtn").style.display = isHost ? "block" : "none";
+    $("startGameBtn").disabled = room.players.length !== 2;
+    $("lobbyWaitHint").textContent = isHost
+      ? (room.players.length < 2 ? "დაელოდე მეგობრის შემოერთებას." : "მზად ხარ დასაწყებად!")
+      : "მასპინძლის მოლოდინში...";
+  }
+
+  /* ── Board rendering ─────────────────────────────────────────── */
+  function buildBoardSquares() {
+    const board = $("board");
+    board.innerHTML = "";
+    for (let i = 0; i < 64; i++) {
+      const sqEl = document.createElement("div");
+      sqEl.className = "cs-sq";
+      sqEl.dataset.square = "";
+      board.appendChild(sqEl);
+    }
+  }
+  buildBoardSquares();
+
+  // Visual grid position → actual board square, honoring board flip for
+  // black (so each player always sees their own side at the bottom).
+  function gridIndexToSquare(gridIdx) {
+    const row = Math.floor(gridIdx / 8), col = gridIdx % 8;
+    if (myColor === "b") {
+      const file = 7 - col, rank = row; // rank 0 at top visually for black view
+      return rank * 8 + file;
+    }
+    const file = col, rank = 7 - row;
+    return rank * 8 + file;
+  }
+
+  function renderBoard(room) {
+    const legalFrom = new Map(); // fromSquare -> [{to, promotion}]
+    (room.legalMoves || []).forEach(m => {
+      const from = nameToSquare(m.from);
+      if (!legalFrom.has(from)) legalFrom.set(from, []);
+      legalFrom.get(from).push(m);
+    });
+
+    const kingSquareInCheck = (() => {
+      if (!room.inCheck) return -1;
+      const kingChar = room.turn === "w" ? "K" : "k";
+      return room.board.indexOf(kingChar);
+    })();
+
+    const lastFrom = room.lastMove ? nameToSquare(room.lastMove.from) : -1;
+    const lastTo = room.lastMove ? nameToSquare(room.lastMove.to) : -1;
+
+    const cells = $("board").children;
+    for (let gridIdx = 0; gridIdx < 64; gridIdx++) {
+      const square = gridIndexToSquare(gridIdx);
+      const el = cells[gridIdx];
+      const file = square % 8, rank = Math.floor(square / 8);
+      const isLight = (file + rank) % 2 === 1;
+      el.className = "cs-sq " + (isLight ? "light" : "dark");
+      el.dataset.square = squareName(square);
+
+      if (square === lastFrom || square === lastTo) el.classList.add("last-move");
+      if (square === kingSquareInCheck) el.classList.add("in-check");
+      if (square === selectedSquare) el.classList.add("selected");
+
+      el.innerHTML = "";
+      const piece = room.board[square];
+      if (piece) {
+        const glyph = document.createElement("span");
+        glyph.className = piece === piece.toUpperCase() ? "cs-piece-w" : "cs-piece-b";
+        glyph.textContent = PIECE_GLYPHS[piece] || "";
+        el.appendChild(glyph);
+      }
+
+      if (selectedSquare !== null && legalFrom.has(selectedSquare)) {
+        const dest = legalFrom.get(selectedSquare).find(m => nameToSquare(m.to) === square);
+        if (dest) {
+          const marker = document.createElement("div");
+          marker.className = piece ? "cs-legal-ring" : "cs-legal-dot";
+          el.appendChild(marker);
+        }
+      }
+
+      el.onclick = () => onSquareClick(square, legalFrom);
+    }
+  }
+
+  function onSquareClick(square, legalFrom) {
+    if (!latestRoom || latestRoom.status !== "playing" || latestRoom.result) return;
+    if (myColor !== latestRoom.turn) { showToast("მოწინააღმდეგის სვლის რიგია"); return; }
+
+    if (selectedSquare !== null && legalFrom.has(selectedSquare)) {
+      const dest = legalFrom.get(selectedSquare).find(m => nameToSquare(m.to) === square);
+      if (dest) {
+        if (dest.promotion) {
+          pendingPromotion = { from: squareName(selectedSquare), to: squareName(square) };
+          openPromotionPicker();
+        } else {
+          socket.emit("chess:move", { roomId: currentRoomId, from: squareName(selectedSquare), to: squareName(square) });
+        }
+        selectedSquare = null;
+        renderBoard(latestRoom);
+        return;
+      }
+    }
+
+    const piece = latestRoom.board[square];
+    if (piece && (piece === piece.toUpperCase() ? "w" : "b") === myColor) {
+      selectedSquare = square;
+    } else {
+      selectedSquare = null;
+    }
+    renderBoard(latestRoom);
+  }
+
+  function openPromotionPicker() {
+    const isWhite = myColor === "w";
+    const box = $("promoChoices");
+    box.innerHTML = "";
+    ["Q", "R", "B", "N"].forEach(p => {
+      const btn = document.createElement("div");
+      btn.className = "cs-promo-choice";
+      btn.textContent = PIECE_GLYPHS[isWhite ? p : p.toLowerCase()];
+      btn.addEventListener("click", () => {
+        socket.emit("chess:move", { roomId: currentRoomId, from: pendingPromotion.from, to: pendingPromotion.to, promotion: p });
+        $("promoModal").classList.remove("show");
+        pendingPromotion = null;
+      });
+      box.appendChild(btn);
+    });
+    $("promoModal").classList.add("show");
+  }
+
+  function capturedGlyphs(board, forColor) {
+    // Derive captured-by-me pieces: starting counts minus what's left on the
+    // opponent's side, rendered as small glyphs.
+    const startCounts = { P: 8, N: 2, B: 2, R: 2, Q: 1 };
+    const oppIsWhite = forColor === "b"; // pieces I've captured are the opponent's colour
+    const counts = {};
+    for (const p of board) {
+      if (!p) continue;
+      const isW = p === p.toUpperCase();
+      if (isW !== oppIsWhite) continue;
+      const t = p.toUpperCase();
+      counts[t] = (counts[t] || 0) + 1;
+    }
+    let out = "";
+    for (const t of ["Q", "R", "B", "N", "P"]) {
+      const remaining = counts[t] || 0;
+      const captured = (startCounts[t] || 0) - remaining;
+      for (let i = 0; i < captured; i++) out += PIECE_GLYPHS[oppIsWhite ? t : t.toLowerCase()];
+    }
+    return out;
+  }
+
+  function clearTimerInterval() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+
+  function renderGame(room) {
+    latestRoom = room;
+    const me = room.players.find(p => p.username.toLowerCase() === myUsernameLower);
+    const opp = room.players.find(p => p.username.toLowerCase() !== myUsernameLower);
+    myColor = me ? me.color : null;
+
+    if (me) { $("meAvatar").src = "/" + (me.avatar || "avatar1.png"); }
+    $("meName").textContent = (me && me.username) || "";
+    if (opp) { $("oppAvatar").src = "/" + (opp.avatar || "avatar1.png"); }
+    $("oppName").textContent = (opp && opp.username) || "მოწინააღმდეგე";
+
+    $("meBar").classList.toggle("turn", room.turn === myColor && room.status === "playing" && !room.result);
+    $("oppBar").classList.toggle("turn", room.turn !== myColor && room.status === "playing" && !room.result);
+
+    $("meCaptured").textContent = capturedGlyphs(room.board, myColor);
+    $("oppCaptured").textContent = capturedGlyphs(room.board, myColor === "w" ? "b" : "w");
+
+    $("gameStatusLabel").textContent = room.result
+      ? "თამაში დასრულდა"
+      : (room.inCheck ? "შაჰი! " : "") + (room.turn === myColor ? "შენი სვლაა" : "მოწინააღმდეგის სვლაა");
+
+    renderBoard(room);
+
+    clearTimerInterval();
+    if (room.moveDeadline && !room.result) {
+      const tick = () => {
+        const msLeft = room.moveDeadline - Date.now();
+        const secs = Math.max(0, Math.ceil(msLeft / 1000));
+        const label = secs + "წმ";
+        const turnIsMe = room.turn === myColor;
+        $("meTimer").textContent = turnIsMe ? label : "";
+        $("oppTimer").textContent = !turnIsMe ? label : "";
+        $("meTimer").classList.toggle("low", turnIsMe && secs <= 15);
+        $("oppTimer").classList.toggle("low", !turnIsMe && secs <= 15);
+        if (msLeft <= 0) clearTimerInterval();
+      };
+      tick();
+      timerInterval = setInterval(tick, 1000);
+    } else {
+      $("meTimer").textContent = ""; $("oppTimer").textContent = "";
+    }
+
+    if (room.result) showGameResult(room);
+    else $("resultOverlay").classList.remove("show");
+  }
+
+  function showGameResult(room) {
+    const r = room.result;
+    const iAmWinner = r.winner && r.winner === myColor;
+    const isDraw = r.status === "stalemate" || r.status === "draw";
+    $("resultEmoji").textContent = isDraw ? "🤝" : (iAmWinner ? "🏆" : "😔");
+    const reasonText = {
+      checkmate: "შაჰ-მატი", timeout: "დრო ამოიწურა", resignation: "ჩაბარება",
+      stalemate: "პატი", draw: "ფრე",
+    }[r.status] || r.status;
+    $("resultTitle").textContent = isDraw ? "ფრე — " + reasonText : (iAmWinner ? "შენ მოიგე!" : "წააგე") + " — " + reasonText;
+    $("resultSub").textContent = r.reason === "insufficient-material" ? "არასაკმარისი მასალა მატისთვის" : r.reason === "fifty-move" ? "50 სვლის წესი" : "";
+    $("resultOverlay").classList.add("show");
+  }
+
+  /* ── Navigation ──────────────────────────────────────────────── */
+  /* ── Chat: panel open/close, sending, unread badge, speech bubbles ──── */
+  let chatOpen = false;
+  let chatHasUnread = false;
+
+  function openChat() {
+    chatOpen = true;
+    $("chatPanel").classList.add("show");
+    $("chatBackdrop").classList.add("show");
+    chatHasUnread = false;
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+    setTimeout(() => $("csChatInput").focus(), 150);
+  }
+  function closeChat() {
+    chatOpen = false;
+    $("chatPanel").classList.remove("show");
+    $("chatBackdrop").classList.remove("show");
+  }
+  $("chatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("lobbyChatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("chatCloseBtn").addEventListener("click", closeChat);
+  $("chatBackdrop").addEventListener("click", closeChat);
+
+  function appendChatMessage(msg) {
+    const isMine = msg.username.toLowerCase() === myUsernameLower;
+    const row = document.createElement("div");
+    row.className = "cs-chat-msg " + (isMine ? "mine" : "other");
+    const author = document.createElement("div");
+    author.className = "cs-chat-author";
+    author.textContent = msg.username;
+    const body = document.createElement("div");
+    body.textContent = msg.text;
+    row.appendChild(author); row.appendChild(body);
+    $("chatMessages").appendChild(row);
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+
+    if (!chatOpen && !isMine) {
+      chatHasUnread = true;
+      $("chatUnreadDot").classList.add("show");
+      $("lobbyChatUnreadDot").classList.add("show");
+    }
+  }
+
+  function spawnSpeechBubble(msg) {
+    if (!screens.game.classList.contains("visible")) return; // only the game screen has avatars positioned to anchor to
+    const isMine = msg.username.toLowerCase() === myUsernameLower;
+    const anchorEl = isMine ? $("meAvatar") : $("oppAvatar");
+    if (!anchorEl) return;
+    const bodyEl = $("gameScreen").querySelector(".cs-game-body");
+    const bodyRect = bodyEl.getBoundingClientRect();
+    const anchorRect = anchorEl.getBoundingClientRect();
+
+    const bubble = document.createElement("div");
+    bubble.className = "cs-speech-bubble";
+    bubble.textContent = msg.text;
+    const left = (anchorRect.left + anchorRect.width / 2) - bodyRect.left;
+    const top = (anchorRect.top - bodyRect.top) + anchorRect.height + 8;
+    bubble.style.left = left + "px";
+    bubble.style.top = top + "px";
+    bubble.style.transform = "translate(-50%, 0)";
+    $("bubbleLayer").appendChild(bubble);
+    setTimeout(() => bubble.remove(), 3700);
+  }
+
+  function sendChat() {
+    const val = $("csChatInput").value.trim();
+    if (!val || !currentRoomId) return;
+    socket.emit("chess:chat", { roomId: currentRoomId, text: val });
+    $("csChatInput").value = "";
+  }
+  $("csChatSendBtn").addEventListener("click", sendChat);
+  $("csChatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+
+  function backToSetup() {
+    currentRoomId = null;
+    latestRoom = null;
+    selectedSquare = null;
+    clearTimerInterval();
+    $("resultOverlay").classList.remove("show"); // it's a fixed full-screen overlay — must be dismissed explicitly, or it just sits on top of the setup screen looking like nothing happened
+    $("chatMessages").innerHTML = "";
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    chatHasUnread = false;
+    closeChat();
+    history.replaceState(null, "", "/chess.html");
+    showScreen("setup");
+    socket.emit("chess:listPublicRooms");
+  }
+  $("lobbyBackBtn").addEventListener("click", () => { socket.emit("chess:leave"); backToSetup(); });
+  $("lobbyLeaveBtn").addEventListener("click", () => { socket.emit("chess:leave"); backToSetup(); });
+  $("startGameBtn").addEventListener("click", () => { if (currentRoomId) socket.emit("chess:start", { roomId: currentRoomId }); });
+  $("gameBackBtn").addEventListener("click", backToSetup); // stays seated — membership persists
+  $("leaveGameBtn").addEventListener("click", () => {
+    if (latestRoom && !latestRoom.result && latestRoom.status === "playing") {
+      if (!confirm("დატოვება ითვლება ჩაბარებად. გავაგრძელო?")) return;
+      socket.emit("chess:resign", { roomId: currentRoomId });
+    }
+    socket.emit("chess:leave");
+    backToSetup();
+  });
+  $("resignBtn").addEventListener("click", () => {
+    if (!currentRoomId) return;
+    if (confirm("დარწმუნებული ხარ, გინდა ჩაბარება?")) socket.emit("chess:resign", { roomId: currentRoomId });
+  });
+  $("resultBackBtn").addEventListener("click", () => { socket.emit("chess:leave"); backToSetup(); });
+
+  /* ── Boot ────────────────────────────────────────────────────── */
+  function init() {
+    socket = io(); attachTempBanGuard(socket);
+    socket.on("connect", () => {
+      if (token) socket.emit("auth:token", { token });
+      else socket.emit("auth:guest", { preferredUsername: sessionStorage.getItem("gaicani_guest_username") || null });
+    });
+
+    socket.on("auth:authenticated", ({ username: authedName, isGuest } = {}) => {
+      if (isGuest && authedName) {
+        myUsernameLower = authedName.toLowerCase();
+        try { sessionStorage.setItem("gaicani_guest_username", authedName); } catch (_) {}
+      }
+      elLoading.classList.add("hidden");
+      socket.emit("users:listOnline");
+      socket.emit("chess:listPublicRooms");
+      loadLeaderboardInitial();
+      if (currentRoomId) socket.emit("chess:join", { roomId: currentRoomId });
+      else showScreen("setup");
+    });
+    socket.on("auth:invalid", () => { window.location.href = "/"; });
+
+    socket.on("users:onlineList", ({ users }) => {
+      onlineUsers = (users || []).filter(u => u.username.toLowerCase() !== myUsernameLower);
+      renderOnlineFriends();
+    });
+    socket.on("users:onlineChanged", () => socket.emit("users:listOnline"));
+
+    socket.on("chess:leaderboardUpdate", (top3) => renderLeaderboard(top3 || []));
+    socket.on("chess:publicRooms", renderPublicGames);
+
+    socket.on("chess:invited", ({ roomId, fromUsername }) => {
+      const bar = $("csInviteBar");
+      bar.innerHTML = "";
+      const span = document.createElement("span");
+      span.textContent = `♟️ ${fromUsername}-მა მოგიწვია ჭადრაკზე`;
+      const acceptBtn = document.createElement("button");
+      acceptBtn.className = "cs-invite-accept"; acceptBtn.textContent = "✅";
+      const declineBtn = document.createElement("button");
+      declineBtn.className = "cs-invite-decline"; declineBtn.textContent = "❌";
+      bar.appendChild(span); bar.appendChild(acceptBtn); bar.appendChild(declineBtn);
+      bar.classList.add("show");
+      acceptBtn.onclick = () => { bar.classList.remove("show"); socket.emit("chess:join", { roomId }); };
+      declineBtn.onclick = () => { bar.classList.remove("show"); socket.emit("chess:declineInvite", { roomId }); };
+    });
+    socket.on("chess:inviteSent", ({ invited, cooldown }) => {
+      if (invited && invited.length) showToast("მოწვევა გაეგზავნა: " + invited.join(", "));
+      if (cooldown && cooldown.length) showToast(cooldown.join(", ") + " ცოტა ხნის წინ უარი განაცხადა — სცადე მოგვიანებით.");
+    });
+    socket.on("chess:inviteDeclined", ({ username: who }) => showToast(`${who}-მ უარყო მოწვევა.`));
+
+    socket.on("chess:room", (room) => {
+      currentRoomId = room.roomId;
+      history.replaceState(null, "", "/chess.html?room=" + encodeURIComponent(room.roomId));
+      if (room.status === "lobby") { showScreen("lobby"); renderLobby(room); }
+      else { showScreen("game"); renderGame(room); }
+    });
+
+    socket.on("chess:error", ({ message }) => showToast(message));
+
+    socket.on("chess:chatMessage", (msg) => {
+      appendChatMessage(msg);
+      spawnSpeechBubble(msg);
+    });
+
+    init._ready = true;
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

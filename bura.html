@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ბურა – GAICANI</title>
+  <meta name="theme-color" content="#17181d" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    :root{
+      --bg:#17181d; --surface:#26272e; --surface-2:#2f3037;
+      --border:rgba(255,255,255,.08); --accent:#5865f2; --accent-lt:#8b93ff;
+      --text:#e4e5ea; --muted:#7d81a0; --good:#3ba55d; --warn:#f2c94c; --danger:#f23f42;
+      --felt:#1b4332; --gold:#f2c94c;
+      --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+    }
+    html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+      -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;overscroll-behavior:contain}
+    button{font-family:inherit;touch-action:manipulation}
+    .hidden{display:none!important}
+
+    .bu-header{display:flex;align-items:center;gap:10px;padding:6px 12px;padding-top:calc(6px + var(--safe-top));
+      background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+    .bu-icon-btn{width:32px;height:32px;border-radius:50%;background:var(--surface-2);border:none;
+      color:var(--text);font-size:1em;cursor:pointer;flex-shrink:0}
+    .bu-title{font-weight:800;font-size:.95em}
+    .bu-sub{font-size:.7em;color:var(--muted)}
+    .bu-trump{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--surface-2);
+      border-radius:12px;padding:4px 10px 4px 12px}
+    .bu-trump-label{font-size:.62em;font-weight:700;color:var(--muted);text-transform:uppercase}
+
+    .bu-screen{display:none;flex-direction:column;height:100dvh}
+    .bu-screen.active{display:flex}
+
+    /* lobby */
+    .bu-lobby{padding:18px 16px;max-width:520px;margin:0 auto;width:100%;overflow-y:auto}
+    .bu-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px}
+    .bu-card h3{margin:0 0 10px;font-size:.95em}
+    .bu-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+    .bu-opt{flex:1;min-width:90px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-dim,var(--text));
+      border-radius:9px;padding:9px 6px;font-size:.8em;font-weight:700;cursor:pointer}
+    .bu-opt.active{background:rgba(88,101,242,.18);border-color:var(--accent);color:var(--accent-lt)}
+    .bu-btn{width:100%;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:.92em;cursor:pointer;
+      background:linear-gradient(135deg,var(--accent),var(--accent-lt));color:#fff}
+    .bu-btn.secondary{background:var(--surface-2);color:var(--text)}
+    .bu-btn:disabled{opacity:.5;cursor:default}
+    .bu-seat-list{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+    .bu-seat{display:flex;align-items:center;gap:9px;background:var(--surface-2);border-radius:10px;padding:9px 11px;font-size:.87em}
+    .bu-seat .seat-no{width:22px;height:22px;border-radius:50%;background:rgba(88,101,242,.22);
+      display:flex;align-items:center;justify-content:center;font-size:.72em;font-weight:800;color:var(--accent-lt)}
+    .bu-seat .team{margin-left:auto;font-size:.72em;color:var(--muted);font-weight:700}
+    .bu-empty{color:var(--muted);font-size:.82em;text-align:center;padding:14px}
+
+    /* table */
+    .bu-table{flex:1;position:relative;background:radial-gradient(circle at 50% 45%,#265c43,var(--felt) 70%);
+      display:flex;flex-direction:column;min-height:0}
+    .bu-score{position:absolute;top:8px;left:8px;z-index:5;background:rgba(15,15,20,.72);
+      border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:6px 9px;font-size:.72em;
+      -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+    .bu-score b{color:var(--gold)}
+    .bu-callchip{position:absolute;top:8px;right:8px;z-index:5;background:rgba(242,201,76,.16);
+      border:1px solid rgba(242,201,76,.5);color:var(--gold);border-radius:10px;padding:5px 10px;
+      font-size:.72em;font-weight:800}
+    .bu-opps{display:flex;justify-content:space-around;padding:14px 8px 6px;gap:6px}
+    .bu-opp{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:.7em;color:#cfe;min-width:0}
+    .bu-opp.turn{color:var(--gold);font-weight:800}
+    .bu-opp-cards{display:flex;gap:2px}
+    .bu-back{width:16px;height:23px;border-radius:3px;background:linear-gradient(135deg,#3b4a8c,#243063);
+      border:1px solid rgba(255,255,255,.25)}
+    .bu-trickarea{flex:1;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;padding:8px;min-height:0}
+    .bu-play{display:flex;flex-direction:column;align-items:center;gap:3px}
+    .bu-play-name{font-size:.62em;color:#cfe}
+    .bu-play-cards{display:flex;gap:3px}
+    .bu-play.winning .bu-play-name{color:var(--gold);font-weight:800}
+
+    .bu-card-el{width:42px;height:60px;border-radius:6px;background:#fff;color:#1a1a1a;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      font-weight:800;font-size:.82em;box-shadow:0 2px 6px rgba(0,0,0,.4);user-select:none;flex-shrink:0}
+    .bu-card-el.red{color:#d0332f}
+    .bu-card-el .suit{font-size:1.15em;margin-top:1px}
+    .bu-card-el.mini{width:30px;height:43px;font-size:.66em;border-radius:5px}
+
+    /* hand */
+    .bu-hand-wrap{background:rgba(0,0,0,.28);border-top:1px solid rgba(255,255,255,.08);
+      padding:10px 8px calc(10px + var(--safe-bottom));flex-shrink:0}
+    .bu-hand{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-bottom:9px;min-height:62px}
+    .bu-hand .bu-card-el{cursor:pointer;transition:transform .12s}
+    .bu-hand .bu-card-el.sel{transform:translateY(-12px);box-shadow:0 6px 16px rgba(242,201,76,.55);
+      outline:2px solid var(--gold)}
+    .bu-actions{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}
+    .bu-act{border:none;border-radius:9px;padding:10px 15px;font-weight:800;font-size:.82em;cursor:pointer;
+      background:var(--accent);color:#fff}
+    .bu-act.ghost{background:rgba(255,255,255,.12);color:var(--text)}
+    .bu-act.gold{background:var(--gold);color:#1a1a1a}
+    .bu-act:disabled{opacity:.45;cursor:default}
+    .bu-hint{text-align:center;font-size:.72em;color:#bcd;margin-bottom:7px;min-height:15px}
+
+    .bu-modal{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.66);display:none;
+      align-items:center;justify-content:center;padding:20px}
+    .bu-modal.show{display:flex}
+    .bu-modal-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+      padding:22px 20px;width:100%;max-width:330px;text-align:center}
+    .bu-modal-title{font-weight:800;font-size:1.05em;margin-bottom:6px}
+    .bu-modal-sub{font-size:.82em;color:var(--muted);margin-bottom:14px;line-height:1.5}
+    .bu-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface-2);
+      border:1px solid var(--accent);border-radius:10px;padding:9px 16px;font-size:.85em;z-index:950;
+      opacity:0;pointer-events:none;transition:opacity .2s}
+    .bu-toast.show{opacity:1}
+    @media (pointer:coarse){ .bu-opt,.bu-act{font-size:16px} }
+
+    .pick-list{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto;margin-bottom:10px}
+    .pick-row{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid transparent;
+      border-radius:10px;padding:8px 10px;cursor:pointer;font-size:.85em}
+    .pick-row.sel{border-color:var(--accent);background:rgba(88,101,242,.16)}
+    .pick-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;overflow:hidden;background:rgba(88,101,242,.22);
+      display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:800;color:var(--accent-lt)}
+    .pick-av img{width:100%;height:100%;object-fit:cover;display:block}
+    .pick-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pick-tag{font-size:.68em;color:var(--muted);flex-shrink:0}
+    .pick-check{font-size:.9em;color:var(--accent-lt);flex-shrink:0}
+
+    /* ── Face-down dealing ────────────────────────────────────────────────
+       The server never sends another player's hidden cards (verified), so
+       nothing can be revealed early by inspecting traffic. This is the
+       matching VISUAL behaviour: a new card arrives back-side up, travels,
+       and only then flips — and only in your own hand. Opponents' incoming
+       cards never flip at all. */
+    .bu-dealwrap { perspective: 700px; display: inline-block; }
+    .bu-flip {
+      position: relative; width: 42px; height: 60px;
+      transform-style: preserve-3d;
+      animation: buDealIn .5s cubic-bezier(.2,.7,.3,1) both, buFlip .45s ease-in .42s both;
+    }
+    .bu-flip .face, .bu-flip .back {
+      position: absolute; inset: 0; backface-visibility: hidden;
+      -webkit-backface-visibility: hidden; border-radius: 6px;
+    }
+    .bu-flip .back {
+      background: linear-gradient(135deg,#3b4a8c,#243063);
+      border: 1px solid rgba(255,255,255,.25);
+      box-shadow: 0 2px 6px rgba(0,0,0,.4);
+    }
+    .bu-flip .face { transform: rotateY(180deg); }
+    /* Cards that are NOT yours only ever do the travel — never the flip. */
+    .bu-flip.nopeek { animation: buDealIn .5s cubic-bezier(.2,.7,.3,1) both; }
+
+    @keyframes buDealIn {
+      from { transform: translate(-40px,-120px) rotate(-18deg) scale(.7); opacity: 0; }
+      to   { transform: translate(0,0) rotate(0) scale(1); opacity: 1; }
+    }
+    @keyframes buFlip {
+      from { transform: rotateY(0deg); }
+      to   { transform: rotateY(180deg); }
+    }
+    /* A card being handed to an opponent: travels away, stays face down. */
+    .bu-back.dealing { animation: buDealIn .5s cubic-bezier(.2,.7,.3,1) both; }
+    @media (prefers-reduced-motion: reduce) {
+      .bu-flip, .bu-flip.nopeek, .bu-back.dealing { animation: none !important; }
+      .bu-flip { transform: rotateY(180deg); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── LOBBY ── -->
+<div id="lobbyScreen" class="bu-screen active">
+  <div class="bu-header">
+    <a href="/dashboard.html" class="bu-icon-btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none">←</a>
+    <div><div class="bu-title">ბურა</div><div class="bu-sub" id="lobbySub">ოთახის შექმნა</div></div>
+  </div>
+  <div class="bu-lobby">
+    <div class="bu-card" id="setupCard">
+      <h3>ახალი მაგიდა</h3>
+      <div class="bu-sub" style="margin-bottom:6px">რეჟიმი</div>
+      <div class="bu-row" id="modeRow">
+        <button class="bu-opt active" data-mode="classic">4 კაცი (5 კარტი)</button>
+        <button class="bu-opt" data-mode="three">1 on 1 (3 კარტი)</button>
+      </div>
+      <div class="bu-sub" style="margin-bottom:6px">მატჩი</div>
+      <div class="bu-row" id="targetRow">
+        <button class="bu-opt active" data-target="6">6</button>
+        <button class="bu-opt" data-target="11">11</button>
+        <button class="bu-opt" data-target="21">21</button>
+      </div>
+      <div class="bu-row" id="malutkaRow">
+        <button class="bu-opt" data-malutka="1">მალუტკა ნებისმიერი ფერით</button>
+      </div>
+      <button class="bu-btn" id="createBtn">მაგიდის შექმნა</button>
+    </div>
+
+    <div class="bu-card hidden" id="roomCard">
+      <h3>მაგიდა</h3>
+      <div class="bu-seat-list" id="seatList"></div>
+      <div class="bu-sub" id="roomInfo" style="margin-bottom:10px"></div>
+
+      <!-- Host can still change the table while waiting — e.g. drop to 1v1
+           when only one friend shows up. -->
+      <div id="hostSettings" class="hidden" style="margin-bottom:12px">
+        <div class="bu-sub" style="margin-bottom:6px">რეჟიმის შეცვლა</div>
+        <div class="bu-row" id="lobbyModeRow">
+          <button class="bu-opt" data-lmode="classic">4 კაცი</button>
+          <button class="bu-opt" data-lmode="three">1 on 1</button>
+        </div>
+        <div class="bu-row" id="lobbyTargetRow">
+          <button class="bu-opt" data-ltarget="6">6</button>
+          <button class="bu-opt" data-ltarget="11">11</button>
+          <button class="bu-opt" data-ltarget="21">21</button>
+        </div>
+      </div>
+      <button class="bu-btn" id="startBtn" disabled>თამაშის დაწყება</button>
+      <button class="bu-btn secondary" id="inviteBtn" style="margin-top:8px">მოთამაშის მოწვევა</button>
+      <div id="invitePanel" class="hidden" style="margin-top:12px">
+        <div class="bu-sub" style="margin-bottom:6px">ონლაინ მომხმარებლები</div>
+        <div class="pick-list" id="pickList"><div class="bu-empty">იტვირთება...</div></div>
+        <button class="bu-btn" id="sendInviteBtn" disabled>მოწვევის გაგზავნა</button>
+      </div>
+    </div>
+
+    <div class="bu-card">
+      <h3>ღია მაგიდები</h3>
+      <div id="publicList"><div class="bu-empty">იტვირთება...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── GAME ── -->
+<div id="gameScreen" class="bu-screen">
+  <div class="bu-header">
+    <button class="bu-icon-btn" id="leaveBtn">←</button>
+    <div><div class="bu-title">ბურა</div><div class="bu-sub" id="modeLabel"></div></div>
+    <div class="bu-trump" id="trumpChip"><span class="bu-trump-label">კოზირი</span><span id="trumpSlot"></span></div>
+  </div>
+
+  <div class="bu-table">
+    <div class="bu-score" id="scoreBox"></div>
+    <div class="bu-callchip hidden" id="callChip"></div>
+    <div class="bu-opps" id="oppsRow"></div>
+    <div class="bu-trickarea" id="trickArea"></div>
+  </div>
+
+  <div class="bu-hand-wrap">
+    <div class="bu-hint" id="hint"></div>
+    <div class="bu-hand" id="myHand"></div>
+    <div class="bu-actions" id="actionRow"></div>
+  </div>
+</div>
+
+<div class="bu-modal" id="callModal">
+  <div class="bu-modal-box">
+    <div class="bu-modal-title" id="callModalTitle">გამოძახება</div>
+    <div class="bu-modal-sub" id="callModalSub"></div>
+    <div class="bu-row" id="callAnswerRow"></div>
+  </div>
+</div>
+
+<div class="bu-toast" id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const SUIT_GLYPH = { s:"♠", h:"♥", d:"♦", c:"♣" };
+  const isRed = s => s === "h" || s === "d";
+
+  let socket = null, roomId = null, state = null, selected = [];
+  let prevHand = [];          // to detect newly dealt cards
+  let prevCounts = [];        // same, for opponents
+  let cfg = { mode:"classic", target:6, malutkaAnySuit:false };
+
+  function toast(msg){
+    const t=$("toast"); t.textContent=msg; t.classList.add("show");
+    clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2600);
+  }
+  function showScreen(n){
+    document.querySelectorAll(".bu-screen").forEach(s=>s.classList.remove("active"));
+    $(n+"Screen").classList.add("active");
+  }
+  function loadAuth(){
+    try{ return { token:localStorage.getItem("gaicani_auth_token"),
+                  username:localStorage.getItem("gaicani_auth_user") }; }
+    catch(_){ return {}; }
+  }
+
+  // Card element — built with DOM nodes, never innerHTML with card data.
+  function cardEl(card, cls){
+    const el=document.createElement("div");
+    const suit=card.slice(-1), rank=card.slice(0,-1);
+    el.className="bu-card-el"+(cls?" "+cls:"")+(isRed(suit)?" red":"");
+    const r=document.createElement("div"); r.textContent=rank;
+    const s=document.createElement("div"); s.className="suit"; s.textContent=SUIT_GLYPH[suit]||suit;
+    el.appendChild(r); el.appendChild(s);
+    el.dataset.card=card;
+    return el;
+  }
+
+  /* ── lobby ── */
+  $("modeRow").addEventListener("click", e=>{
+    const b=e.target.closest("[data-mode]"); if(!b) return;
+    cfg.mode=b.dataset.mode;
+    $("modeRow").querySelectorAll(".bu-opt").forEach(x=>x.classList.toggle("active",x===b));
+  });
+  $("targetRow").addEventListener("click", e=>{
+    const b=e.target.closest("[data-target]"); if(!b) return;
+    cfg.target=Number(b.dataset.target);
+    $("targetRow").querySelectorAll(".bu-opt").forEach(x=>x.classList.toggle("active",x===b));
+  });
+  $("malutkaRow").addEventListener("click", e=>{
+    const b=e.target.closest("[data-malutka]"); if(!b) return;
+    cfg.malutkaAnySuit=!cfg.malutkaAnySuit;
+    b.classList.toggle("active",cfg.malutkaAnySuit);
+  });
+  $("createBtn").addEventListener("click", ()=>{
+    socket.emit("bura:invite",{ toUsernames:[], ...cfg });
+  });
+  // Invite picker — same idea as the other games: a list of everyone online
+  // (real accounts first, then guests), tap to select, then send.
+  let onlineUsers = [], picked = new Set();
+
+  $("inviteBtn").addEventListener("click", ()=>{
+    const panel=$("invitePanel");
+    panel.classList.toggle("hidden");
+    if(!panel.classList.contains("hidden")) socket.emit("users:listOnline");
+  });
+
+  function renderPickList(){
+    const box=$("pickList"); box.innerHTML="";
+    const inRoom=new Set((state&&state.players?state.players:[]).map(p=>p.username.toLowerCase()));
+    const avail=onlineUsers.filter(u=>!inRoom.has(u.username.toLowerCase()));
+    if(!avail.length){ box.innerHTML='<div class="bu-empty">ახლა არავინაა ონლაინ</div>';
+      $("sendInviteBtn").disabled=true; return; }
+    avail.forEach(u=>{
+      const lc=u.username.toLowerCase();
+      const row=document.createElement("div");
+      row.className="pick-row"+(picked.has(lc)?" sel":"");
+      const av=document.createElement("div"); av.className="pick-av";
+      if(u.avatar){ const im=document.createElement("img"); im.src="/"+u.avatar; im.alt=u.username; av.appendChild(im); }
+      else av.textContent=(u.username||"?").charAt(0).toUpperCase();
+      const nm=document.createElement("div"); nm.className="pick-name"; nm.textContent=u.username;
+      const tg=document.createElement("div"); tg.className="pick-tag";
+      tg.textContent = u.isGuest ? "სტუმარი" : "";
+      const ck=document.createElement("div"); ck.className="pick-check";
+      ck.textContent = picked.has(lc) ? "✓" : "";
+      row.appendChild(av); row.appendChild(nm); row.appendChild(tg); row.appendChild(ck);
+      row.addEventListener("click",()=>{
+        if(picked.has(lc)) picked.delete(lc); else picked.add(lc);
+        renderPickList();
+      });
+      box.appendChild(row);
+    });
+    $("sendInviteBtn").disabled = picked.size===0;
+    $("sendInviteBtn").textContent = picked.size ? `მოწვევის გაგზავნა (${picked.size})` : "მოწვევის გაგზავნა";
+  }
+
+  $("sendInviteBtn").addEventListener("click", ()=>{
+    const names=onlineUsers.filter(u=>picked.has(u.username.toLowerCase())).map(u=>u.username);
+    if(!names.length) return;
+    socket.emit("bura:invite",{ toUsernames:names, ...cfg });
+    picked.clear(); renderPickList();
+    $("invitePanel").classList.add("hidden");
+    toast("მოწვევა გაიგზავნა");
+  });
+  $("lobbyModeRow").addEventListener("click", e=>{
+    const b=e.target.closest("[data-lmode]"); if(!b||!roomId) return;
+    cfg.mode=b.dataset.lmode;
+    socket.emit("bura:setMode",{roomId,mode:b.dataset.lmode});
+  });
+  $("lobbyTargetRow").addEventListener("click", e=>{
+    const b=e.target.closest("[data-ltarget]"); if(!b||!roomId) return;
+    cfg.target=Number(b.dataset.ltarget);
+    socket.emit("bura:setMode",{roomId,target:Number(b.dataset.ltarget)});
+  });
+  $("startBtn").addEventListener("click", ()=>{ if(roomId) socket.emit("bura:start",{roomId}); });
+  $("leaveBtn").addEventListener("click", ()=>{
+    if(confirm("დატოვებ თამაშს?")){ socket.emit("bura:leave"); location.href="/dashboard.html"; }
+  });
+
+  function renderLobby(s){
+    $("roomCard").classList.remove("hidden");
+    $("setupCard").classList.add("hidden");
+    const list=$("seatList"); list.innerHTML="";
+    for(let i=0;i<s.seatCount;i++){
+      const p=s.players.find(x=>x.seat===i);
+      const row=document.createElement("div"); row.className="bu-seat";
+      const no=document.createElement("div"); no.className="seat-no"; no.textContent=i+1;
+      const nm=document.createElement("div");
+      nm.textContent=p?p.username:"— ცარიელი —";
+      if(!p) nm.style.color="var(--muted)";
+      const tm=document.createElement("div"); tm.className="team";
+      tm.textContent = s.seatCount===4 ? (i%2===0?"გუნდი A":"გუნდი B") : (i===0?"A":"B");
+      row.appendChild(no); row.appendChild(nm); row.appendChild(tm);
+      list.appendChild(row);
+    }
+    $("roomInfo").textContent =
+      `${s.mode==="three"?"1 on 1 — 3 კარტი":"4 კაცი — 5 კარტი"} · მატჩი ${s.target}-მდე`;
+    const full = s.players.length===s.seatCount;
+    const amHost = (typeof s.isHost === "boolean") ? s.isHost : (s.hostUsername===loadAuth().username);
+
+    // Host-only settings, reflecting whatever the room is currently set to
+    $("hostSettings").classList.toggle("hidden", !amHost);
+    $("lobbyModeRow").querySelectorAll("[data-lmode]").forEach(b=>
+      b.classList.toggle("active", b.dataset.lmode===s.mode));
+    $("lobbyTargetRow").querySelectorAll("[data-ltarget]").forEach(b=>
+      b.classList.toggle("active", Number(b.dataset.ltarget)===Number(s.target)));
+
+    $("startBtn").disabled = !(full && amHost);
+    $("startBtn").textContent = full ? "თამაშის დაწყება"
+      : `ველოდებით (${s.players.length}/${s.seatCount})`;
+  }
+
+  function renderPublic(rooms){
+    const box=$("publicList"); box.innerHTML="";
+    if(!rooms.length){ box.innerHTML='<div class="bu-empty">ღია მაგიდა არ არის</div>'; return; }
+    rooms.forEach(r=>{
+      const row=document.createElement("div"); row.className="bu-seat";
+      const nm=document.createElement("div");
+      nm.textContent=`${r.hostUsername} · ${r.mode==="three"?"1v1":"4 კაცი"}`;
+      const cnt=document.createElement("div"); cnt.className="team";
+      cnt.textContent=`${r.playerCount}/${r.seatCount}`;
+      const b=document.createElement("button"); b.className="bu-act"; b.textContent="შესვლა";
+      b.style.padding="6px 12px"; b.style.fontSize=".78em";
+      b.addEventListener("click",()=>socket.emit("bura:join",{roomId:r.id}));
+      row.appendChild(nm); row.appendChild(cnt); row.appendChild(b);
+      box.appendChild(row);
+    });
+  }
+
+  /* ── game render ── */
+  let suppressDealAnim = false;
+
+  function render(s){
+    state=s;
+    if(s.status==="lobby"){ showScreen("lobby"); renderLobby(s); return; }
+    showScreen("game");
+
+    $("modeLabel").textContent =
+      (s.mode==="three"?"1 on 1":"4 კაცი") + " · " + (s.target||6) + "-მდე";
+
+    // trump
+    const slot=$("trumpSlot"); slot.innerHTML="";
+    if(s.trumpCard) slot.appendChild(cardEl(s.trumpCard,"mini"));
+    else if(s.trump){ const d=document.createElement("span");
+      d.textContent=SUIT_GLYPH[s.trump]; d.style.fontSize="1.2em"; slot.appendChild(d); }
+
+    // score
+    const ms=s.matchScore||{A:0,B:0}, cp=s.capturedPoints||{A:0,B:0};
+    $("scoreBox").innerHTML="";
+    const l1=document.createElement("div");
+    l1.innerHTML=`მატჩი <b>${ms.A}</b> : <b>${ms.B}</b>`;
+    const l2=document.createElement("div");
+    l2.style.color="#bcd"; l2.style.marginTop="2px";
+    l2.textContent=`ქულები ${cp.A} : ${cp.B}`;
+    const l3=document.createElement("div");
+    l3.style.color="#8fa"; l3.style.marginTop="2px";
+    l3.textContent=`დასტა: ${s.deckLeft??0}`;
+    $("scoreBox").appendChild(l1); $("scoreBox").appendChild(l2); $("scoreBox").appendChild(l3);
+
+    // call chip
+    if(s.currentCall){
+      $("callChip").classList.remove("hidden");
+      $("callChip").textContent = s.currentCall.toUpperCase();
+    } else $("callChip").classList.add("hidden");
+
+    // opponents
+    const opps=$("oppsRow"); opps.innerHTML="";
+    (s.players||[]).forEach(p=>{
+      if(p.seat===s.mySeat) return;
+      const d=document.createElement("div");
+      d.className="bu-opp"+(p.seat===s.turnSeat?" turn":"");
+      const n=document.createElement("div"); n.textContent=p.username;
+      const c=document.createElement("div"); c.className="bu-opp-cards";
+      const cnt=(s.handCounts&&s.handCounts[p.seat])||0;
+      const prev=prevCounts[p.seat]||0;
+      for(let i=0;i<cnt;i++){
+        const b=document.createElement("div");
+        // Cards dealt to someone else animate in face down and stay that way.
+        b.className="bu-back"+(!suppressDealAnim && i>=prev ? " dealing" : "");
+        c.appendChild(b);
+      }
+      d.appendChild(n); d.appendChild(c);
+      opps.appendChild(d);
+    });
+
+    prevCounts = (s.handCounts||[]).slice();
+
+    // trick
+    const ta=$("trickArea"); ta.innerHTML="";
+    if(s.trick && s.trick.plays){
+      s.trick.plays.forEach(pl=>{
+        const wrap=document.createElement("div");
+        wrap.className="bu-play"+(pl.seat===s.trick.winningSeat?" winning":"");
+        const nm=document.createElement("div"); nm.className="bu-play-name";
+        const who=(s.players||[]).find(x=>x.seat===pl.seat);
+        nm.textContent=(pl.seat===s.mySeat?"შენ":(who?who.username:"?"));
+        const cc=document.createElement("div"); cc.className="bu-play-cards";
+        pl.cards.forEach(c=>cc.appendChild(cardEl(c,"mini")));
+        wrap.appendChild(nm); wrap.appendChild(cc);
+        ta.appendChild(wrap);
+      });
+    } else {
+      const d=document.createElement("div");
+      d.style.color="#9cb"; d.style.fontSize=".8em";
+      d.textContent = s.turnSeat===s.mySeat ? "შენი სვლაა — აირჩიე კარტები" : "ველოდებით...";
+      ta.appendChild(d);
+    }
+
+    // my hand
+    const hand=$("myHand"); hand.innerHTML="";
+    const nowHand=s.myHand||[];
+    // Anything in my hand that wasn't there last render was just dealt.
+    const freshlyDealt=new Set(nowHand.filter(c=>!prevHand.includes(c)));
+    nowHand.forEach(c=>{
+      const el=cardEl(c);
+      if(selected.includes(c)) el.classList.add("sel");
+      el.addEventListener("click",()=>{
+        const i=selected.indexOf(c);
+        if(i>=0) selected.splice(i,1); else selected.push(c);
+        suppressDealAnim = true; render(state); suppressDealAnim = false;
+      });
+      if(freshlyDealt.has(c) && !suppressDealAnim){
+        // Arrives back-side up, travels, then flips — only for me.
+        const wrap=document.createElement("div"); wrap.className="bu-dealwrap";
+        const flip=document.createElement("div"); flip.className="bu-flip";
+        const back=document.createElement("div"); back.className="back";
+        const face=document.createElement("div"); face.className="face";
+        face.appendChild(el);
+        flip.appendChild(back); flip.appendChild(face);
+        wrap.appendChild(flip);
+        hand.appendChild(wrap);
+        // Once the flip finishes, drop the wrapper so clicking/selecting is normal.
+        setTimeout(()=>{ if(wrap.parentNode){ wrap.replaceWith(el); } }, 900);
+      } else {
+        hand.appendChild(el);
+      }
+    });
+    prevHand=[...nowHand];
+
+    renderActions(s);
+  }
+
+  function renderActions(s){
+    const row=$("actionRow"); row.innerHTML="";
+    const myTurn = s.turnSeat===s.mySeat;
+    const leading = s.phase==="lead";
+    const responding = s.phase==="respond";
+
+    // waiting on a call answer from my team?
+    if(s.pendingCall){
+      const myTeam = s.mode==="three" ? (s.mySeat===0?"A":"B") : (s.mySeat%2===0?"A":"B");
+      if(s.pendingCall.byTeam!==myTeam){ openCallModal(s.pendingCall); }
+      else $("hint").textContent="ველოდებით მოწინააღმდეგის პასუხს...";
+      return;
+    } else closeCallModal();
+
+    if(!myTurn){
+      $("hint").textContent = s.phase==="done" ? "რაუნდი დასრულდა" : "მოწინააღმდეგის სვლაა";
+      return;
+    }
+
+    if(leading){
+      const max=s.maxLead||1;
+      $("hint").textContent=`ჩამოდი 1–${max} კარტით (ერთი ფერის)`;
+      const b=document.createElement("button"); b.className="bu-act";
+      b.textContent=`ჩამოსვლა (${selected.length})`;
+      b.disabled=selected.length<1||selected.length>max;
+      b.addEventListener("click",()=>{ socket.emit("bura:lead",{roomId,cards:selected}); selected=[]; });
+      row.appendChild(b);
+    } else if(responding){
+      const need=Math.min(s.trick?s.trick.count:1,(s.myHand||[]).length);
+      $("hint").textContent=`დადე ${need} კარტი`;
+      const b=document.createElement("button"); b.className="bu-act";
+      b.textContent=`დადება (${selected.length}/${need})`;
+      b.disabled=selected.length!==need;
+      b.addEventListener("click",()=>{ socket.emit("bura:respond",{roomId,cards:selected}); selected=[]; });
+      row.appendChild(b);
+    }
+
+    // calls — only on your own turn
+    if(myTurn && s.phase!=="done"){
+      const seq=["davi","se","chari","fanji","shashi"];
+      const labels={davi:"დავი",se:"სე",chari:"ჩარი",fanji:"ფანჯი",shashi:"შაში"};
+      const next = s.currentCall ? seq[seq.indexOf(s.currentCall)+1] : "davi";
+      if(next){
+        const cb=document.createElement("button"); cb.className="bu-act gold";
+        cb.textContent=labels[next];
+        cb.addEventListener("click",()=>socket.emit("bura:call",{roomId,call:next}));
+        row.appendChild(cb);
+      }
+    }
+
+    // var — three-card only, after taking a trick
+    if(s.mode==="three" && myTurn && s.phase==="lead"){
+      const vb=document.createElement("button"); vb.className="bu-act ghost";
+      vb.textContent="ვარ";
+      vb.addEventListener("click",()=>socket.emit("bura:var",{roomId}));
+      row.appendChild(vb);
+    }
+  }
+
+  function openCallModal(pc){
+    const labels={davi:"დავი",se:"სე",chari:"ჩარი",fanji:"ფანჯი",shashi:"შაში"};
+    $("callModalTitle").textContent="გამოძახება: "+(labels[pc.call]||pc.call);
+    $("callModalSub").textContent="მოწინააღმდეგემ გამოიძახა. რას აკეთებ?";
+    const row=$("callAnswerRow"); row.innerHTML="";
+    const acc=document.createElement("button"); acc.className="bu-opt active"; acc.textContent="ვეთანხმები";
+    acc.addEventListener("click",()=>socket.emit("bura:answerCall",{roomId,accept:true}));
+    const dec=document.createElement("button"); dec.className="bu-opt"; dec.textContent="ვთმობ";
+    dec.addEventListener("click",()=>socket.emit("bura:answerCall",{roomId,accept:false}));
+    row.appendChild(acc); row.appendChild(dec);
+    $("callModal").classList.add("show");
+  }
+  function closeCallModal(){ $("callModal").classList.remove("show"); }
+
+
+  // Registration gate — shown in-page instead of bouncing the user out to the
+  // home page (which is the random chat, and looked like the game was broken).
+  function showNeedsRegister(){
+    document.querySelectorAll(".bu-screen").forEach(s=>s.classList.remove("active"));
+    const wrap=document.createElement("div");
+    wrap.className="bu-screen active";
+    wrap.innerHTML='<div class="bu-header">'+
+      '<a href="/dashboard.html" class="bu-icon-btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none">\u2190</a>'+
+      '<div><div class="bu-title">\u10d1\u10e3\u10e0\u10d0</div></div></div>';
+    const box=document.createElement("div");
+    box.className="bu-lobby";
+    const card=document.createElement("div"); card.className="bu-card";
+    const h=document.createElement("h3"); h.textContent="\u10e1\u10d0\u10ed\u10d8\u10e0\u10dd\u10d0 \u10e0\u10d4\u10d2\u10d8\u10e1\u10e2\u10e0\u10d0\u10ea\u10d8\u10d0";
+    const p=document.createElement("div"); p.className="bu-sub";
+    p.style.lineHeight="1.6"; p.style.marginBottom="14px";
+    p.textContent="\u10d1\u10e3\u10e0\u10d0\u10e8\u10d8 \u10e1\u10d0\u10d7\u10d0\u10db\u10d0\u10e8\u10dd\u10d3 \u10e1\u10d0\u10ed\u10d8\u10e0\u10dd\u10d0 \u10d0\u10dc\u10d2\u10d0\u10e0\u10d8\u10e8\u10d8. \u10e0\u10d4\u10d2\u10d8\u10e1\u10e2\u10e0\u10d0\u10ea\u10d8\u10d0 \u10e3\u10e4\u10d0\u10e1\u10dd\u10d0.";
+    const a=document.createElement("a"); a.className="bu-btn";
+    a.style.display="block"; a.style.textAlign="center"; a.style.textDecoration="none";
+    a.href="/"; a.textContent="\u10d3\u10d0\u10e0\u10d4\u10d2\u10d8\u10e1\u10e2\u10e0\u10d8\u10e0\u10d3\u10d8 \u2192";
+    const b=document.createElement("a"); b.className="bu-btn secondary";
+    b.style.display="block"; b.style.textAlign="center"; b.style.textDecoration="none"; b.style.marginTop="8px";
+    b.href="/dashboard.html"; b.textContent="\u10e3\u10d9\u10d0\u10dc";
+    card.appendChild(h); card.appendChild(p); card.appendChild(a); card.appendChild(b);
+    box.appendChild(card); wrap.appendChild(box);
+    document.body.appendChild(wrap);
+  }
+
+  /* ── socket ── */
+  function init(){
+    const {token}=loadAuth();
+    socket=io();
+    socket.on("connect",()=>{
+      if(token) socket.emit("auth:token",{token});
+      else socket.emit("auth:guest",{preferredUsername:sessionStorage.getItem("gaicani_guest_username")||null});
+    });
+    socket.on("auth:authenticated",()=>{
+      socket.emit("bura:listPublicRooms");
+      const p=new URLSearchParams(location.search).get("room");
+      if(p) socket.emit("bura:join",{roomId:p});
+    });
+    socket.on("auth:invalid",()=>{ try{localStorage.removeItem("gaicani_auth_token");}catch(_){}
+      socket.emit("auth:guest",{preferredUsername:null}); });
+    socket.on("bura:room",s=>{
+      roomId=s.roomId; selected=[];
+      history.replaceState(null,"","/bura.html?room="+encodeURIComponent(s.roomId));
+      render(s);
+    });
+    socket.on("bura:publicRooms",({rooms})=>renderPublic(rooms));
+    socket.on("users:onlineList",({users})=>{ onlineUsers=users||[]; renderPickList(); });
+    socket.on("users:onlineChanged",()=>{
+      if(!$("invitePanel").classList.contains("hidden")) socket.emit("users:listOnline");
+    });
+    socket.on("bura:error",({message})=>toast(message));
+    socket.on("bura:invited",({roomId:rid,fromUsername})=>{
+      if(confirm(`${fromUsername} გეპატიჟება ბურაში. შეხვალ?`)) socket.emit("bura:join",{roomId:rid});
+    });
+    socket.on("bura:trick",r=>{
+      if(r&&typeof r.points==="number"&&r.points>0) toast(`ხელი აიღო გუნდმა ${r.winnerTeam} (+${r.points})`);
+    });
+    socket.on("bura:called",({call,byUsername})=>toast(`${byUsername}: ${call.toUpperCase()}!`));
+    socket.on("bura:conceded",r=>toast(`დათმობა — გუნდი ${r.winner} +${r.points}`));
+    socket.on("bura:roundEnd",r=>{
+      toast(r.tie?"ყაიმი — 60:60":`რაუნდი: გუნდი ${r.winner} +${r.points} (${r.teamAPoints}:${r.teamBPoints})`);
+    });
+    socket.on("bura:varResult",r=>toast(r.declarerWins?`ვარ გამოვიდა! +${r.points}`:`ვარ ვერ გამოვიდა`));
+    socket.on("bura:matchEnd",({winner})=>{
+      alert(`მატჩი დასრულდა — გაიმარჯვა გუნდმა ${winner}`);
+      location.href="/dashboard.html";
+    });
+    socket.on("guest:registerRequired",()=>{ showNeedsRegister(); });
+  }
+  init();
+})();
+</script>
+</body>
+</html>

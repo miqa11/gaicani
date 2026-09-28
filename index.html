@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ka">
+
+
+
+  
+<head>  
+
+
+  
+   
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>GAICANI — გაცნობის საიტი და ანონიმური ჩათი საქართველოში</title>
+  <meta name="description" content="GAICANI — უფასო გაცნობის საიტი და ანონიმური ჩათი საქართველოში. გაიცანით ახალი ადამიანები ონლაინ, ესაუბრეთ ტექსტში, ითამაშეთ თამაშები მეგობრებთან ერთად, დაწერეთ ფორუმზე და იპოვეთ ახალი მეგობრები — რეგისტრაციის გარეშეც." />
+  <meta name="keywords" content="გაცნობის საიტი, გაცნობა ონლაინ, გაიცანი ონლაინ, ანონიმური ჩათი, ჩათი უცნობებთან, GAICANI, გაიცანი, random chat georgia, omegle georgia, ქართული ჩათი, ონლაინ თამაშები საქართველოში" />
+
+  <!-- Open Graph / link previews (Facebook, Messenger, WhatsApp, Discord, etc.) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="GAICANI — გაცნობის საიტი და ანონიმური ჩათი საქართველოში" />
+  <meta property="og:description" content="გაიცანით ახალი ადამიანები ონლაინ, ესაუბრეთ ანონიმურად და ითამაშეთ თამაშები მეგობრებთან ერთად — სრულიად უფასოდ." />
+  <meta property="og:image" content="/Logo2.png" />
+  <meta property="og:url" content="https://gaicani.ge/" />
+  <meta property="og:locale" content="ka_GE" />
+
+  <!-- Twitter/X card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="GAICANI — გაცნობის საიტი და ანონიმური ჩათი საქართველოში" />
+  <meta name="twitter:description" content="გაიცანით ახალი ადამიანები ონლაინ, ესაუბრეთ ანონიმურად და ითამაშეთ თამაშები მეგობრებთან ერთად — სრულიად უფასოდ." />
+
+  <!-- Canonical + sitemap hint -->
+  <link rel="canonical" href="https://gaicani.ge/" />
+
+  <!-- Structured data — helps Google understand what this site actually
+       is and who it's for, separate from just the visible text -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "GAICANI",
+    "alternateName": "გაიცანი",
+    "url": "https://gaicani.ge/",
+    "description": "უფასო გაცნობის საიტი და ანონიმური ჩათი საქართველოში — გაიცანით ახალი ადამიანები ონლაინ, ითამაშეთ თამაშები და დაწერეთ ფორუმზე.",
+    "inLanguage": "ka"
+  }
+  </script>
+
+  <!-- PWA / mobile chrome -->
+  <meta name="theme-color" content="#130f26" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GAICANI" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Preconnect to Tenor CDN so GIF images load faster -->
+  <link rel="preconnect" href="https://media.tenor.com" />
+
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="games.css" />
+  <link rel="stylesheet" href="auth.css" />
+  <link rel="stylesheet" href="music.css" />
+  <link rel="stylesheet" href="style-MOBILE-FIX.css" />
+  <style>
+    /* ── Top-bar cleanup ─────────────────────────────────────────────
+       🚩 Report, ✏️ Change Name, 🎮 Games, and ინტ. (Interests) all live
+       only in the ⋮ menu now — for everyone, guest or registered — not
+       as separate main-bar buttons. Their old main-bar elements were
+       removed from the page entirely rather than just hidden. 🎵 Music
+       stays as a main-bar icon for guests; for registered users it's
+       hidden here and reached through the ⋮ menu instead (added as a
+       reg-only-item entry above). */
+    #reportBtn { display: none !important; }
+
+    body.reg-user #musicBtn { display: none !important; }
+
+    /* ── Whole-site appearance picker (⋮ menu → გარეგნობა) ──────────────── */
+    #chat.rc-bg-transition { transition: background 0.35s ease; }
+
+    .rc-theme-backdrop {
+      position: fixed; inset: 0; z-index: 999998; background: rgba(0,0,0,0.45);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .rc-theme-backdrop.show { opacity: 1; pointer-events: auto; }
+    .rc-theme-sheet {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 999999;
+      background: #2b2d31; border-radius: 18px 18px 0 0; border-top: 1px solid rgba(255,255,255,0.1);
+      max-width: 460px; margin: 0 auto;
+      padding: 6px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+      transform: translateY(105%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1);
+    }
+    .rc-theme-sheet.show { transform: translateY(0); }
+    .rc-theme-sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.18); margin: 10px auto 14px; }
+    .rc-theme-sheet-title { font-weight: 700; font-size: 1em; margin-bottom: 4px; color: #fff; }
+    .rc-theme-sheet-sub { font-size: 0.78em; color: #8b8fa8; margin-bottom: 16px; }
+    .rc-theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .rc-theme-swatch {
+      aspect-ratio: 1; border-radius: 16px; cursor: pointer; position: relative;
+      border: 2px solid transparent; overflow: hidden;
+      display: flex; align-items: flex-end; justify-content: center;
+      transition: transform 0.12s, border-color 0.15s;
+    }
+    .rc-theme-swatch:active { transform: scale(0.94); }
+    .rc-theme-swatch.selected { border-color: #5865f2; }
+    .rc-theme-swatch.selected::after {
+      content: "✓"; position: absolute; top: 6px; right: 6px;
+      width: 18px; height: 18px; border-radius: 50%; background: #5865f2;
+      color: #fff; font-size: 0.7em; font-weight: 900;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rc-theme-swatch-label {
+      width: 100%; font-size: 0.66em; font-weight: 700; text-align: center;
+      padding: 4px 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    .rc-theme-swatch.rc-light .rc-theme-swatch-label { color: #2b2d31; background: rgba(255,255,255,0.55); text-shadow: none; }
+    .rc-theme-swatch:not(.rc-light) .rc-theme-swatch-label { color: rgba(255,255,255,0.92); background: rgba(0,0,0,0.28); }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wdth,wght@62.5..100,100..900&display=swap" rel="stylesheet">
+  <style id="gaicani-enamel">
+/* ═══════════════════════════════════════════════════════════════════════
+   GAICANI random chat — "Minankari" design layer (matches the dashboard)
+   Georgian cloisonné enamel: jewel-toned fills held apart by gold lines.
+   VISUAL ONLY — no script, id or behaviour changes. Applies to the DEFAULT
+   chat theme only: the light, pink, ocean and sunset themes look exactly
+   as before. Remove this <style> block to get the previous look back.
+   ═══════════════════════════════════════════════════════════════════════ */
+@property --gc-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) {
+  --gold:#d6a84f; --gold-lt:#f4d98f; --cobalt:#4f6cff; --ruby:#e33b5f; --emerald:#1fc18a;
+  --amethyst:#9d5cff; --amber:#f0b93a; --night:#130f26;
+  --cloison:linear-gradient(135deg,rgba(244,217,143,.60),rgba(214,168,79,.16) 42%,rgba(214,168,79,.10) 62%,rgba(244,217,143,.48));
+  --cloison-soft:linear-gradient(135deg,rgba(214,168,79,.36),rgba(214,168,79,.07) 45%,rgba(214,168,79,.05) 62%,rgba(214,168,79,.26));
+  --cta:radial-gradient(90% 120% at 50% -20%,rgba(255,255,255,.28),transparent 55%),linear-gradient(135deg,#5b77ff,#6d4dff 55%,#9d5cff);
+  font-family:"Noto Sans Georgian",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--night);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) button, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) textarea, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) input, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) select { font-family: inherit; }
+
+/* ── Top bar ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .top-bar { background: rgba(19,15,38,.88); border-bottom: 1px solid rgba(214,168,79,.22); box-shadow: 0 10px 26px -14px rgba(0,0,0,.8); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .site-name {
+  background: linear-gradient(180deg,#fff4d2 0%,var(--gold-lt) 45%,var(--gold) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+  font-weight: 900; letter-spacing: .05em;
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #onlineCount { color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #onlineCount::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; vertical-align: middle;
+  border-radius: 50%; background: var(--emerald); box-shadow: 0 0 8px rgba(31,193,138,.9);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .partner-name-display { color: #ff8aa1; background: rgba(227,59,95,.13); border: 1px solid rgba(227,59,95,.42); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .user-name-display { color: #cbb0ff; background: rgba(157,92,255,.14); border: 1px solid rgba(157,92,255,.44); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reg-menu-btn { background: rgba(255,255,255,.05); border: 1px solid rgba(214,168,79,.40); color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reg-menu-dropdown {
+  border: 1px solid transparent; border-radius: 14px;
+  background: linear-gradient(180deg,#261f49,#1c1735) padding-box, var(--cloison) border-box;
+  box-shadow: 0 20px 44px -14px rgba(0,0,0,.85);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reg-menu-item:hover { background: rgba(214,168,79,.10); }
+
+/* ── Action buttons (sizes/shapes untouched — set by the mobile stylesheet) ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .next-button {
+  border: 1.5px solid transparent;
+  background: var(--cta) padding-box, var(--cloison) border-box;
+  box-shadow: 0 10px 24px -10px rgba(109,77,255,.9), inset 0 1px 0 rgba(255,255,255,.25);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .block-button {
+  border: 1.5px solid transparent;
+  background: radial-gradient(90% 120% at 50% -20%,rgba(255,255,255,.25),transparent 55%) padding-box, linear-gradient(135deg,#ff5f80,#b8183f) padding-box, var(--cloison-soft) border-box;
+  box-shadow: 0 8px 18px -8px rgba(227,59,95,.85);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .report-button {
+  border: 1.5px solid transparent;
+  background: radial-gradient(90% 120% at 50% -20%,rgba(255,255,255,.25),transparent 55%) padding-box, linear-gradient(135deg,#f6c453,#d9820f) padding-box, var(--cloison-soft) border-box;
+  box-shadow: 0 8px 18px -8px rgba(240,185,58,.8);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .music-btn { background: #241e46; border: 1px solid rgba(214,168,79,.36); color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .my-page-btn { background: linear-gradient(135deg,#3f5cff,#2c38b8); box-shadow: 0 8px 18px -8px rgba(79,108,255,.85), inset 0 1px 0 rgba(255,255,255,.2); }
+
+/* ── Chat surface ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #chat.chat-container {
+  background:
+    radial-gradient(700px 420px at 50% -80px, rgba(79,108,255,.17), transparent 70%),
+    radial-gradient(600px 520px at 110% 110%, rgba(157,92,255,.09), transparent 70%),
+    #130f26 !important;   /* the default theme writes #1c1e24 inline; other themes keep their own */
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-container::-webkit-scrollbar-thumb { background: #2c2552; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .message-content {
+  background: linear-gradient(180deg,#2f2858,#241e46); color: #f3eeff;
+  border: 1px solid rgba(214,168,79,.14);
+  box-shadow: 0 8px 18px -12px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.05);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .message-content.you {
+  background: radial-gradient(120% 140% at 0% 0%,rgba(255,255,255,.18),transparent 50%), linear-gradient(135deg,#5b77ff,#6d4dff 60%,#8b55ff);
+  color: #fff; border-color: rgba(244,217,143,.34);
+  box-shadow: 0 12px 24px -14px rgba(109,77,255,.95), inset 0 1px 0 rgba(255,255,255,.22);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .timestamp, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .inline-ts { color: #9f96c6; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .react-btn, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reply-btn { background: #261f47; border: 1px solid rgba(214,168,79,.30); color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .system-message { color: #a79fcd; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .system-message-hint { color: #d2cbec; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .system-message-disconnect { color: #ff8aa1; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .system-message-reconnecting { color: var(--amber); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .typing-indicator { background: linear-gradient(180deg,#2f2858,#241e46); border: 1px solid rgba(214,168,79,.14); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .typing-indicator span { background: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .question-card.you { background: linear-gradient(135deg,#3a2f86,#241e46); border-color: rgba(79,108,255,.55); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .question-card.partner { background: linear-gradient(135deg,#123d33,#241e46); border-color: rgba(31,193,138,.55); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reply-quote.partner { background: rgba(214,168,79,.10); border-left-color: var(--gold); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .vip-badge { box-shadow: 0 0 14px rgba(240,185,58,.55); }
+
+/* ── The meeting moment: when a partner is found, the card's enamel border
+      sweeps once around and settles. The one bold moment on this page. ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .partner-found-card {
+  border: 1.5px solid transparent; border-radius: 18px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(79,108,255,.28), transparent 55%) padding-box,
+    linear-gradient(160deg,#2b2454,#1a1533) padding-box,
+    conic-gradient(from var(--gc-angle), var(--gold-lt), var(--cobalt), var(--emerald), var(--gold), var(--ruby), var(--amethyst), var(--gold-lt)) border-box;
+  box-shadow: 0 18px 40px -20px rgba(79,108,255,.75);
+  animation: gc-meet 2.6s cubic-bezier(.2,.8,.2,1) 1 both;
+}
+@keyframes gc-meet { from { --gc-angle: -220deg; } to { --gc-angle: 150deg; } }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .pfc-avatar { box-shadow: 0 0 0 2px var(--gold), 0 0 0 5px rgba(214,168,79,.18), 0 10px 22px -8px rgba(0,0,0,.85); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .pfc-name { color: #fff; font-weight: 900; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .pfc-status { color: var(--emerald); }
+
+/* ── Cards in the chat feed ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .register-promo-card {
+  border: 1px solid transparent; border-radius: 18px;
+  background: radial-gradient(100% 80% at 50% 0%,rgba(79,108,255,.24),transparent 65%) padding-box, linear-gradient(180deg,#221c42,#1b1634) padding-box, var(--cloison-soft) border-box;
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .register-promo-title { color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .register-promo-line { color: #cfc7ea; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-donate-card {
+  border: 1px solid transparent; border-radius: 18px;
+  background: radial-gradient(100% 80% at 50% 0%,rgba(157,92,255,.30),transparent 65%) padding-box, linear-gradient(180deg,#251d45,#1c1735) padding-box, var(--cloison) border-box;
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-donate-text { color: #d6cff0; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-donate-btn { background: linear-gradient(135deg,#b07bff,#7c3aed); border-radius: 999px; box-shadow: 0 12px 26px -10px rgba(157,92,255,.9), inset 0 1px 0 rgba(255,255,255,.3); }
+
+/* ── Input bar (hairlines drawn with shadows so the auto-growing box keeps its exact size) ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-input { background: rgba(19,15,38,.94); border-top: 1px solid rgba(214,168,79,.24); box-shadow: 0 -14px 32px -16px rgba(0,0,0,.85); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-input textarea { background: #221c42; color: #f5f0ff; box-shadow: inset 0 0 0 1px rgba(214,168,79,.20); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-input textarea:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(244,217,143,.60), 0 0 0 3px rgba(214,168,79,.14); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-input textarea::placeholder { color: #8f87ad; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .gif-btn, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .question-btn { background: #221c42; border: 1px solid rgba(214,168,79,.36); color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #sendBtn { background: var(--cta); box-shadow: 0 8px 18px -8px rgba(109,77,255,.95), inset 0 1px 0 rgba(255,255,255,.3); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #sendBtn:disabled { background: #2a2446; box-shadow: none; }
+
+/* ── Panels ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .gif-picker, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .rc-theme-sheet, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .bio-popup { background: linear-gradient(180deg,#261f49,#1c1735); box-shadow: inset 0 1px 0 rgba(214,168,79,.35), 0 -18px 44px -16px rgba(0,0,0,.85); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .rc-theme-swatch[style*="rgb(28, 30, 36)"], body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .rc-theme-swatch[style*="#1c1e24"] {
+  background: radial-gradient(circle at 30% 22%, rgba(79,108,255,.6), transparent 62%), radial-gradient(circle at 80% 90%, rgba(214,168,79,.45), transparent 55%), #130f26 !important;
+}
+
+/* ── Entry popup ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .modal { background: rgba(10,8,22,.74); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .modal-content {
+  border: 1.5px solid transparent;
+  background: radial-gradient(120% 70% at 50% -10%,rgba(79,108,255,.26),transparent 60%) padding-box, linear-gradient(180deg,#261f49,#1a1533) padding-box, var(--cloison) border-box;
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,.88), 0 0 64px -22px rgba(79,108,255,.5);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .auth-tabs { background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px rgba(214,168,79,.20); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .auth-tab { color: #9a92bd; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .auth-tab.active { background: linear-gradient(135deg,rgba(79,108,255,.38),rgba(157,92,255,.32)); color: #fff; box-shadow: inset 0 0 0 1px rgba(244,217,143,.38); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .modal-welcome { background: rgba(255,255,255,.035); border-color: rgba(214,168,79,.24); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .modal-welcome-title { color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .modal-feature-icon--qbtn { background: rgba(79,108,255,.16); border-color: rgba(79,108,255,.55); color: #aab8ff; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .modal-feature-icon--int { background: rgba(31,193,138,.15); border-color: rgba(31,193,138,.5); color: #5fe0b0; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .modal-feature-icon--game { background: rgba(157,92,255,.20); border-color: rgba(157,92,255,.55); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .guest-name-notice { background: rgba(79,108,255,.10); border-color: rgba(214,168,79,.30); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .guest-name-notice strong { color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .modal-content button#saveNameBtn {
+  border: 1.5px solid transparent;
+  background: var(--cta) padding-box, var(--cloison) border-box;
+  box-shadow: 0 14px 30px -12px rgba(109,77,255,.9), inset 0 1px 0 rgba(255,255,255,.25);
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .safety-link { color: var(--gold-lt); }
+
+/* ── Rules popup (styled inline in the page, so these need !important) ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #rulesGateOverlay { background: radial-gradient(700px 500px at 50% 0%, rgba(79,108,255,.20), transparent 70%), rgba(12,9,26,.94) !important; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #rulesGateOverlay > div {
+  border: 1.5px solid transparent !important;
+  background: linear-gradient(180deg,#261f49,#1a1533) padding-box, var(--cloison) border-box !important;
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,.9), 0 0 60px -24px rgba(227,59,95,.5) !important;
+}
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #rulesGateAgree { background: var(--cta) !important; box-shadow: 0 10px 24px -10px rgba(109,77,255,.9), inset 0 1px 0 rgba(255,255,255,.25) !important; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #rulesGateDisagree { box-shadow: inset 0 0 0 1px rgba(227,59,95,.45) !important; }
+
+/* ── Quality floor ── */
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) :where(button, a, textarea, input, [role="button"]):focus-visible { outline: 2px solid var(--gold-lt); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .partner-found-card { animation: none; } }
+  </style>
+</head>
+<body>
+
+<!-- ── Site rules gate — shown once per browser tab, blocks everything until answered ── -->
+<div id="rulesGateOverlay" style="position:fixed;inset:0;z-index:999999;background:rgba(10,10,12,0.92);display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:420px;width:100%;background:#212227;border:1px solid rgba(242,63,66,0.3);border-radius:16px;padding:24px 20px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    <div style="font-size:1.15em;font-weight:800;color:#f56769;margin-bottom:14px;text-align:center;">⚠️ მნიშვნელოვანი გაფრთხილება</div>
+    <div style="font-size:0.88em;line-height:1.7;color:#dcddde;margin-bottom:14px;">საიტის გამოყენებამდე გთხოვთ, გაეცნოთ და დაიცვათ შემდეგი წესები:</div>
+    <ul style="margin:0 0 14px;padding-left:20px;font-size:0.85em;line-height:1.8;color:#c7cad3;">
+      <li>🤝 ურთიერთპატივისცემა სავალდებულოა — ყველა მომხმარებელს მოექეცით ზრდილობიანად.</li>
+      <li>🚫 აკრძალულია შეურაცხყოფა, გინება, მუქარა, შევიწროება და სხვა მომხმარებლების დამცირება.</li>
+      <li>⛔ ნებისმიერი სახის შეუფერებელი ან წესების დამრღვევი ქცევა შეიძლება გამოიწვიოს ანგარიშის შეზღუდვა ან დაბლოკვა.</li>
+      <li>🔞 საიტის გამოყენება დასაშვებია მხოლოდ 18 წლის და უფროსი ასაკის პირებისთვის.</li>
+      <li>🔒 ნუ გააზიარებთ საკუთარ ან სხვა პირის პირად ინფორმაციას საჯაროდ.</li>
+    </ul>
+    <div style="font-size:0.82em;line-height:1.65;color:#96989d;margin-bottom:18px;">საიტის გამოყენების გაგრძელებით თქვენ ადასტურებთ, რომ გაეცანით აღნიშნულ წესებს და ეთანხმებით მათ დაცვას. წესების დარღვევის შემთხვევაში ადმინისტრაციას უფლება აქვს მიიღოს შესაბამისი ზომები.</div>
+    <div style="display:flex;gap:10px;">
+      <button id="rulesGateDisagree" type="button" style="flex:1;padding:13px;border:none;border-radius:10px;background:rgba(242,63,66,0.15);color:#f56769;font-weight:700;font-size:0.92em;cursor:pointer;">არ ვეთანხმები</button>
+      <button id="rulesGateAgree" type="button" style="flex:1;padding:13px;border:none;border-radius:10px;background:#5865f2;color:#fff;font-weight:700;font-size:0.92em;cursor:pointer;">ვეთანხმები</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var overlay = document.getElementById("rulesGateOverlay");
+
+    // Freeze the page underneath until answered.
+    document.documentElement.style.overflow = "hidden";
+
+    document.getElementById("rulesGateAgree").addEventListener("click", function () {
+      document.documentElement.style.overflow = "";
+      overlay.remove();
+    });
+
+    document.getElementById("rulesGateDisagree").addEventListener("click", function () {
+      // Just leave — no block/ban, no server call, simply send them away.
+      window.location.replace("https://www.google.com");
+    });
+  })();
+</script>
+
+
+  <script>
+    // Keeps --app-height in sync for browsers that don't natively support the
+    // 100dvh unit yet (style-MOBILE-FIX.css already references var(--app-height,
+    // 100dvh) — this just fills in that fallback; on modern browsers 100dvh
+    // already works on its own and this has no visible effect there).
+    // Independent of script.js's keyboard-avoidance logic below, which sets
+    // body.style.height directly (an inline style, so it already wins over
+    // this CSS variable whenever the keyboard is open) — nothing here
+    // changes that behavior.
+    (function () {
+      function setAppHeight() {
+        var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty("--app-height", h + "px");
+      }
+      setAppHeight();
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", setAppHeight, { passive: true });
+      } else {
+        window.addEventListener("resize", setAppHeight, { passive: true });
+      }
+      window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+    })();
+  </script>
+  <script>
+    (function () {
+      var isAndroid = /Android/i.test(navigator.userAgent);
+      var dismissed = localStorage.getItem('desktopPromptDismissed');
+      var alreadyDesktop = localStorage.getItem('forceDesktop');
+
+      if (isAndroid && !dismissed && !alreadyDesktop) {
+        var el = document.getElementById('desktopPrompt');
+        el.style.display = 'flex';
+
+        document.getElementById('desktopPromptYes').onclick = function () {
+          localStorage.setItem('forceDesktop', 'true');
+          location.reload();
+        };
+        document.getElementById('desktopPromptNo').onclick = function () {
+          localStorage.setItem('desktopPromptDismissed', 'true');
+          el.style.display = 'none';
+        };
+      }
+    })();
+  </script>
+
+  
+  <div class="top-bar">
+    <div class="left-side">
+      <a href="/" class="site-name" id="logoHomeBtn" onclick="goToWelcome(); return false;">GAICANI</a>
+      <div id="onlineCount"></div>
+      <div id="partnerNameDisplay" class="partner-name-display"></div>
+      <button id="addFriendIconBtn" class="add-friend-icon-btn" style="display:none" title="მეგობრობის მოთხოვნის გაგზავნა">➕</button>
+      <div id="userNameDisplay" class="user-name-display" style="display:none"></div>
+
+      <!-- Three-dots menu — available to every user (guest or registered).
+           🚩 Report always shows here for everyone. For registered users,
+           🎮 Games and 🎵 Music also move in here (their main-bar icons are
+           hidden via body.reg-user CSS) since ✏️ Change Name doesn't apply
+           to them at all. Guests keep Games/Music as regular icons in the
+           main bar. My Page, Interests and Logout only apply once
+           you're registered. -->
+      <div class="reg-menu-container">
+        <button class="reg-menu-btn" id="regMenuBtn" title="მენიუ">⋮</button>
+        <div class="reg-menu-dropdown" id="regMenuDropdown" style="display:none">
+          <button class="reg-menu-item" id="regMenuReport" data-action="report">
+            <span class="reg-menu-icon">🚩</span>
+            <span class="reg-menu-label">Report</span>
+          </button>
+          <button class="reg-menu-item" id="regMenuTheme" data-action="theme">
+            <span class="reg-menu-icon">🎨</span>
+            <span class="reg-menu-label">გარეგნობა</span>
+          </button>
+          <button class="reg-menu-item" id="regMenuChangeName" data-action="changeName">
+            <span class="reg-menu-icon">✏️</span>
+            <span class="reg-menu-label">სახელის შეცვლა</span>
+          </button>
+          <button class="reg-menu-item" id="regMenuGames" data-action="games">
+            <span class="reg-menu-icon">🎮</span>
+            <span class="reg-menu-label">Games</span>
+          </button>
+          <button class="reg-menu-item reg-only-item" id="regMenuMusic" data-action="music">
+            <span class="reg-menu-icon">🎵</span>
+            <span class="reg-menu-label">მუსიკა</span>
+          </button>
+          <button class="reg-menu-item" id="regMenuInt" data-action="interests">
+            <span class="reg-menu-icon">ინტ</span>
+            <span class="reg-menu-label">ინტერესები</span>
+          </button>
+          <button class="reg-menu-item reg-only-item" id="regMenuDash" data-action="dashboard">
+            <span class="reg-menu-icon">👤</span>
+            <span class="reg-menu-label">ჩემი გვერდი</span>
+          </button>
+          <div class="reg-menu-divider reg-only-item"></div>
+          <button class="reg-menu-item reg-menu-logout reg-only-item" id="regMenuLogout" data-action="logout">
+            <span class="reg-menu-icon">🚪</span>
+            <span class="reg-menu-label">გამოსვლა</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="right-side">
+      <button id="myPageBtn" class="my-page-btn" style="display:none" onclick="window.location.href='/dashboard.html'">👤 ჩემი გვერდი</button>
+      <button class="music-btn" id="musicBtn" disabled title="მუსიკის მოსმენა ერთად"><span class="btn-icon">🎵</span><span class="btn-label">მუსიკა</span></button>
+      <button class="report-button" id="reportBtn" disabled><span class="btn-icon">🚩</span><span class="btn-label">რეპორტი</span></button>
+      <button class="block-button" id="blockBtn" disabled><span class="btn-icon">🚫</span><span class="btn-label">ბლოკი</span></button>
+      <button class="next-button" id="nextBtn"><span class="btn-icon">🔎</span><span class="btn-label">ძებნა</span></button>
+    </div>
+  </div>
+
+  <!-- Partner registered banner — shows when both users in chat are registered -->
+  <div id="partner-reg-banner" style="display:none"></div>
+
+  <!-- Draw & Guess invite — shown even mid-conversation, as a fixed overlay bar -->
+  <div id="dgInviteBar" class="dg-invite-bar"></div>
+
+  <div class="chat-container" id="chat"></div>
+
+  <!-- Floating "go to start of chat" button — appears once a partner is matched -->
+
+  <!-- GIF Picker Panel -->
+  <!-- Chat background picker -->
+  <div id="rcThemeBackdrop" class="rc-theme-backdrop"></div>
+  <div id="rcThemeSheet" class="rc-theme-sheet">
+    <div class="rc-theme-sheet-handle"></div>
+    <div class="rc-theme-sheet-title">საიტის გარეგნობა</div>
+    <div class="rc-theme-sheet-sub">აირჩიე ფონი — მხოლოდ შენთვის ჩანს</div>
+    <div class="rc-theme-grid" id="rcThemeGrid"></div>
+  </div>
+
+  <div id="gifPicker" class="gif-picker" style="display:none">
+    <div class="gif-picker-header">
+      <textarea id="gifSearch" placeholder="🔍 Search GIFs..."
+                autocomplete="off" autocorrect="off" autocapitalize="off"
+                spellcheck="false" inputmode="search" enterkeyhint="search"
+                rows="1" maxlength="100"></textarea>
+      <button class="gif-picker-close" id="gifPickerClose">✕</button>
+    </div>
+    <div class="gif-results" id="gifResults">
+      <div class="gif-placeholder" id="gifLoading">✨ Loading trending GIFs...</div>
+    </div>
+    <div class="gif-powered">Powered by Tenor</div>
+  </div>
+
+  <!-- Typing indicator lives OUTSIDE the chat scroll area — always bottom-left -->
+  <div id="typingIndicator" class="typing-indicator" style="display:none">
+    <span></span><span></span><span></span>
+  </div>
+
+  <div class="chat-input">
+    <div id="replyPreview" class="reply-preview-bar" style="display:none">
+      <div class="reply-preview-inner">
+        <span class="reply-preview-label">↩</span>
+        <div class="reply-preview-body">
+          <span id="replyPreviewName" class="reply-preview-name"></span>
+          <span id="replyPreviewText" class="reply-preview-text"></span>
+        </div>
+      </div>
+      <button id="replyPreviewClose" class="reply-preview-close" title="Cancel reply">✕</button>
+    </div>
+    <div class="chat-input-row">
+      <textarea id="messageInput" placeholder="Type..."
+             autocomplete="off" autocorrect="off" autocapitalize="sentences"
+             spellcheck="false" inputmode="text" enterkeyhint="send"
+             rows="1" maxlength="2000" disabled></textarea>
+      <span id="charCount" class="char-count"></span>
+      <button id="questionBtn" class="question-btn" disabled title="Random question">?</button>
+      <button id="gifBtn" class="gif-btn" disabled title="Send a GIF">GIF</button>
+      <button id="sendBtn" disabled>SEND</button>
+    </div>
+  </div>
+
+  <!-- ── Combined Entry Modal ───────────────────────────────────────────────── -->
+  <div id="nameModal" class="modal">
+    <div class="modal-content">
+      <!-- Loading overlay shown while setName is processing -->
+      <div id="modalLoadingOverlay" style="display:none">
+        <div class="modal-loading-spinner"></div>
+        <div class="modal-loading-text">იტვირთება...</div>
+      </div>
+      <button id="nameModalClose" class="modal-close-btn" style="display:none" title="დახურვა">✕</button>
+      <img src="/Logo2.png" alt="GAICANI" class="modal-logo" />
+
+      <!-- ── Auth mode tabs ── -->
+      <div class="auth-tabs">
+        <button id="auth-tab-guest"  class="auth-tab active">🎭 სტუმარი</button>
+        <button id="auth-tab-login"  class="auth-tab">🔑 შესვლა</button>
+        <button id="auth-tab-signup" class="auth-tab">✨ რეგისტრაცია</button>
+      </div>
+
+      <!-- ════════ GUEST SECTION (original content) ════════ -->
+      <div id="auth-section-guest">
+        <!-- ── Welcome info block ── -->
+        <div class="modal-welcome">
+          <p class="modal-welcome-title">👋 მოგესალმებით!</p>
+          <p class="modal-welcome-desc">ამ საიტზე შეძლებთ შემთხვევით შერჩეულ უცნობ ადამიანს ესაუბროთ <strong>ანონიმურად</strong>.</p>
+          <div class="modal-features">
+            <div class="modal-feature-item">
+              <span class="modal-feature-icon modal-feature-icon--qbtn">?</span>
+              <span><strong></strong> — საიტი გისმევთ კითხვებს</span>
+            </div>
+            <div class="modal-feature-item">
+              <span class="modal-feature-icon modal-feature-icon--int">ინტ</span>
+              <span>საკუთარი თავის გაცნობა პარტნიორისთვის</span>
+            </div>
+            <div class="modal-feature-item">
+              <span class="modal-feature-icon">✏️</span>
+              <span>სახელის შეცვლა</span>
+            </div>
+            <div class="modal-feature-item">
+              <span class="modal-feature-icon">🚫</span>
+              <span>იუზერის დაბლოკვა</span>
+            </div>
+            <div class="modal-feature-item">
+              <span class="modal-feature-icon">🚩</span>
+              <span>რეპორტი</span>
+            </div>
+            <div class="modal-feature-item">
+              <span class="modal-feature-icon modal-feature-icon--game">🎮</span>
+              <span>მინი თამაშები</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Guests can't choose a name — the server assigns "სტუმარი####".
+             The box stays in the DOM (hidden) because registered users reuse
+             this same modal to change their random-chat display name, and
+             openChangeNameModal() reveals it for them. -->
+        <div id="guestNameNotice" class="guest-name-notice">
+          👤 სტუმრად შეხვალ ავტომატური სახელით — <strong>სტუმარი####</strong><br>
+          <span class="guest-name-notice-sub">საკუთარი სახელისთვის დარეგისტრირდი</span>
+        </div>
+        <textarea id="nameInput" placeholder="შეიყვანეთ სახელი..."
+                 autocomplete="off" autocorrect="off" autocapitalize="sentences"
+                 spellcheck="false" inputmode="text" enterkeyhint="go"
+                 rows="1" maxlength="20" style="display:none"></textarea>
+        <div id="nameError" class="name-error"></div>
+        <p class="safety-age-confirm">
+          საუბრის დაწყებით ადასტურებთ რომ ხართ <strong>18+</strong> და ეთანხმებით
+          <a href="/terms.html" target="_blank" class="safety-link">Terms of Service</a>-ს
+          და
+          <a href="/privacy.html" target="_blank" class="safety-link">Privacy Policy</a>-ს.
+        </p>
+        <button id="saveNameBtn">საუბრის დაწყება</button>
+      </div><!-- /auth-section-guest -->
+
+      <!-- ════════ SIGN-IN SECTION ════════ -->
+      <div id="auth-section-login" style="display:none">
+        <p style="text-align:center;color:#b5bac1;font-size:.85em;margin:0 0 16px;">
+          შედი შენი ანგარიშით — სახელი დაცულია,<br>მეგობრებს მოუგზავნე Private Chat.
+        </p>
+        <div class="auth-form-group">
+          <input id="login-username" class="auth-input" type="text"
+                 placeholder="სახელი" autocomplete="username"
+                 autocorrect="off" autocapitalize="none" spellcheck="false" maxlength="20" />
+          <input id="login-password" class="auth-input" type="password"
+                 placeholder="პაროლი" autocomplete="current-password" maxlength="100" />
+        </div>
+        <div id="login-error" class="auth-form-error"></div>
+        <button id="login-btn" class="auth-submit-btn">შესვლა</button>
+        <p class="auth-form-note">
+          ანგარიში არ გაქვს?
+          <a href="#" onclick="document.getElementById('auth-tab-signup').click();return false;">
+            დარეგისტრირდი
+          </a>
+        </p>
+      </div><!-- /auth-section-login -->
+
+      <!-- ════════ SIGN-UP SECTION ════════ -->
+      <div id="auth-section-signup" style="display:none">
+        <p style="text-align:center;color:#b5bac1;font-size:.85em;margin:0 0 16px;">
+          დაარეგისტრირე სახელი — მხოლოდ შენ შეძლებ მის გამოყენებას.<br>
+          მეგობრებს ჩატის დროს Private Message გაუგზავნე.
+        </p>
+        <div class="auth-form-group">
+          <input id="signup-username" class="auth-input" type="text"
+                 placeholder="სახელი (2–20 სიმბოლო)" autocomplete="username"
+                 autocorrect="off" autocapitalize="none" spellcheck="false" maxlength="20" />
+          <input id="signup-password" class="auth-input" type="password"
+                 placeholder="პაროლი (მინ. 6 სიმბოლო)" autocomplete="new-password" maxlength="100" />
+          <input id="signup-confirm" class="auth-input" type="password"
+                 placeholder="გაიმეორე პაროლი" autocomplete="new-password" maxlength="100" />
+        </div>
+
+        <div class="avatar-picker-label">აირჩიე პროფილის სურათი</div>
+        <div id="signup-avatar-grid" class="avatar-picker-grid"></div>
+
+        <div id="signup-error" class="auth-form-error"></div>
+        <button id="signup-btn" class="auth-submit-btn">რეგისტრაცია</button>
+        <p class="auth-form-note">
+          უკვე გაქვს ანგარიში?
+          <a href="#" onclick="document.getElementById('auth-tab-login').click();return false;">
+            შედი
+          </a><br>
+          რეგისტრაციით ეთანხმები
+          <a href="/terms.html" target="_blank">Terms</a> &
+          <a href="/privacy.html" target="_blank">Privacy</a>.
+        </p>
+      </div><!-- /auth-section-signup -->
+
+      <!-- Donation — shown to everyone on the way into a chat -->
+      <div class="donate-card">
+        <div class="donate-text">
+          💜 მხარი დაუჭირე Gaicani.online-ს მცირე დონაციით 🙏<br>
+          შენი დახმარება საიტის განვითარებასა და გაუმჯობესებას მოხმარდება 🚀<br>
+          ნებისმიერი თანხა ჩვენთვის მნიშვნელოვანია ❤️
+        </div>
+        <a class="donate-btn" href="https://www.kisa.ge/donate/8fvhi1xii0" target="_blank" rel="noopener noreferrer">
+          მხარდაჭერა 💜
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Bio / Interests Popup ──────────────────────────────────────────────── -->
+  <div id="bioPopup" class="bio-popup" style="display:none">
+    <div class="bio-popup-content">
+      <button id="bioCloseBtn" class="bio-popup-close" title="დახურვა">✕</button>
+      <p class="bio-popup-title">მოკლედ მოუყევით თქვენს თავზე ახალ პარტნიორს</p>
+      <div class="bio-input-wrap">
+        <textarea id="bioInput" class="bio-textarea" maxlength="60"
+                  placeholder="მაქს. 60 სიმბოლო..." rows="2"></textarea>
+        <span id="bioCharCount" class="bio-char-count">0/60</span>
+      </div>
+      <div class="bio-popup-actions">
+        <button id="bioClearBtn" class="bio-clear-btn">გასუფთავება</button>
+        <button id="bioSaveBtn" class="bio-save-btn">შენახვა</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Friends Panel ──────────────────────────────────────────────────────── -->
+  <div id="friends-panel" style="display:none">
+    <div class="fp-header">
+      <span class="fp-title">👥 მეგობრები</span>
+      <button id="friends-panel-close" class="fp-close" title="დახურვა">✕</button>
+    </div>
+    <div id="friends-list"></div>
+  </div>
+
+  <!-- ── Private Chat Panel ─────────────────────────────────────────────────── -->
+  <div id="priv-panel" style="display:none">
+    <div class="pc-header">
+      <button id="priv-close" title="დახურვა">✕</button>
+      <span id="priv-title">🔒 Private Chat</span>
+      <span id="priv-expiry"></span>
+    </div>
+    <div id="priv-messages"></div>
+    <div class="pc-input-row">
+      <textarea id="priv-input" placeholder="შეტყობინება..."
+                rows="1" maxlength="2000"
+                autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+      <button id="priv-send">SEND</button>
+    </div>
+  </div>
+
+  <!-- ── Dashboard / My Page Panel ─────────────────────────────────────────── -->
+  <div id="dashboard-panel" style="display:none">
+    <div class="dash-overlay" id="dashOverlay"></div>
+    <div class="dash-sheet">
+      <div class="dash-header">
+        <span class="dash-title">👤 ჩემი გვერდი</span>
+        <button class="dash-close" id="dashClose" title="დახურვა">✕</button>
+      </div>
+
+      <!-- User info card -->
+      <div class="dash-user-card" id="dashUserCard">
+        <div class="dash-avatar" id="dashAvatar">?</div>
+        <div class="dash-user-info">
+          <div class="dash-username" id="dashUsername">—</div>
+          <div class="dash-user-meta">რეგისტრირებული მომხმარებელი</div>
+          <button class="dash-change-avatar-btn" id="dashChangeAvatarBtn">🖼️ სურათის შეცვლა</button>
+        </div>
+      </div>
+
+      <!-- Avatar picker (hidden until "სურათის შეცვლა" is clicked) -->
+      <div id="avatarPickerPanel" class="avatar-picker-panel" style="display:none">
+        <div class="avatar-picker-label">აირჩიე ახალი პროფილის სურათი</div>
+        <div id="dash-avatar-grid" class="avatar-picker-grid"></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="dash-actions">
+        <button class="dash-action-btn dash-action-primary" id="dashRandomChat">
+          🔎 შემთხვევითი ჩატი
+        </button>
+      </div>
+
+      <!-- Friends section -->
+      <div class="dash-section">
+        <div class="dash-section-label">👥 მეგობრები <span id="dashFriendCount" class="dash-badge">0</span></div>
+        <div id="dash-friends-list" class="dash-friends-list">
+          <div class="dash-empty">ჯერ მეგობრები არ გყავს.<br>
+            <small>ჩატის დროს ➕ ღილაკზე დააჭირე.</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Blocked users (session) section -->
+      <div class="dash-section" id="dashBlockedSection" style="display:none">
+        <div class="dash-section-label">🚫 დაბლოკილი (სესია) <span id="dashBlockedCount" class="dash-badge">0</span></div>
+        <div id="dash-blocked-list" class="dash-friends-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Notification container (toasts + friend requests) ─────────────────── -->
+  <div id="notif-container"></div>
+
+
+
+
+  <script src="/ban-notice.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+<script src="script.js"></script>
+  <script src="games.js"></script>
+  <script src="music.js"></script>
+  <script src="auth-client.js"></script>
+  <script src="keyboard-handler.js"></script>
+
+
+
+<script src="/keyboard-handler.js"></script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Horror – GAICANI</title>
+  <meta name="theme-color" content="#0a0a0c" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    :root{
+      --bg:#0a0a0c; --surface:#141418; --surface-2:#1c1c22;
+      --border:rgba(255,255,255,.07); --text:#d8d8de; --muted:#6a6a78;
+      --accent:#7c3aed; --accent-lt:#a78bfa; --danger:#f23f42;
+      --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+    }
+    html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+      -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;overscroll-behavior:contain}
+    button{font-family:inherit;touch-action:manipulation}
+    .hidden{display:none!important}
+
+    .hr-header{display:flex;align-items:center;gap:10px;padding:8px 12px;padding-top:calc(8px + var(--safe-top));
+      background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+    .hr-icon-btn{width:32px;height:32px;border-radius:50%;background:var(--surface-2);border:none;
+      color:var(--text);font-size:1em;cursor:pointer;flex-shrink:0;display:flex;align-items:center;
+      justify-content:center;text-decoration:none}
+    .hr-title{font-weight:800;font-size:.95em;letter-spacing:.06em}
+    .hr-sub{font-size:.68em;color:var(--muted)}
+    .hr-count{margin-left:auto;font-size:.72em;color:var(--muted)}
+
+    .hr-screen{display:none;flex-direction:column;height:100dvh}
+    .hr-screen.active{display:flex}
+
+    .hr-lobby{padding:20px 16px;max-width:520px;margin:0 auto;width:100%;overflow-y:auto}
+    .hr-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px}
+    .hr-card h3{margin:0 0 8px;font-size:.95em}
+    .hr-blurb{font-size:.82em;line-height:1.7;color:var(--muted);margin-bottom:14px}
+    .hr-btn{width:100%;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:.9em;cursor:pointer;
+      background:linear-gradient(135deg,#4c1d95,#7c3aed);color:#fff}
+    .hr-btn.secondary{background:var(--surface-2);color:var(--text)}
+    .hr-btn:disabled{opacity:.45;cursor:default}
+    .hr-row{display:flex;align-items:center;gap:9px;background:var(--surface-2);border-radius:10px;
+      padding:9px 11px;font-size:.85em;margin-bottom:7px}
+    .hr-row .cnt{margin-left:auto;font-size:.75em;color:var(--muted)}
+    .hr-empty{color:var(--muted);font-size:.82em;text-align:center;padding:16px}
+
+    .hr-feed{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:9px}
+    .hr-msg{max-width:82%;padding:8px 12px;border-radius:12px;font-size:.87em;line-height:1.45;
+      background:var(--surface-2);align-self:flex-start;animation:fadeIn .25s ease}
+    .hr-msg.mine{align-self:flex-end;background:#3b2a63}
+    .hr-msg .who{font-size:.74em;font-weight:700;color:var(--accent-lt);margin-bottom:2px}
+    .hr-msg.mine .who{display:none}
+    /* Entities look almost — but not quite — like a normal message. */
+    .hr-msg.ghost{background:#16161c;border:1px solid rgba(255,255,255,.05)}
+    .hr-msg.ghost .who{color:#5f6472}
+    .hr-sys{align-self:center;font-size:.72em;color:var(--muted);font-style:italic;
+      padding:2px 10px;text-align:center;animation:fadeIn .25s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+    .hr-inputbar{display:flex;gap:8px;padding:10px 12px calc(10px + var(--safe-bottom));
+      background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+    .hr-input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);color:var(--text);
+      border-radius:10px;padding:11px 13px;font-size:16px;font-family:inherit;resize:none;max-height:90px}
+    .hr-input:focus{outline:none;border-color:var(--accent)}
+    .hr-send{border:none;border-radius:10px;padding:0 17px;background:var(--accent);color:#fff;
+      font-weight:800;cursor:pointer}
+    .hr-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface-2);
+      border:1px solid var(--accent);border-radius:10px;padding:9px 16px;font-size:.85em;z-index:950;
+      opacity:0;pointer-events:none;transition:opacity .2s}
+    .hr-toast.show{opacity:1}
+
+    .pick-list{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto;margin-bottom:10px}
+    .pick-row{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid transparent;
+      border-radius:10px;padding:8px 10px;cursor:pointer;font-size:.85em}
+    .pick-row.sel{border-color:var(--accent);background:rgba(124,58,237,.18)}
+    .pick-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;overflow:hidden;background:rgba(124,58,237,.25);
+      display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:800;color:var(--accent-lt)}
+    .pick-av img{width:100%;height:100%;object-fit:cover;display:block}
+    .pick-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pick-tag{font-size:.68em;color:var(--muted);flex-shrink:0}
+    .pick-check{font-size:.9em;color:var(--accent-lt);flex-shrink:0}
+  </style>
+</head>
+<body>
+
+<div id="lobbyScreen" class="hr-screen active">
+  <div class="hr-header">
+    <a href="/dashboard.html" class="hr-icon-btn">←</a>
+    <div><div class="hr-title">HORROR</div><div class="hr-sub">ოთახი</div></div>
+  </div>
+  <div class="hr-lobby">
+    <div class="hr-card">
+      <h3>რა არის ეს?</h3>
+      <div class="hr-blurb">
+        ჩვეულებრივი ჯგუფური ჩატი მეგობრებთან. თუმცა ზოგჯერ ვიღაც სხვაც წერს.<br><br>
+        გამარჯვებული არ არის. ახსნა არ იქნება.
+      </div>
+      <button class="hr-btn" id="createBtn">ოთახის შექმნა</button>
+    </div>
+
+    <div class="hr-card hidden" id="roomCard">
+      <h3>მონაწილეები</h3>
+      <div id="playerList"></div>
+      <button class="hr-btn secondary" id="inviteBtn" style="margin-top:10px">მოთამაშის მოწვევა</button>
+      <div id="invitePanel" class="hidden" style="margin-top:12px">
+        <div class="hr-sub" style="margin-bottom:6px">ონლაინ მომხმარებლები</div>
+        <div class="pick-list" id="pickList"><div class="hr-empty">იტვირთება...</div></div>
+        <button class="hr-btn" id="sendInviteBtn" disabled>მოწვევის გაგზავნა</button>
+      </div>
+      <button class="hr-btn" id="startBtn" style="margin-top:10px" disabled>დაწყება</button>
+    </div>
+
+    <div class="hr-card">
+      <h3>ღია ოთახები</h3>
+      <div id="roomList"><div class="hr-empty">იტვირთება...</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="gameScreen" class="hr-screen">
+  <div class="hr-header">
+    <button class="hr-icon-btn" id="leaveBtn">←</button>
+    <div><div class="hr-title">HORROR</div><div class="hr-sub" id="hostLabel"></div></div>
+    <div class="hr-count" id="countLabel"></div>
+    <button class="hr-icon-btn hidden" id="endBtn" title="სესიის დასრულება"
+            style="background:rgba(242,63,66,.16);color:#f56769">⏹</button>
+  </div>
+  <div class="hr-feed" id="feed"></div>
+  <div class="hr-inputbar">
+    <textarea id="chatInput" class="hr-input" rows="1" maxlength="300" placeholder="დაწერე რამე..."></textarea>
+    <button class="hr-send" id="sendBtn">➤</button>
+  </div>
+</div>
+
+<div class="hr-toast" id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  let socket=null, roomId=null, me=null, isHost=false;
+
+  function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");
+    clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2600);}
+  function show(n){document.querySelectorAll(".hr-screen").forEach(s=>s.classList.remove("active"));
+    $(n+"Screen").classList.add("active");}
+  function auth(){try{return{token:localStorage.getItem("gaicani_auth_token"),
+    username:localStorage.getItem("gaicani_auth_user")};}catch(_){return{};}}
+
+  function addMessage(m){
+    const feed=$("feed");
+    if(m.kind==="ghostSystem"){
+      const d=document.createElement("div");
+      d.className="hr-sys";
+      d.textContent = m.username==="SYSTEM" ? m.text : `${m.username} — ${m.text}`;
+      feed.appendChild(d);
+    } else {
+      const mine = m.username === me;
+      const d=document.createElement("div");
+      d.className="hr-msg"+(mine?" mine":"")+(m.kind==="ghost"?" ghost":"");
+      const w=document.createElement("div"); w.className="who"; w.textContent=m.username;
+      const b=document.createElement("div"); b.textContent=m.text;   // textContent — never innerHTML
+      d.appendChild(w); d.appendChild(b);
+      feed.appendChild(d);
+    }
+    feed.scrollTop=feed.scrollHeight;
+  }
+
+  function renderRoom(s){
+    roomId=s.roomId; isHost=s.isHost; lastRoom=s;
+    if(s.status==="lobby"){
+      show("lobby");
+      $("roomCard").classList.remove("hidden");
+      const list=$("playerList"); list.innerHTML="";
+      s.players.forEach(p=>{
+        const r=document.createElement("div"); r.className="hr-row";
+        const n=document.createElement("div"); n.textContent=p.username;
+        if(!p.connected) n.style.color="var(--muted)";
+        r.appendChild(n); list.appendChild(r);
+      });
+      const n=s.players.filter(p=>p.connected).length;
+      $("startBtn").disabled = !(isHost && n>=2);
+      $("startBtn").textContent = n<2 ? `ველოდებით (${n}/2)` : (isHost?"დაწყება":"ჰოსტი იწყებს");
+    } else {
+      show("game");
+      $("hostLabel").textContent="ჰოსტი: "+s.hostUsername;
+      $("countLabel").textContent=s.players.filter(p=>p.connected).length+" მონაწილე";
+      // Only the host can close the session — everyone else just leaves.
+      $("endBtn").classList.toggle("hidden", !s.isHost);
+    }
+  }
+
+  function renderRooms(rooms){
+    const box=$("roomList"); box.innerHTML="";
+    if(!rooms.length){box.innerHTML='<div class="hr-empty">ღია ოთახი არ არის</div>';return;}
+    rooms.forEach(r=>{
+      const row=document.createElement("div"); row.className="hr-row";
+      const n=document.createElement("div"); n.textContent=r.hostUsername;
+      const c=document.createElement("div"); c.className="cnt"; c.textContent=r.playerCount+" კაცი";
+      const b=document.createElement("button"); b.className="hr-send";
+      b.style.padding="6px 12px"; b.style.fontSize=".78em"; b.textContent="შესვლა";
+      b.addEventListener("click",()=>socket.emit("horror:join",{roomId:r.id}));
+      row.appendChild(n); row.appendChild(c); row.appendChild(b);
+      box.appendChild(row);
+    });
+  }
+
+  function send(){
+    const el=$("chatInput"); const v=el.value.trim();
+    if(!v||!roomId) return;
+    socket.emit("horror:chat",{roomId,text:v});
+    el.value=""; el.style.height="auto";
+  }
+
+  // Invite picker — everyone online, registered accounts first then guests.
+  let onlineUsers=[], picked=new Set(), lastRoom=null;
+
+  $("inviteBtn").addEventListener("click",()=>{
+    const p=$("invitePanel"); p.classList.toggle("hidden");
+    if(!p.classList.contains("hidden")) socket.emit("users:listOnline");
+  });
+
+  function renderPickList(){
+    const box=$("pickList"); box.innerHTML="";
+    const inRoom=new Set((lastRoom&&lastRoom.players?lastRoom.players:[]).map(p=>p.username.toLowerCase()));
+    const avail=onlineUsers.filter(u=>!inRoom.has(u.username.toLowerCase()));
+    if(!avail.length){ box.innerHTML='<div class="hr-empty">ახლა არავინაა ონლაინ</div>';
+      $("sendInviteBtn").disabled=true; return; }
+    avail.forEach(u=>{
+      const lc=u.username.toLowerCase();
+      const row=document.createElement("div");
+      row.className="pick-row"+(picked.has(lc)?" sel":"");
+      const av=document.createElement("div"); av.className="pick-av";
+      if(u.avatar){ const im=document.createElement("img"); im.src="/"+u.avatar; im.alt=u.username; av.appendChild(im); }
+      else av.textContent=(u.username||"?").charAt(0).toUpperCase();
+      const nm=document.createElement("div"); nm.className="pick-name"; nm.textContent=u.username;
+      const tg=document.createElement("div"); tg.className="pick-tag"; tg.textContent=u.isGuest?"სტუმარი":"";
+      const ck=document.createElement("div"); ck.className="pick-check"; ck.textContent=picked.has(lc)?"✓":"";
+      row.appendChild(av); row.appendChild(nm); row.appendChild(tg); row.appendChild(ck);
+      row.addEventListener("click",()=>{ picked.has(lc)?picked.delete(lc):picked.add(lc); renderPickList(); });
+      box.appendChild(row);
+    });
+    $("sendInviteBtn").disabled=picked.size===0;
+    $("sendInviteBtn").textContent=picked.size?`მოწვევის გაგზავნა (${picked.size})`:"მოწვევის გაგზავნა";
+  }
+
+  $("sendInviteBtn").addEventListener("click",()=>{
+    const names=onlineUsers.filter(u=>picked.has(u.username.toLowerCase())).map(u=>u.username);
+    if(!names.length||!roomId) return;
+    socket.emit("horror:invite",{roomId,toUsernames:names});
+    picked.clear(); renderPickList();
+    $("invitePanel").classList.add("hidden");
+    toast("მოწვევა გაიგზავნა");
+  });
+
+  $("createBtn").addEventListener("click",()=>socket.emit("horror:create"));
+  $("startBtn").addEventListener("click",()=>{if(roomId)socket.emit("horror:start",{roomId});});
+  $("leaveBtn").addEventListener("click",()=>{
+    if(confirm("დატოვებ ოთახს?")){socket.emit("horror:leave");location.href="/dashboard.html";}
+  });
+  $("endBtn").addEventListener("click",()=>{
+    if(!roomId) return;
+    if(confirm("დაასრულებ სესიას ყველასთვის?")) socket.emit("horror:end",{roomId});
+  });
+  $("sendBtn").addEventListener("click",send);
+  $("chatInput").addEventListener("keydown",e=>{
+    if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}
+  });
+  $("chatInput").addEventListener("input",function(){
+    this.style.height="auto"; this.style.height=Math.min(this.scrollHeight,90)+"px";
+  });
+
+
+  // Registration gate — shown in-page instead of bouncing the user out to the
+  // home page (which is the random chat, and looked like the game was broken).
+  function showNeedsRegister(){
+    document.querySelectorAll(".hr-screen").forEach(s=>s.classList.remove("active"));
+    const wrap=document.createElement("div");
+    wrap.className="hr-screen active";
+    wrap.innerHTML='<div class="hr-header">'+
+      '<a href="/dashboard.html" class="hr-icon-btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none">\u2190</a>'+
+      '<div><div class="hr-title">\u10d1\u10e3\u10e0\u10d0</div></div></div>';
+    const box=document.createElement("div");
+    box.className="hr-lobby";
+    const card=document.createElement("div"); card.className="hr-card";
+    const h=document.createElement("h3"); h.textContent="\u10e1\u10d0\u10ed\u10d8\u10e0\u10dd\u10d0 \u10e0\u10d4\u10d2\u10d8\u10e1\u10e2\u10e0\u10d0\u10ea\u10d8\u10d0";
+    const p=document.createElement("div"); p.className="hr-sub";
+    p.style.lineHeight="1.6"; p.style.marginBottom="14px";
+    p.textContent="Horror-\u10e8\u10d8 \u10e1\u10d0\u10d7\u10d0\u10db\u10d0\u10e8\u10dd\u10d3 \u10e1\u10d0\u10ed\u10d8\u10e0\u10dd\u10d0 \u10d0\u10dc\u10d2\u10d0\u10e0\u10d8\u10e8\u10d8. \u10e0\u10d4\u10d2\u10d8\u10e1\u10e2\u10e0\u10d0\u10ea\u10d8\u10d0 \u10e3\u10e4\u10d0\u10e1\u10dd\u10d0.";
+    const a=document.createElement("a"); a.className="hr-btn";
+    a.style.display="block"; a.style.textAlign="center"; a.style.textDecoration="none";
+    a.href="/"; a.textContent="\u10d3\u10d0\u10e0\u10d4\u10d2\u10d8\u10e1\u10e2\u10e0\u10d8\u10e0\u10d3\u10d8 \u2192";
+    const b=document.createElement("a"); b.className="hr-btn secondary";
+    b.style.display="block"; b.style.textAlign="center"; b.style.textDecoration="none"; b.style.marginTop="8px";
+    b.href="/dashboard.html"; b.textContent="\u10e3\u10d9\u10d0\u10dc";
+    card.appendChild(h); card.appendChild(p); card.appendChild(a); card.appendChild(b);
+    box.appendChild(card); wrap.appendChild(box);
+    document.body.appendChild(wrap);
+  }
+
+  function init(){
+    const a=auth(); me=a.username;
+    socket=io();
+    socket.on("connect",()=>{ if(a.token) socket.emit("auth:token",{token:a.token});
+      else socket.emit("auth:guest",{preferredUsername:sessionStorage.getItem("gaicani_guest_username")||null}); });
+    socket.on("auth:authenticated",({username})=>{
+      me=username || me;
+      socket.emit("horror:list");
+      const p=new URLSearchParams(location.search).get("room");
+      if(p) socket.emit("horror:join",{roomId:p});
+    });
+    socket.on("auth:invalid",()=>{ try{localStorage.removeItem("gaicani_auth_token");}catch(_){}
+      socket.emit("auth:guest",{preferredUsername:null}); });
+    socket.on("horror:room",s=>{
+      history.replaceState(null,"","/horror.html?room="+encodeURIComponent(s.roomId));
+      renderRoom(s);
+    });
+    socket.on("horror:rooms",({rooms})=>renderRooms(rooms));
+    socket.on("users:onlineList",({users})=>{ onlineUsers=users||[]; renderPickList(); });
+    socket.on("users:onlineChanged",()=>{
+      if(!$("invitePanel").classList.contains("hidden")) socket.emit("users:listOnline");
+    });
+    socket.on("horror:invited",({roomId:rid,fromUsername})=>{
+      if(confirm(`${fromUsername} გეპატიჟება Horror-ში. შეხვალ?`)) socket.emit("horror:join",{roomId:rid});
+    });
+    socket.on("horror:message",m=>addMessage(m));
+    socket.on("horror:error",({message})=>toast(message));
+    socket.on("horror:ended",()=>{ toast("ოთახი დაიხურა"); setTimeout(()=>location.href="/dashboard.html",1400); });
+    socket.on("guest:registerRequired",()=>{ showNeedsRegister(); });
+  }
+  init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <title>GAICANI – დამა</title>
+  <meta name="theme-color" content="#17181d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #17181d;
+      --surface:   #26272e;
+      --surface-2: #2f3037;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #5865f2;
+      --accent-dk: #4752c4;
+      --accent-lt: #8b93ff;
+      --text:      #e4e5ea;
+      --muted:     #7d81a0;
+      --good:      #3ba55d;
+      --warn:      #faa61a;
+      --danger:    #f23f42;
+      --gold:      #f2c94c;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top:    env(safe-area-inset-top, 0px);
+      --sq-light:  #ebe3d0;
+      --sq-dark:   #7c5a44;
+    }
+
+    html, body {
+      height: 100%; height: 100dvh; height: var(--app-height, 100dvh);
+      background: radial-gradient(circle at 50% 0%, #22232c 0%, #17181d 55%);
+      color: var(--text); font-family: "Segoe UI", Arial, sans-serif;
+      overflow: hidden; -webkit-text-size-adjust: 100%;
+      overscroll-behavior: contain;
+    }
+    button, a, [role="button"] { touch-action: manipulation; }
+    #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; height: var(--app-height, 100dvh); }
+
+    .dm-loading, .dm-center-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; text-align: center; padding: 24px;
+    }
+    .dm-loading.hidden, .dm-center-screen.hidden { display: none; }
+    .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent-lt); animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .dm-center-screen p { max-width: 280px; line-height: 1.5; }
+    .dm-center-screen a { color: #fff; text-decoration: none; font-weight: 700; font-size: 0.92em; background: var(--accent); padding: 11px 24px; border-radius: 10px; }
+
+    .dm-screen { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+    .dm-screen.visible { display: flex; }
+
+    /* ── Header ──────────────────────────────────────────────────── */
+    .dm-header {
+      display: flex; align-items: center; gap: 8px;
+      min-height: 54px; flex-shrink: 0; padding: 0 10px; padding-top: var(--safe-top);
+      padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .dm-icon-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      background: transparent; border: none; color: var(--text);
+      text-decoration: none; font-size: 1.15em; cursor: pointer;
+      transition: background 0.15s; -webkit-tap-highlight-color: transparent;
+    }
+    .dm-icon-btn:hover { background: rgba(255,255,255,0.08); }
+    .dm-header-title { font-weight: 700; font-size: 1.02em; flex: 1; min-width: 0; }
+
+    /* ── Setup screen ────────────────────────────────────────────── */
+    .dm-setup-body { flex: 1; overflow-y: auto; padding: 16px 14px calc(16px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 16px; }
+    .dm-new-game-btn {
+      border: none; border-radius: 12px; padding: 14px; font-weight: 800; font-size: 0.98em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dk)); color: #fff; cursor: pointer;
+    }
+    .dm-new-game-btn:disabled { opacity: 0.5; }
+
+    /* ── Leaderboard — top 3 by wins ─────────────────────────────── */
+    .dm-leaderboard { background: var(--surface); border-radius: 12px; padding: 10px 10px 12px; }
+    .dm-leaderboard-label { font-size: 0.68em; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; padding: 0 4px 8px; }
+    .dm-podium { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; gap: 8px; }
+    .dm-podium-slot {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 4px 8px; min-height: 64px; justify-content: center;
+    }
+    .dm-podium-slot.rank-1 { order: 2; padding-top: 14px; border-color: rgba(242,201,76,0.4); background: rgba(242,201,76,0.08); }
+    .dm-podium-slot.rank-2 { order: 1; }
+    .dm-podium-slot.rank-3 { order: 3; }
+    .dm-podium-medal { font-size: 1.3em; line-height: 1; }
+    .dm-podium-name { font-size: 0.74em; font-weight: 700; color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dm-podium-score { font-size: 0.9em; font-weight: 800; color: #fff; }
+    .dm-podium-empty { color: var(--muted); font-size: 0.72em; }
+    .dm-section-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .dm-pick-row {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; cursor: pointer;
+    }
+    .dm-pick-row.selected { border-color: var(--accent); background: rgba(88,101,242,0.1); }
+    .dm-pick-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+    .dm-pick-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .dm-pick-name { flex: 1; font-size: 0.9em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dm-pick-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7em; }
+    .dm-pick-row.selected .dm-pick-check { background: var(--accent); border-color: var(--accent); }
+    .dm-empty-state { color: var(--muted); font-size: 0.86em; text-align: center; padding: 20px 10px; line-height: 1.6; }
+
+    .dm-public-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .dm-public-info { flex: 1; min-width: 0; }
+    .dm-public-host { font-weight: 700; font-size: 0.9em; }
+    .dm-public-meta { color: var(--muted); font-size: 0.76em; margin-top: 2px; }
+    .dm-join-btn { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 700; font-size: 0.82em; cursor: pointer; background: var(--accent); color: #fff; }
+
+    /* ── Lobby screen ────────────────────────────────────────────── */
+    .dm-lobby-body { flex: 1; overflow-y: auto; padding: 16px 14px; }
+    .dm-lobby-player { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; }
+    .dm-lobby-tag { font-size: 0.68em; font-weight: 700; background: rgba(88,101,242,0.18); color: var(--accent-lt); padding: 2px 8px; border-radius: 20px; }
+    .dm-lobby-actions { padding: 12px 14px calc(12px + var(--safe-bottom)); border-top: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+    .dm-start-btn { border: none; border-radius: 10px; padding: 13px; font-weight: 800; background: var(--good); color: #fff; cursor: pointer; font-size: 0.95em; }
+    .dm-start-btn:disabled { opacity: 0.45; }
+    .dm-leave-btn { border: none; border-radius: 10px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 0.88em; background: var(--surface-2); color: var(--danger); }
+    .dm-lobby-hint { text-align: center; color: var(--muted); font-size: 0.8em; padding: 6px 0; }
+
+    /* ── Game screen ─────────────────────────────────────────────── */
+    .dm-game-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 8px 10px; gap: 6px; position: relative; }
+    .dm-bubble-layer { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+    .dm-player-bar { display: flex; align-items: center; gap: 8px; padding: 6px 4px; }
+    .dm-player-avatar-wrap { position: relative; flex-shrink: 0; }
+    .dm-player-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); display: block; }
+    .dm-player-bar.turn .dm-player-avatar { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,201,76,0.3); }
+    .dm-player-info { min-width: 0; }
+    .dm-player-name { font-size: 0.86em; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .dm-player-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dm-player-captured { font-size: 0.78em; color: var(--muted); }
+    .dm-player-timer { margin-left: auto; font-size: 0.78em; font-weight: 700; color: var(--muted); flex-shrink: 0; }
+    .dm-player-timer.low { color: var(--danger); }
+
+    .dm-board-wrap { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+    .dm-board {
+      display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+      width: min(100%, 100%); aspect-ratio: 1 / 1; max-height: 100%; max-width: 100%;
+      border-radius: 8px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,0.45); border: 3px solid #4a3a24;
+      position: relative;
+    }
+    .dm-anim-layer { position: absolute; inset: 0; pointer-events: none; z-index: 25; overflow: visible; }
+    .dm-sq { position: relative; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+    .dm-sq.light { background: var(--sq-light); cursor: default; }
+    .dm-sq.dark { background: var(--sq-dark); }
+    .dm-sq.selected { box-shadow: inset 0 0 0 3px var(--gold); }
+    .dm-sq.last-move { background: #8a6a52 !important; }
+    .dm-sq .dm-legal-dot { position: absolute; width: 26%; height: 26%; border-radius: 50%; background: rgba(242,201,76,0.55); pointer-events: none; }
+
+    .dm-piece {
+      width: 78%; height: 78%; border-radius: 50%; position: relative;
+      display: flex; align-items: center; justify-content: center; font-size: 1.1em;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.25), inset 0 -3px 4px rgba(0,0,0,0.35);
+    }
+    .dm-piece.red   { background: radial-gradient(circle at 35% 30%, #e5605a, #a4211c); border: 2px solid #7a1512; }
+    .dm-piece.black { background: radial-gradient(circle at 35% 30%, #55575e, #1c1d21); border: 2px solid #000; }
+
+    /* ── Mandatory-capture indicator — marks YOUR OWN piece(s) that are
+       forced to act (a legal capture exists there, so no other piece may
+       move this turn) ── */
+    .dm-forced-badge {
+      position: absolute; top: -6px; right: -6px; width: 20px; height: 20px;
+      border-radius: 50%; background: var(--gold); color: #1a1a1a;
+      display: flex; align-items: center; justify-content: center; font-size: 0.72em;
+      box-shadow: 0 0 0 2px var(--bg), 0 0 8px rgba(242,201,76,0.85);
+      animation: dmForcedPulse 1.1s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes dmForcedPulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.18); }
+    }
+
+    /* ── Move animation: flying piece, trail, capture fade, promotion ──── */
+    .dm-flying-piece {
+      position: absolute; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 1.1em;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.55), inset 0 2px 3px rgba(255,255,255,0.25), inset 0 -3px 4px rgba(0,0,0,0.35);
+      transform: translate(-50%, -50%);
+      transition: left 0.38s cubic-bezier(0.3,0.1,0.2,1), top 0.38s cubic-bezier(0.3,0.1,0.2,1);
+      will-change: left, top;
+      z-index: 3;
+    }
+    .dm-flying-piece.red   { background: radial-gradient(circle at 35% 30%, #e5605a, #a4211c); border: 2px solid #7a1512; }
+    .dm-flying-piece.black { background: radial-gradient(circle at 35% 30%, #55575e, #1c1d21); border: 2px solid #000; }
+
+    .dm-trail-dot {
+      position: absolute; border-radius: 50%;
+      transform: translate(-50%, -50%) scale(0.3);
+      opacity: 0;
+      animation: dmTrailDot 0.55s ease forwards;
+    }
+    .dm-trail-dot.red   { background: rgba(229, 96, 90, 0.75); box-shadow: 0 0 6px rgba(229,96,90,0.6); }
+    .dm-trail-dot.black { background: rgba(180, 182, 190, 0.55); box-shadow: 0 0 6px rgba(180,182,190,0.45); }
+    @keyframes dmTrailDot {
+      0%   { opacity: 0;   transform: translate(-50%, -50%) scale(0.2); }
+      25%  { opacity: 0.9; transform: translate(-50%, -50%) scale(1);   }
+      100% { opacity: 0;   transform: translate(-50%, -50%) scale(0.7); }
+    }
+
+    .dm-capture-victim {
+      animation: dmCaptureFade 0.32s ease forwards;
+    }
+    @keyframes dmCaptureFade {
+      0%   { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.3) rotate(35deg); }
+    }
+
+    .dm-promote-flash {
+      position: absolute; border-radius: 50%;
+      background: radial-gradient(circle, rgba(242,201,76,0.9) 0%, rgba(242,201,76,0) 70%);
+      transform: translate(-50%, -50%) scale(0.2);
+      opacity: 0;
+      animation: dmPromoteFlash 0.6s ease-out forwards;
+    }
+    @keyframes dmPromoteFlash {
+      0%   { opacity: 0;   transform: translate(-50%, -50%) scale(0.2); }
+      35%  { opacity: 1;   transform: translate(-50%, -50%) scale(1.6); }
+      100% { opacity: 0;   transform: translate(-50%, -50%) scale(2.1); }
+    }
+    .dm-flying-piece.promoting {
+      animation: dmPromoteSpin 0.5s ease-in-out;
+    }
+    @keyframes dmPromoteSpin {
+      0%   { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+      50%  { transform: translate(-50%, -50%) scale(1.35) rotate(180deg); }
+      100% { transform: translate(-50%, -50%) scale(1) rotate(360deg); }
+    }
+
+    /* ── "Me" panel captured pieces + coords not needed; reuse player bars ── */
+
+    .dm-controls-row { display: flex; gap: 8px; padding: 4px 2px calc(4px + var(--safe-bottom)); }
+    .dm-controls-row button { flex: 1; border: none; border-radius: 10px; padding: 11px; font-weight: 700; font-size: 0.85em; cursor: pointer; }
+    .dm-resign-btn { background: rgba(242,63,66,0.16); color: var(--danger); }
+    .dm-leave-game-btn { background: var(--surface-2); color: var(--text); }
+
+    .dm-turn-banner {
+      text-align: center; font-size: 0.8em; font-weight: 700; color: var(--muted); padding: 2px 0 4px;
+    }
+    .dm-turn-banner.mine { color: var(--gold); }
+
+    /* ── Game-over overlay ───────────────────────────────────────── */
+    .dm-result-overlay { position: fixed; inset: 0; z-index: 550; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.65); padding: 20px; }
+    .dm-result-overlay.show { display: flex; }
+    .dm-result-box { background: var(--surface); border-radius: 16px; padding: 26px 22px; max-width: 340px; width: 100%; text-align: center; }
+    .dm-result-emoji { font-size: 2.4em; margin-bottom: 8px; }
+    .dm-result-title { font-size: 1.15em; font-weight: 800; margin-bottom: 6px; }
+    .dm-result-sub { color: var(--muted); font-size: 0.86em; margin-bottom: 18px; }
+    .dm-result-actions { display: flex; gap: 8px; }
+    .dm-result-actions button { flex: 1; border: none; border-radius: 10px; padding: 12px; font-weight: 700; cursor: pointer; font-size: 0.88em; }
+    .dm-result-back { background: var(--surface-2); color: var(--text); }
+
+    .dm-invite-bar {
+      position: fixed; left: 12px; right: 12px; bottom: calc(12px + var(--safe-bottom)); z-index: 998;
+      background: var(--surface); border: 1px solid var(--accent); border-radius: 12px;
+      padding: 12px 14px; display: none; align-items: center; gap: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.45); max-width: 420px; margin: 0 auto;
+    }
+    .dm-invite-bar.show { display: flex; }
+    .dm-invite-bar span { flex: 1; font-size: 0.86em; }
+    .dm-invite-bar button { border: none; border-radius: 8px; padding: 7px 12px; font-weight: 700; font-size: 0.85em; cursor: pointer; }
+    .dm-invite-accept { background: var(--good); color: #fff; }
+    .dm-invite-decline { background: var(--surface-2); color: var(--text); }
+
+    #dmToast {
+      position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 18px; border-radius: 20px; font-size: 0.88em;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 600; max-width: 90vw; text-align: center;
+    }
+    #dmToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Chat: header button, unread dot, slide-up panel ─────────────── */
+    .dm-chat-unread-dot {
+      display: none; position: absolute; top: 3px; right: 3px; width: 9px; height: 9px;
+      border-radius: 50%; background: var(--danger); border: 2px solid var(--surface);
+    }
+    .dm-chat-unread-dot.show { display: block; }
+
+    .dm-chat-backdrop {
+      position: fixed; inset: 0; z-index: 560; background: rgba(0,0,0,0.4);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .dm-chat-backdrop.show { opacity: 1; pointer-events: auto; }
+    .dm-chat-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 561;
+      background: var(--surface); border-radius: 16px 16px 0 0; border-top: 1px solid var(--border);
+      max-width: 460px; margin: 0 auto; height: 52vh; max-height: 460px;
+      display: flex; flex-direction: column;
+      transform: translateY(105%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1);
+    }
+    .dm-chat-panel.show { transform: translateY(0); }
+    .dm-chat-panel-header {
+      display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+      font-weight: 700; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .dm-chat-panel-header button { background: rgba(255,255,255,0.08); border: none; color: var(--muted); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; }
+    .dm-chat-messages { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .dm-chat-msg { max-width: 78%; padding: 7px 11px; border-radius: 12px; font-size: 0.85em; line-height: 1.4; }
+    .dm-chat-msg.other { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+    .dm-chat-msg.mine { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+    .dm-chat-msg .dm-chat-author { font-size: 0.76em; font-weight: 700; color: var(--accent-lt); margin-bottom: 2px; }
+    .dm-chat-msg.mine .dm-chat-author { display: none; }
+    .dm-chat-input-row { display: flex; gap: 8px; padding: 10px 14px calc(10px + var(--safe-bottom)); border-top: 1px solid var(--border); flex-shrink: 0; }
+    #dmChatInput { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; color: var(--text); font-size: 16px; padding: 9px 14px; }
+    #dmChatInput:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    #dmChatSendBtn { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--accent); color: #fff; font-size: 1em; cursor: pointer; }
+
+    @keyframes dmBubbleInOut {
+      0%   { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+      10%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      85%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -8px) scale(0.95); }
+    }
+    .dm-speech-bubble {
+      position: absolute; max-width: 150px; background: #fff; color: #1a1a1a;
+      border-radius: 12px; padding: 6px 10px; font-size: 0.76em; font-weight: 600; line-height: 1.3;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.35); text-align: center; z-index: 30;
+      opacity: 0; animation: dmBubbleInOut 3.6s ease forwards; pointer-events: none;
+    }
+    .dm-speech-bubble::after {
+      content: ""; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+      border-width: 6px 6px 0; border-style: solid; border-color: #fff transparent transparent;
+    }
+
+    @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+    /* ── Desktop / big screens — the table gets real room to breathe
+       instead of a mobile-width layout stretched across a wide monitor. ── */
+    @media (min-width: 700px) {
+      body {
+        display: flex; align-items: center; justify-content: center;
+        background: #0e0f13;
+      }
+      #app {
+        width: 100%; max-width: 640px;
+        height: 92vh; height: 92dvh;
+        border-radius: 20px; overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="dmLoading" class="dm-loading"><div class="spinner"></div></div>
+
+  <div id="dmAuthScreen" class="dm-center-screen hidden">
+    <div style="font-size:2.4em;">🔒</div>
+    <p>დამის სათამაშოდ საჭიროა შესვლა.</p>
+    <a href="/">რეგისტრაცია / შესვლა</a>
+  </div>
+
+  <!-- SETUP SCREEN -->
+  <div id="setupScreen" class="dm-screen">
+    <header class="dm-header">
+      <a href="/dashboard.html" class="dm-icon-btn" title="უკან">←</a>
+      <div class="dm-header-title">⚪ დამა</div>
+    </header>
+    <div class="dm-setup-body">
+      <button id="createGameBtn" class="dm-new-game-btn" disabled>➕ ახალი თამაშის შექმნა</button>
+
+      <div class="dm-leaderboard">
+        <div class="dm-leaderboard-label">ტოპ 3 — ყველაზე მეტი გამარჯვება</div>
+        <div class="dm-podium" id="dmPodium">
+          <div class="dm-podium-slot rank-1"><div class="dm-podium-empty">—</div></div>
+          <div class="dm-podium-slot rank-2"><div class="dm-podium-empty">—</div></div>
+          <div class="dm-podium-slot rank-3"><div class="dm-podium-empty">—</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="dm-section-label">მოწვევა — ონლაინ მეგობრები</div>
+        <div id="onlineFriendsList"></div>
+      </div>
+      <div>
+        <div class="dm-section-label">აქტიური თამაშები</div>
+        <div id="publicGameList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobbyScreen" class="dm-screen">
+    <header class="dm-header">
+      <button id="lobbyBackBtn" class="dm-icon-btn" title="უკან">←</button>
+      <div class="dm-header-title">თამაშის ლობი</div>
+      <button id="lobbyChatToggleBtn" class="dm-icon-btn" title="ჩატი" style="position:relative;">
+        💬<span id="lobbyChatUnreadDot" class="dm-chat-unread-dot"></span>
+      </button>
+    </header>
+    <div class="dm-lobby-body">
+      <div id="lobbyPlayers"></div>
+      <div id="lobbyWaitHint" class="dm-lobby-hint"></div>
+    </div>
+    <div class="dm-lobby-actions">
+      <button id="startGameBtn" class="dm-start-btn" style="display:none">⚪ თამაშის დაწყება</button>
+      <button id="lobbyLeaveBtn" class="dm-leave-btn">თამაშის დატოვება</button>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="gameScreen" class="dm-screen">
+    <header class="dm-header">
+      <button id="gameBackBtn" class="dm-icon-btn" title="უკან">←</button>
+      <div class="dm-header-title">⚪ დამა</div>
+      <button id="chatToggleBtn" class="dm-icon-btn" title="ჩატი" style="position:relative;">
+        💬<span id="chatUnreadDot" class="dm-chat-unread-dot"></span>
+      </button>
+    </header>
+    <div class="dm-game-body">
+      <div class="dm-player-bar" id="oppBar">
+        <div class="dm-player-avatar-wrap"><img id="oppAvatar" class="dm-player-avatar" alt="" /></div>
+        <div class="dm-player-info">
+          <div class="dm-player-name"><span class="dm-player-color-dot" id="oppColorDot"></span><span id="oppName"></span></div>
+          <div class="dm-player-captured" id="oppCaptured"></div>
+        </div>
+        <div class="dm-player-timer" id="oppTimer"></div>
+      </div>
+
+      <div class="dm-turn-banner" id="turnBanner"></div>
+      <div class="dm-board-wrap"><div class="dm-board" id="board"></div></div>
+
+      <div class="dm-player-bar" id="meBar">
+        <div class="dm-player-avatar-wrap"><img id="meAvatar" class="dm-player-avatar" alt="" /></div>
+        <div class="dm-player-info">
+          <div class="dm-player-name"><span class="dm-player-color-dot" id="meColorDot"></span><span id="meName"></span></div>
+          <div class="dm-player-captured" id="meCaptured"></div>
+        </div>
+        <div class="dm-player-timer" id="meTimer"></div>
+      </div>
+
+      <div class="dm-controls-row">
+        <button id="resignBtn" class="dm-resign-btn">🏳️ ჩაბარება</button>
+        <button id="leaveGameBtn" class="dm-leave-game-btn">გასვლა</button>
+      </div>
+      <div class="dm-bubble-layer" id="bubbleLayer"></div>
+    </div>
+  </div>
+
+  <div id="dmToast"></div>
+  <div id="dmInviteBar" class="dm-invite-bar"></div>
+</div>
+
+<!-- Game-over overlay -->
+<div id="resultOverlay" class="dm-result-overlay">
+  <div class="dm-result-box">
+    <div class="dm-result-emoji" id="resultEmoji">🏆</div>
+    <div class="dm-result-title" id="resultTitle"></div>
+    <div class="dm-result-sub" id="resultSub"></div>
+    <div class="dm-result-actions">
+      <button class="dm-result-back" id="resultBackBtn">სიაში დაბრუნება</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chat panel — slides up from the bottom, works in both lobby and game -->
+<div id="chatBackdrop" class="dm-chat-backdrop"></div>
+<div id="chatPanel" class="dm-chat-panel">
+  <div class="dm-chat-panel-header">
+    <div>ჩატი</div>
+    <button id="chatCloseBtn">✕</button>
+  </div>
+  <div id="chatMessages" class="dm-chat-messages"></div>
+  <div class="dm-chat-input-row">
+    <input type="text" id="dmChatInput" maxlength="200" placeholder="დაწერე რამე..." />
+    <button id="dmChatSendBtn">➤</button>
+  </div>
+</div>
+
+<script src="/ban-notice.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  (function () {
+    function setAppHeight() {
+      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", h + "px");
+    }
+    setAppHeight();
+    if (window.visualViewport) { window.visualViewport.addEventListener("resize", setAppHeight); window.visualViewport.addEventListener("scroll", setAppHeight); }
+    window.addEventListener("resize", setAppHeight);
+    window.addEventListener("orientationchange", function () { setTimeout(setAppHeight, 200); });
+  })();
+</script>
+<script>
+(function () {
+  "use strict";
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  function $(id) { return document.getElementById(id); }
+  function showToast(msg, ms = 3200) {
+    const t = $("dmToast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), ms);
+  }
+  function loadAuth() {
+    try { return { token: localStorage.getItem("gaicani_auth_token"), username: localStorage.getItem("gaicani_auth_user") }; }
+    catch (_) { return {}; }
+  }
+  function getRoomParam() { return (new URLSearchParams(window.location.search).get("room") || "").trim(); }
+  function setAvatar(container, avatarFile, username) {
+    container.innerHTML = "";
+    if (avatarFile) {
+      const img = document.createElement("img");
+      img.src = "/" + avatarFile;
+      img.alt = username || "";
+      container.appendChild(img);
+    } else {
+      container.textContent = (username || "?").charAt(0).toUpperCase();
+    }
+  }
+
+  const { token, username } = loadAuth();
+  let myUsernameLower = (username || "").toLowerCase();
+
+  const elLoading = $("dmLoading");
+  const elAuth = $("dmAuthScreen");
+  const screens = { setup: $("setupScreen"), lobby: $("lobbyScreen"), game: $("gameScreen") };
+  function showScreen(name) { Object.entries(screens).forEach(([k, el]) => el.classList.toggle("visible", k === name)); }
+
+  /* ── State ───────────────────────────────────────────────────── */
+  let socket = null;
+  let currentRoomId = getRoomParam() || null;
+  let onlineUsers = [];
+  let selectedInvitees = new Set();
+  let latestRoom = null;
+  let myColor = null; // 'r' | 'b' | null
+  let selectedSquare = null;
+  let timerInterval = null;
+
+  /* ── Leaderboard — top 3 by wins, same pattern as Flappy Bird's ──── */
+  const LEADERBOARD_MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
+  function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+  function renderLeaderboard(top3) {
+    const el = $("dmPodium");
+    if (!el) return;
+    const byRank = [1, 2, 3].map(rank => (top3 || [])[rank - 1] || null);
+    el.innerHTML = byRank.map((row, i) => {
+      const rank = i + 1;
+      if (!row) return `<div class="dm-podium-slot rank-${rank}"><div class="dm-podium-medal">${LEADERBOARD_MEDALS[rank]}</div><div class="dm-podium-empty">—</div></div>`;
+      return `
+        <div class="dm-podium-slot rank-${rank}">
+          <div class="dm-podium-medal">${LEADERBOARD_MEDALS[rank]}</div>
+          <div class="dm-podium-name">${esc(row.username)}</div>
+          <div class="dm-podium-score">${esc(String(row.score))}</div>
+        </div>`;
+    }).join("");
+  }
+  async function loadLeaderboardInitial() {
+    try {
+      const r = await fetch("/api/checkers/leaderboard");
+      const d = await r.json();
+      renderLeaderboard(d.top3 || []);
+    } catch (_) { /* leaderboard is non-critical — page still works without it */ }
+  }
+
+  /* ── Setup screen ────────────────────────────────────────────── */
+  function renderOnlineFriends() {
+    const list = $("onlineFriendsList");
+    if (!onlineUsers.length) {
+      list.innerHTML = `<div class="dm-empty-state">ახლა არავინ არის ონლაინ.<br><small>დაელოდე ვინმეს შემოსვლას.</small></div>`;
+      $("createGameBtn").disabled = true;
+      return;
+    }
+    list.innerHTML = "";
+    onlineUsers.forEach(u => {
+      const row = document.createElement("div");
+      row.className = "dm-pick-row" + (selectedInvitees.has(u.username.toLowerCase()) ? " selected" : "");
+      const avatar = document.createElement("div");
+      avatar.className = "dm-pick-avatar";
+      setAvatar(avatar, u.avatar, u.username);
+      const name = document.createElement("div");
+      name.className = "dm-pick-name";
+      name.textContent = u.username + (u.isGuest ? " (სტუმარი)" : "");
+      const check = document.createElement("div");
+      check.className = "dm-pick-check";
+      check.textContent = "✓";
+      row.appendChild(avatar); row.appendChild(name); row.appendChild(check);
+      row.addEventListener("click", () => {
+        const lc = u.username.toLowerCase();
+        if (selectedInvitees.has(lc)) selectedInvitees.delete(lc); else selectedInvitees.add(lc);
+        row.classList.toggle("selected");
+        $("createGameBtn").disabled = selectedInvitees.size === 0;
+      });
+      list.appendChild(row);
+    });
+    $("createGameBtn").disabled = selectedInvitees.size === 0;
+  }
+
+  function renderPublicGames(rooms) {
+    const list = $("publicGameList");
+    list.innerHTML = "";
+    if (!rooms || !rooms.length) {
+      list.innerHTML = `<div class="dm-empty-state">ახლა აქტიური თამაში არ არის.</div>`;
+      return;
+    }
+    rooms.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "dm-public-row";
+      const info = document.createElement("div");
+      info.className = "dm-public-info";
+      const host = document.createElement("div");
+      host.className = "dm-public-host";
+      host.textContent = "⚪ " + r.hostUsername + "-ის თამაში";
+      const meta = document.createElement("div");
+      meta.className = "dm-public-meta";
+      meta.textContent = `${r.playerCount}/${r.maxPlayers} მოთამაშე · ${r.status === "playing" ? "მიმდინარეობს" : "ლობი"}`;
+      info.appendChild(host); info.appendChild(meta);
+      const btn = document.createElement("button");
+      btn.className = "dm-join-btn";
+      btn.textContent = "შემოერთება";
+      btn.addEventListener("click", () => socket.emit("checkers:join", { roomId: r.roomId }));
+      row.appendChild(info); row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
+  $("createGameBtn").addEventListener("click", () => {
+    socket.emit("checkers:invite", { toUsernames: [...selectedInvitees] });
+  });
+
+  /* ── Lobby screen ────────────────────────────────────────────── */
+  let isHost = false;
+  function renderLobby(room) {
+    isHost = room.hostUsername.toLowerCase() === myUsernameLower;
+    const list = $("lobbyPlayers");
+    list.innerHTML = "";
+    room.players.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "dm-lobby-player";
+      const avatar = document.createElement("div");
+      avatar.className = "dm-pick-avatar";
+      setAvatar(avatar, p.avatar, p.username);
+      const name = document.createElement("div");
+      name.className = "dm-pick-name";
+      name.textContent = p.username;
+      row.appendChild(avatar); row.appendChild(name);
+      if (p.username.toLowerCase() === room.hostUsername.toLowerCase()) {
+        const tag = document.createElement("span"); tag.className = "dm-lobby-tag"; tag.textContent = "მასპინძელი"; row.appendChild(tag);
+      }
+      list.appendChild(row);
+    });
+    $("startGameBtn").style.display = isHost ? "block" : "none";
+    $("startGameBtn").disabled = room.players.length !== 2;
+    $("lobbyWaitHint").textContent = isHost
+      ? (room.players.length < 2 ? "დაელოდე მეგობრის შემოერთებას." : "მზად ხარ დასაწყებად!")
+      : "მასპინძლის მოლოდინში...";
+  }
+
+  /* ── Board rendering ─────────────────────────────────────────── */
+  function buildBoardSquares() {
+    const board = $("board");
+    board.innerHTML = "";
+    for (let i = 0; i < 64; i++) {
+      const sqEl = document.createElement("div");
+      sqEl.className = "dm-sq";
+      board.appendChild(sqEl);
+    }
+    // 65th child, appended last — outside the 0-63 index range renderBoard()
+    // iterates, so it's never touched by the per-square render loop. Hosts
+    // the flying piece / trail dots / promotion flash during a move animation.
+    const animLayer = document.createElement("div");
+    animLayer.className = "dm-anim-layer";
+    animLayer.id = "dmAnimLayer";
+    board.appendChild(animLayer);
+  }
+  buildBoardSquares();
+
+  // Visual grid position → actual board square, honoring board flip so each
+  // player sees their own pieces at the bottom (same convention as poker/chess).
+  function gridIndexToSquare(gridIdx) {
+    const row = Math.floor(gridIdx / 8), col = gridIdx % 8;
+    if (myColor === "b") {
+      const file = 7 - col, rank = row;
+      return rank * 8 + file;
+    }
+    const file = col, rank = 7 - row;
+    return rank * 8 + file;
+  }
+
+  // Inverse of the above — needed to find a square's actual on-screen cell
+  // for animation (piece position, trail dots), honoring the same board flip.
+  function squareToGridIndex(square) {
+    const file = square % 8, rank = Math.floor(square / 8);
+    if (myColor === "b") {
+      const col = 7 - file, row = rank;
+      return row * 8 + col;
+    }
+    const col = file, row = 7 - rank;
+    return row * 8 + col;
+  }
+
+  function squareCellEl(square) {
+    return $("board").children[squareToGridIndex(square)];
+  }
+
+  // Center of a square in pixels, relative to the board container — the
+  // frame every animated element (flying piece, trail dots) is positioned
+  // against. Works identically regardless of movement direction since it's
+  // purely derived from actual rendered cell positions, not board-relative
+  // assumptions like "forward is up".
+  function squareCenter(square) {
+    const boardEl = $("board");
+    const boardRect = boardEl.getBoundingClientRect();
+    const cellRect = squareCellEl(square).getBoundingClientRect();
+    return {
+      x: (cellRect.left - boardRect.left) + cellRect.width / 2,
+      y: (cellRect.top - boardRect.top) + cellRect.height / 2,
+      size: cellRect.width,
+    };
+  }
+
+  /* ── Move animation ──────────────────────────────────────────────
+     A piece visibly travels from its start square to its destination —
+     for every direction (forward, backward, diagonal — checkers moves are
+     always diagonal, but nothing here assumes which way is "forward"; it's
+     purely based on actual rendered cell positions). A capture chain
+     animates hop by hop with each captured piece fading out as the piece
+     passes over it, and a forced cascade (auto-played moves with no real
+     choice) animates every piece in the sequence, including across a turn
+     change to the opponent. Promotion gets its own flash the instant a
+     piece lands on the back row. */
+  let animationInProgress = false;
+  let lastAnimatedMoveKey = null;
+
+  function isKingChar(p) { return p === "R" || p === "B"; }
+
+  function spawnTrailDots(fromSq, toSq, colorClass, layer) {
+    const a = squareCenter(fromSq), b = squareCenter(toSq);
+    // A flying king can travel several squares in one move — scale the
+    // trail density to the actual distance so a long hop doesn't look
+    // sparser than a short one (diagonal moves always have equal file/rank
+    // distance, so this is just the number of squares crossed).
+    const boardDistance = Math.abs((fromSq % 8) - (toSq % 8)) || 1;
+    const dotCount = Math.min(14, Math.max(5, boardDistance * 2));
+    for (let i = 1; i <= dotCount; i++) {
+      const t = i / (dotCount + 1);
+      const dot = document.createElement("div");
+      dot.className = "dm-trail-dot " + colorClass;
+      const size = a.size * 0.16;
+      dot.style.width = dot.style.height = size + "px";
+      dot.style.left = (a.x + (b.x - a.x) * t) + "px";
+      dot.style.top = (a.y + (b.y - a.y) * t) + "px";
+      dot.style.animationDelay = (t * 220) + "ms";
+      layer.appendChild(dot);
+      setTimeout(() => dot.remove(), 900);
+    }
+  }
+
+  function animateSegment(segment, prevBoard, newBoard, layer) {
+    return new Promise(resolve => {
+      const path = segment.path;
+      const startSq = path[0];
+      const finalSq = path[path.length - 1];
+      const piece = prevBoard[startSq];
+      if (!piece) { resolve(); return; } // defensive — shouldn't happen with a well-formed segment
+      const colorClass = piece.toLowerCase() === "r" ? "red" : "black";
+      const wasKing = isKingChar(piece);
+      const becameKing = !wasKing && isKingChar(newBoard[finalSq]);
+
+      const startCell = squareCellEl(startSq);
+      const realStartPiece = startCell.querySelector(".dm-piece");
+      if (realStartPiece) realStartPiece.style.visibility = "hidden";
+
+      const flying = document.createElement("div");
+      flying.className = "dm-flying-piece " + colorClass;
+      const startCenter = squareCenter(startSq);
+      flying.style.width = flying.style.height = (startCenter.size * 0.78) + "px";
+      flying.style.left = startCenter.x + "px";
+      flying.style.top = startCenter.y + "px";
+      layer.appendChild(flying);
+      void flying.offsetWidth; // force the browser to commit the start position as a rendered frame — otherwise the very first hop's position change can get coalesced with the initial paint and the transition just gets skipped (piece "teleports" instead of animating)
+
+      let hopIdx = 0;
+      function nextHop() {
+        if (hopIdx >= path.length - 1) {
+          if (becameKing) {
+            flying.textContent = "👑";
+            flying.classList.add("promoting");
+            const flash = document.createElement("div");
+            flash.className = "dm-promote-flash";
+            const c = squareCenter(finalSq);
+            flash.style.width = flash.style.height = (c.size * 1.3) + "px";
+            flash.style.left = c.x + "px";
+            flash.style.top = c.y + "px";
+            layer.appendChild(flash);
+            setTimeout(resolve, 620);
+          } else {
+            setTimeout(resolve, 70);
+          }
+          return;
+        }
+        const fromSq = path[hopIdx], toSq = path[hopIdx + 1];
+        const toCenter = squareCenter(toSq);
+
+        // A flying king can cover several squares in a single hop — scale
+        // how long the glide takes to the actual distance, so a long flight
+        // doesn't look like it's rushing to keep the same pace as a
+        // one-square step. Overrides the CSS's default transition-duration.
+        const hopDistance = Math.abs((fromSq % 8) - (toSq % 8)) || 1;
+        const hopDurationMs = Math.min(900, Math.max(380, hopDistance * 130));
+        flying.style.transitionDuration = hopDurationMs + "ms";
+
+        spawnTrailDots(fromSq, toSq, colorClass, layer);
+
+        const capturedSq = segment.captures[hopIdx];
+        if (capturedSq !== undefined && capturedSq !== null) {
+          const victimEl = squareCellEl(capturedSq).querySelector(".dm-piece");
+          setTimeout(() => { if (victimEl) victimEl.classList.add("dm-capture-victim"); }, hopDurationMs * 0.45);
+        }
+
+        flying.style.left = toCenter.x + "px";
+        flying.style.top = toCenter.y + "px";
+
+        setTimeout(() => { hopIdx++; nextHop(); }, hopDurationMs + 20);
+      }
+      nextHop();
+    });
+  }
+
+  async function animateCheckersMove(lastMove, prevBoard, newBoard) {
+    if (!lastMove || !lastMove.segments || !lastMove.segments.length) return;
+    animationInProgress = true;
+    const layer = $("dmAnimLayer");
+    layer.innerHTML = "";
+    for (const segment of lastMove.segments) {
+      await animateSegment(segment, prevBoard, newBoard, layer);
+    }
+    layer.innerHTML = "";
+    animationInProgress = false;
+  }
+
+  function renderBoard(room) {
+    const legalFrom = new Map(); // fromSquare -> [{to, capture}]
+    (room.legalMoves || []).forEach(m => {
+      if (!legalFrom.has(m.from)) legalFrom.set(m.from, []);
+      legalFrom.get(m.from).push(m);
+    });
+
+    const lastFrom = room.lastMove ? room.lastMove.from : -1;
+    const lastTo = room.lastMove ? room.lastMove.to : -1;
+
+    const cells = $("board").children;
+    for (let gridIdx = 0; gridIdx < 64; gridIdx++) {
+      const square = gridIndexToSquare(gridIdx);
+      const el = cells[gridIdx];
+      const file = square % 8, rank = Math.floor(square / 8);
+      const isLight = (file + rank) % 2 === 1;
+      el.className = "dm-sq " + (isLight ? "light" : "dark");
+      el.innerHTML = "";
+
+      if (square === lastFrom || square === lastTo) el.classList.add("last-move");
+      if (square === selectedSquare) el.classList.add("selected");
+
+      const piece = room.board[square];
+      if (piece) {
+        const p = document.createElement("div");
+        p.className = "dm-piece " + (piece.toLowerCase() === "r" ? "red" : "black");
+        if (piece === "R" || piece === "B") p.textContent = "👑";
+
+        // Mandatory capture in effect and THIS is one of the pieces forced
+        // to act (legalFrom only ever contains the current mover's own
+        // options, so this naturally only lights up on your own turn with
+        // your own pieces — never shown for the opponent's pieces).
+        const myMoves = legalFrom.get(square);
+        const isForced = piece.toLowerCase() === myColor && myMoves && myMoves.some(m => m.capture !== null);
+        if (isForced) {
+          const badge = document.createElement("div");
+          badge.className = "dm-forced-badge";
+          badge.textContent = "⚡";
+          p.appendChild(badge);
+        }
+
+        el.appendChild(p);
+      }
+
+      if (selectedSquare !== null && legalFrom.has(selectedSquare)) {
+        const dest = legalFrom.get(selectedSquare).find(m => m.to === square);
+        if (dest) {
+          const marker = document.createElement("div");
+          marker.className = "dm-legal-dot";
+          el.appendChild(marker);
+        }
+      }
+
+      if (!isLight) el.onclick = () => onSquareClick(square, legalFrom);
+      else el.onclick = null;
+    }
+  }
+
+  function onSquareClick(square, legalFrom) {
+    if (animationInProgress) return; // let the current move finish animating before accepting the next tap
+    if (!latestRoom || latestRoom.status !== "playing" || latestRoom.result) return;
+    if (myColor !== latestRoom.turn) { showToast("მოწინააღმდეგის სვლის რიგია"); return; }
+    // Mid multi-jump: only the continuing piece may act.
+    if (latestRoom.mustContinueFrom !== null && selectedSquare !== latestRoom.mustContinueFrom) {
+      selectedSquare = latestRoom.mustContinueFrom;
+    }
+
+    if (selectedSquare !== null && legalFrom.has(selectedSquare)) {
+      const dest = legalFrom.get(selectedSquare).find(m => m.to === square);
+      if (dest) {
+        socket.emit("checkers:move", { roomId: currentRoomId, from: selectedSquare, to: square });
+        selectedSquare = null;
+        renderBoard(latestRoom);
+        return;
+      }
+    }
+
+    const piece = latestRoom.board[square];
+    if (latestRoom.mustContinueFrom !== null) { renderBoard(latestRoom); return; } // can't pick a different piece mid-chain
+    if (piece && piece.toLowerCase() === myColor) selectedSquare = square;
+    else selectedSquare = null;
+    renderBoard(latestRoom);
+  }
+
+  function countPieces(board, color) {
+    return board.filter(p => p && p.toLowerCase() === color).length;
+  }
+
+  function clearTimerInterval() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+
+  function renderGame(room) {
+    const prevRoom = latestRoom; // captured before it's overwritten below
+    latestRoom = room;
+    const me = room.players.find(p => p.username.toLowerCase() === myUsernameLower);
+    const opp = room.players.find(p => p.username.toLowerCase() !== myUsernameLower);
+    myColor = me ? me.color : null;
+    if (selectedSquare !== null && room.mustContinueFrom !== null && selectedSquare !== room.mustContinueFrom) selectedSquare = null;
+    if (room.mustContinueFrom !== null) selectedSquare = room.mustContinueFrom;
+
+    if (me) { $("meAvatar").src = "/" + (me.avatar || "avatar1.png"); }
+    $("meName").textContent = (me && me.username) || "";
+    $("meColorDot").style.background = myColor === "r" ? "#c0392b" : "#1c1d21";
+    if (opp) { $("oppAvatar").src = "/" + (opp.avatar || "avatar1.png"); }
+    $("oppName").textContent = (opp && opp.username) || "მოწინააღმდეგე";
+    const oppColor = myColor === "r" ? "b" : "r";
+    $("oppColorDot").style.background = oppColor === "r" ? "#c0392b" : "#1c1d21";
+
+    $("meBar").classList.toggle("turn", room.turn === myColor && room.status === "playing" && !room.result);
+    $("oppBar").classList.toggle("turn", room.turn !== myColor && room.status === "playing" && !room.result);
+
+    $("meCaptured").textContent = "დარჩა: " + countPieces(room.board, myColor);
+    $("oppCaptured").textContent = "დარჩა: " + countPieces(room.board, oppColor);
+
+    const banner = $("turnBanner");
+    if (room.result) { banner.textContent = ""; }
+    else if (room.turn === myColor) {
+      banner.textContent = room.mustContinueFrom !== null ? "განაგრძე აღება!" : "შენი სვლაა";
+      banner.classList.add("mine");
+    } else {
+      banner.textContent = "მოწინააღმდეგის სვლაა";
+      banner.classList.remove("mine");
+    }
+
+    // Animate the move if this is a genuinely new one we haven't shown yet
+    // (not the first render of the game, and there's a real previous board
+    // to animate from).
+    const newMoveKey = room.lastMove ? JSON.stringify(room.lastMove) : null;
+    const shouldAnimate = newMoveKey && newMoveKey !== lastAnimatedMoveKey && prevRoom && prevRoom.board && room.status === "playing";
+    lastAnimatedMoveKey = newMoveKey;
+
+    if (shouldAnimate) {
+      // Render immediately with the OLD board so the pieces about to move
+      // are still shown at their starting squares, then animate on top.
+      renderBoard({ ...room, board: prevRoom.board, legalMoves: [] });
+      animateCheckersMove(room.lastMove, prevRoom.board, room.board).then(() => {
+        renderBoard(room);
+      });
+    } else {
+      renderBoard(room);
+    }
+
+    clearTimerInterval();
+    if (room.moveDeadline && !room.result) {
+      const tick = () => {
+        const msLeft = room.moveDeadline - Date.now();
+        const secs = Math.max(0, Math.ceil(msLeft / 1000));
+        const label = secs + "წმ";
+        const turnIsMe = room.turn === myColor;
+        $("meTimer").textContent = turnIsMe ? label : "";
+        $("oppTimer").textContent = !turnIsMe ? label : "";
+        $("meTimer").classList.toggle("low", turnIsMe && secs <= 15);
+        $("oppTimer").classList.toggle("low", !turnIsMe && secs <= 15);
+        if (msLeft <= 0) clearTimerInterval();
+      };
+      tick();
+      timerInterval = setInterval(tick, 1000);
+    } else {
+      $("meTimer").textContent = ""; $("oppTimer").textContent = "";
+    }
+
+    if (room.result) showGameResult(room);
+    else $("resultOverlay").classList.remove("show");
+  }
+
+  function showGameResult(room) {
+    const r = room.result;
+    const iAmWinner = r.winner && r.winner === myColor;
+    $("resultEmoji").textContent = iAmWinner ? "🏆" : "😔";
+    const reasonText = {
+      "no-pieces": "მოწინააღმდეგეს აღარ დარჩა ქვები", "no-moves": "მოწინააღმდეგეს სვლა არ დარჩა",
+      timeout: "დრო ამოიწურა", resignation: "ჩაბარება",
+    }[r.reason || r.status] || "";
+    $("resultTitle").textContent = iAmWinner ? "შენ მოიგე!" : "წააგე";
+    $("resultSub").textContent = reasonText;
+    $("resultOverlay").classList.add("show");
+  }
+
+  /* ── Navigation ──────────────────────────────────────────────── */
+  /* ── Chat: panel open/close, sending, unread badge, speech bubbles ──── */
+  let chatOpen = false;
+  let chatHasUnread = false;
+
+  function openChat() {
+    chatOpen = true;
+    $("chatPanel").classList.add("show");
+    $("chatBackdrop").classList.add("show");
+    chatHasUnread = false;
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+    setTimeout(() => $("dmChatInput").focus(), 150);
+  }
+  function closeChat() {
+    chatOpen = false;
+    $("chatPanel").classList.remove("show");
+    $("chatBackdrop").classList.remove("show");
+  }
+  $("chatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("lobbyChatToggleBtn").addEventListener("click", () => { chatOpen ? closeChat() : openChat(); });
+  $("chatCloseBtn").addEventListener("click", closeChat);
+  $("chatBackdrop").addEventListener("click", closeChat);
+
+  function appendChatMessage(msg) {
+    const isMine = msg.username.toLowerCase() === myUsernameLower;
+    const row = document.createElement("div");
+    row.className = "dm-chat-msg " + (isMine ? "mine" : "other");
+    const author = document.createElement("div");
+    author.className = "dm-chat-author";
+    author.textContent = msg.username;
+    const body = document.createElement("div");
+    body.textContent = msg.text;
+    row.appendChild(author); row.appendChild(body);
+    $("chatMessages").appendChild(row);
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+
+    if (!chatOpen && !isMine) {
+      chatHasUnread = true;
+      $("chatUnreadDot").classList.add("show");
+      $("lobbyChatUnreadDot").classList.add("show");
+    }
+  }
+
+  function spawnSpeechBubble(msg) {
+    if (!screens.game.classList.contains("visible")) return; // only the game screen has avatars positioned to anchor to
+    const isMine = msg.username.toLowerCase() === myUsernameLower;
+    const anchorEl = isMine ? $("meAvatar") : $("oppAvatar");
+    if (!anchorEl) return;
+    const bodyEl = $("gameScreen").querySelector(".dm-game-body");
+    const bodyRect = bodyEl.getBoundingClientRect();
+    const anchorRect = anchorEl.getBoundingClientRect();
+
+    const bubble = document.createElement("div");
+    bubble.className = "dm-speech-bubble";
+    bubble.textContent = msg.text;
+    const left = (anchorRect.left + anchorRect.width / 2) - bodyRect.left;
+    const top = (anchorRect.top - bodyRect.top) + anchorRect.height + 8;
+    bubble.style.left = left + "px";
+    bubble.style.top = top + "px";
+    bubble.style.transform = "translate(-50%, 0)";
+    $("bubbleLayer").appendChild(bubble);
+    setTimeout(() => bubble.remove(), 3700);
+  }
+
+  function sendChat() {
+    const val = $("dmChatInput").value.trim();
+    if (!val || !currentRoomId) return;
+    socket.emit("checkers:chat", { roomId: currentRoomId, text: val });
+    $("dmChatInput").value = "";
+  }
+  $("dmChatSendBtn").addEventListener("click", sendChat);
+  $("dmChatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+
+  function backToSetup() {
+    currentRoomId = null;
+    latestRoom = null;
+    selectedSquare = null;
+    clearTimerInterval();
+    $("resultOverlay").classList.remove("show");
+    $("chatMessages").innerHTML = "";
+    $("chatUnreadDot").classList.remove("show");
+    $("lobbyChatUnreadDot").classList.remove("show");
+    chatHasUnread = false;
+    closeChat();
+    history.replaceState(null, "", "/checkers.html");
+    showScreen("setup");
+    socket.emit("checkers:listPublicRooms");
+  }
+  $("lobbyBackBtn").addEventListener("click", () => { socket.emit("checkers:leave"); backToSetup(); });
+  $("lobbyLeaveBtn").addEventListener("click", () => { socket.emit("checkers:leave"); backToSetup(); });
+  $("startGameBtn").addEventListener("click", () => { if (currentRoomId) socket.emit("checkers:start", { roomId: currentRoomId }); });
+  $("gameBackBtn").addEventListener("click", backToSetup);
+  $("leaveGameBtn").addEventListener("click", () => {
+    if (latestRoom && !latestRoom.result && latestRoom.status === "playing") {
+      if (!confirm("დატოვება ითვლება ჩაბარებად. გავაგრძელო?")) return;
+      socket.emit("checkers:resign", { roomId: currentRoomId });
+    }
+    socket.emit("checkers:leave");
+    backToSetup();
+  });
+  $("resignBtn").addEventListener("click", () => {
+    if (!currentRoomId) return;
+    if (confirm("დარწმუნებული ხარ, გინდა ჩაბარება?")) socket.emit("checkers:resign", { roomId: currentRoomId });
+  });
+  $("resultBackBtn").addEventListener("click", () => { socket.emit("checkers:leave"); backToSetup(); });
+
+  /* ── Boot ────────────────────────────────────────────────────── */
+  function init() {
+    socket = io(); attachTempBanGuard(socket);
+    socket.on("connect", () => {
+      if (token) socket.emit("auth:token", { token });
+      else socket.emit("auth:guest", { preferredUsername: sessionStorage.getItem("gaicani_guest_username") || null });
+    });
+
+    socket.on("auth:authenticated", ({ username: authedName, isGuest } = {}) => {
+      if (isGuest && authedName) {
+        myUsernameLower = authedName.toLowerCase();
+        try { sessionStorage.setItem("gaicani_guest_username", authedName); } catch (_) {}
+      }
+      elLoading.classList.add("hidden");
+      socket.emit("users:listOnline");
+      socket.emit("checkers:listPublicRooms");
+      loadLeaderboardInitial();
+      if (currentRoomId) socket.emit("checkers:join", { roomId: currentRoomId });
+      else showScreen("setup");
+    });
+    socket.on("auth:invalid", () => { window.location.href = "/"; });
+
+    socket.on("users:onlineList", ({ users }) => {
+      onlineUsers = (users || []).filter(u => u.username.toLowerCase() !== myUsernameLower);
+      renderOnlineFriends();
+    });
+    socket.on("users:onlineChanged", () => socket.emit("users:listOnline"));
+
+    socket.on("checkers:leaderboardUpdate", (top3) => renderLeaderboard(top3 || []));
+    socket.on("checkers:publicRooms", renderPublicGames);
+
+    socket.on("checkers:invited", ({ roomId, fromUsername }) => {
+      const bar = $("dmInviteBar");
+      bar.innerHTML = "";
+      const span = document.createElement("span");
+      span.textContent = `⚪ ${fromUsername}-მა მოგიწვია დამაზე`;
+      const acceptBtn = document.createElement("button");
+      acceptBtn.className = "dm-invite-accept"; acceptBtn.textContent = "✅";
+      const declineBtn = document.createElement("button");
+      declineBtn.className = "dm-invite-decline"; declineBtn.textContent = "❌";
+      bar.appendChild(span); bar.appendChild(acceptBtn); bar.appendChild(declineBtn);
+      bar.classList.add("show");
+      acceptBtn.onclick = () => { bar.classList.remove("show"); socket.emit("checkers:join", { roomId }); };
+      declineBtn.onclick = () => { bar.classList.remove("show"); socket.emit("checkers:declineInvite", { roomId }); };
+    });
+    socket.on("checkers:inviteSent", ({ invited, cooldown }) => {
+      if (invited && invited.length) showToast("მოწვევა გაეგზავნა: " + invited.join(", "));
+      if (cooldown && cooldown.length) showToast(cooldown.join(", ") + " ცოტა ხნის წინ უარი განაცხადა — სცადე მოგვიანებით.");
+    });
+    socket.on("checkers:inviteDeclined", ({ username: who }) => showToast(`${who}-მ უარყო მოწვევა.`));
+
+    socket.on("checkers:room", (room) => {
+      currentRoomId = room.roomId;
+      history.replaceState(null, "", "/checkers.html?room=" + encodeURIComponent(room.roomId));
+      if (room.status === "lobby") { showScreen("lobby"); renderLobby(room); }
+      else { showScreen("game"); renderGame(room); }
+    });
+
+    socket.on("checkers:error", ({ message }) => showToast(message));
+
+    socket.on("checkers:chatMessage", (msg) => {
+      appendChatMessage(msg);
+      spawnSpeechBubble(msg);
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

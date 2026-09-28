@@ -1,0 +1,354 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   flappy-bird.css — "მფრინავი ჩიტი" (Flappy Bird) for GAICANI
+   Reuses the site's existing dark palette (same tokens as PRIVATE-MESSAGING.css
+   / games.css / dashboard.html) so the page doesn't look bolted-on.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fb-bg:         #1e1f22;
+  --fb-surface:    #2b2d31;
+  --fb-border:     #1a1b1e;
+  --fb-text:       #dcddde;
+  --fb-muted:      #72767d;
+  --fb-muted2:     #b5bac1;
+  --fb-accent:     #5865f2;
+  --fb-accent-dk:  #4752c4;
+  --fb-accent-lt:  #a78bfa;
+  --fb-win:        #3ba55d;
+  --fb-lose:       #f23f42;
+  --fb-warn:       #faa61a;
+  --fb-gold:       #f2c94c;   /* nod to the star in the GAICANI logo */
+  --fb-silver:     #c7ccd8;
+  --fb-bronze:     #d98a4a;
+  --fb-radius:     14px;
+  --fb-safe-b:     env(safe-area-inset-bottom, 0px);
+  --fb-safe-t:     env(safe-area-inset-top, 0px);
+  --fb-safe-l:     env(safe-area-inset-left, 0px);
+  --fb-safe-r:     env(safe-area-inset-right, 0px);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  height: 100%;
+  height: 100dvh;
+  height: var(--app-height, 100dvh);
+  background: var(--fb-bg);
+  color: var(--fb-text);
+  font-family: "Segoe UI", Arial, sans-serif;
+  overscroll-behavior-y: contain;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, [role="button"] { touch-action: manipulation; }
+
+/* ── Top bar (same shape as dashboard.html / friend-chat.html) ─────────── */
+.top-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--fb-surface);
+  border-bottom: 1px solid var(--fb-border);
+  padding: 0 16px;
+  padding-left: max(16px, var(--fb-safe-l));
+  padding-right: max(16px, var(--fb-safe-r));
+  padding-top: var(--fb-safe-t);
+  min-height: 52px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.top-bar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.site-name {
+  font-weight: 700; font-size: 1.05em;
+  color: #fff; text-decoration: none; letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+.back-link {
+  font-size: 0.82em; color: var(--fb-accent-lt); text-decoration: none;
+  padding: 5px 9px; border-radius: 6px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.back-link:hover { background: rgba(88,101,242,0.15); }
+.top-bar-username {
+  font-size: 0.82em; color: var(--fb-muted); flex-shrink: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px;
+}
+
+/* ── Loading ─────────────────────────────────────────────────────────────── */
+#fb-loading {
+  display: flex; align-items: center; justify-content: center;
+  min-height: calc(100vh - 52px); min-height: calc(var(--app-height, 100dvh) - 52px);
+}
+.fb-spinner {
+  width: 34px; height: 34px;
+  border: 3px solid rgba(88,101,242,0.2);
+  border-top-color: var(--fb-accent);
+  border-radius: 50%;
+  animation: fbSpin 0.7s linear infinite;
+}
+@keyframes fbSpin { to { transform: rotate(360deg); } }
+
+/* ── Guest gate (not logged in) ─────────────────────────────────────────── */
+#fb-guest-gate {
+  display: none;
+  min-height: calc(100vh - 52px); min-height: calc(var(--app-height, 100dvh) - 52px);
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 32px 24px;
+  text-align: center;
+}
+#fb-guest-gate.visible { display: flex; }
+.fb-guest-icon { font-size: 2.6em; line-height: 1; }
+.fb-guest-message {
+  color: var(--fb-text); font-size: 1.02em; font-weight: 600;
+  max-width: 320px; line-height: 1.5;
+}
+.fb-guest-sub {
+  color: var(--fb-muted); font-size: 0.85em; max-width: 300px; line-height: 1.6;
+}
+.fb-guest-btn {
+  display: inline-block;
+  padding: 12px 26px;
+  background: var(--fb-accent); color: #fff;
+  border-radius: 12px; text-decoration: none;
+  font-weight: 700; font-size: 0.92em;
+  transition: background 0.15s, transform 0.1s;
+}
+.fb-guest-btn:hover  { background: var(--fb-accent-dk); }
+.fb-guest-btn:active { transform: scale(0.97); }
+
+/* ── App shell ───────────────────────────────────────────────────────────── */
+#fb-app {
+  display: none;
+  flex-direction: column;
+  min-height: calc(100vh - 52px); min-height: calc(var(--app-height, 100dvh) - 52px);
+  padding: 12px 12px calc(14px + var(--fb-safe-b));
+  padding-left: max(12px, var(--fb-safe-l));
+  padding-right: max(12px, var(--fb-safe-r));
+  max-width: 460px;
+  margin: 0 auto;
+  gap: 10px;
+}
+#fb-app.visible { display: flex; }
+
+.fb-header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+}
+.fb-title {
+  font-size: 1.08em; font-weight: 800; color: #fff;
+  display: flex; align-items: center; gap: 7px;
+}
+.fb-best-chip {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(242,201,76,0.14);
+  border: 1px solid rgba(242,201,76,0.35);
+  color: var(--fb-gold);
+  padding: 5px 11px;
+  border-radius: 20px;
+  font-size: 0.78em; font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Leaderboard — compact 3-column podium ──────────────────────────────── */
+.fb-leaderboard {
+  background: var(--fb-surface);
+  border-radius: var(--fb-radius);
+  padding: 10px 10px 12px;
+}
+.fb-leaderboard-label {
+  font-size: 0.68em; font-weight: 700; color: var(--fb-muted);
+  text-transform: uppercase; letter-spacing: 0.6px;
+  padding: 0 4px 8px;
+}
+.fb-podium {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: end;
+  gap: 8px;
+}
+.fb-podium-slot {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 10px 4px 8px;
+  min-height: 64px;
+  justify-content: center;
+}
+.fb-podium-slot.rank-1 {
+  order: 2;
+  padding-top: 14px;
+  border-color: rgba(242,201,76,0.4);
+  background: rgba(242,201,76,0.08);
+}
+.fb-podium-slot.rank-2 { order: 1; }
+.fb-podium-slot.rank-3 { order: 3; }
+.fb-podium-medal { font-size: 1.3em; line-height: 1; }
+.fb-podium-name {
+  font-size: 0.74em; font-weight: 700; color: var(--fb-text);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fb-podium-score { font-size: 0.9em; font-weight: 800; color: #fff; }
+.fb-podium-empty { color: var(--fb-muted); font-size: 0.72em; }
+
+/* ── Game area ───────────────────────────────────────────────────────────── */
+.fb-game-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fb-canvas-box {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  aspect-ratio: 400 / 640;
+  max-height: 62vh;
+  border-radius: var(--fb-radius);
+  overflow: hidden;
+  background: #14151a;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+  touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#fbCanvas { display: block; width: 100%; height: 100%; }
+
+/* Live score, shown only while playing */
+.fb-hud-score {
+  position: absolute;
+  top: 14px; left: 0; right: 0;
+  text-align: center;
+  font-size: 2.4em; font-weight: 800; color: #fff;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.6), 0 0 2px rgba(0,0,0,0.8);
+  pointer-events: none;
+  letter-spacing: 0.02em;
+  display: none;
+}
+.fb-hud-score.visible { display: block; }
+
+/* ── Overlays (start / game-over / ad-gate) share this backdrop) ─────────── */
+.fb-overlay {
+  position: absolute; inset: 0;
+  display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px;
+  background: rgba(15,16,20,0.72);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  padding: 20px;
+  text-align: center;
+  animation: fbOverlayIn 0.18s ease both;
+}
+.fb-overlay.visible { display: flex; }
+@keyframes fbOverlayIn {
+  from { opacity: 0; } to { opacity: 1; }
+}
+
+.fb-overlay-title { font-size: 1.3em; font-weight: 800; color: #fff; }
+.fb-overlay-sub { font-size: 0.85em; color: var(--fb-muted2); line-height: 1.5; max-width: 260px; }
+
+.fb-tap-hint {
+  font-size: 0.85em; color: var(--fb-muted2);
+  animation: fbPulse 1.4s ease-in-out infinite;
+}
+@keyframes fbPulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+.fb-score-big { font-size: 3.2em; font-weight: 800; color: var(--fb-gold); line-height: 1; }
+.fb-score-best-line { font-size: 0.85em; color: var(--fb-muted2); }
+.fb-score-best-line strong { color: #fff; }
+.fb-new-best-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(59,165,93,0.16);
+  border: 1px solid rgba(59,165,93,0.4);
+  color: var(--fb-win);
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 0.78em; font-weight: 700;
+}
+
+.fb-restart-btn {
+  border: none; border-radius: 12px;
+  padding: 13px 26px;
+  font-weight: 700; font-size: 0.95em;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--fb-accent) 0%, #4348d4 100%);
+  color: #fff;
+  box-shadow: 0 3px 14px rgba(88,101,242,0.4);
+  transition: filter 0.15s, transform 0.1s;
+}
+.fb-restart-btn:hover  { filter: brightness(1.12); }
+.fb-restart-btn:active { transform: scale(0.96); }
+
+/* Ad gate */
+.fb-ad-icon { font-size: 2em; }
+.fb-ad-progress-track {
+  width: 180px; height: 6px; border-radius: 4px;
+  background: rgba(255,255,255,0.12);
+  overflow: hidden;
+}
+.fb-ad-progress-fill {
+  height: 100%; width: 0%;
+  background: var(--fb-accent);
+  transition: width 0.1s linear;
+}
+.fb-ad-continue-btn {
+  border: none; border-radius: 12px;
+  padding: 12px 24px;
+  font-weight: 700; font-size: 0.92em;
+  cursor: pointer;
+  background: var(--fb-win); color: #fff;
+  transition: filter 0.15s, transform 0.1s, opacity 0.15s;
+}
+.fb-ad-continue-btn:disabled { opacity: 0.4; cursor: default; }
+.fb-ad-continue-btn:not(:disabled):hover  { filter: brightness(1.1); }
+.fb-ad-continue-btn:not(:disabled):active { transform: scale(0.96); }
+
+/* ── Controls hint under the canvas ─────────────────────────────────────── */
+.fb-controls-hint {
+  text-align: center;
+  font-size: 0.74em; color: var(--fb-muted);
+  padding-top: 2px;
+}
+
+/* ── Toast (same shape as dashboard.html) ───────────────────────────────── */
+#fb-toast-container {
+  position: fixed; bottom: calc(20px + var(--fb-safe-b)); left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 8px;
+  align-items: center; z-index: 9999;
+  pointer-events: none;
+  width: 100%; padding: 0 16px;
+}
+.fb-toast {
+  background: var(--fb-surface); border: 1px solid rgba(88,101,242,0.4);
+  color: var(--fb-text); border-radius: 10px;
+  padding: 10px 18px; font-size: 0.85em;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  animation: fbToastIn 0.25s ease;
+  max-width: 320px; text-align: center;
+}
+@keyframes fbToastIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Small screens ───────────────────────────────────────────────────────── */
+@media (max-width: 380px) {
+  .fb-score-big { font-size: 2.6em; }
+  .fb-hud-score { font-size: 2em; }
+  .fb-podium-slot { min-height: 56px; padding: 8px 3px 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ── Pre-round ad gate ─────────────────────────────────────────────────── */
+.fb-gate-btn { margin-top: 14px; }
+.fb-gate-reward {
+  margin-top: 14px;
+  color: #f2c94c;
+  font-weight: 700;
+  max-width: 280px;
+}
