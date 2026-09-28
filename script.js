@@ -91,7 +91,6 @@ const nextBtn        = document.getElementById("nextBtn");
 const scrollToTopBtn = document.getElementById("scrollToTopBtn");
 const blockBtn       = document.getElementById("blockBtn");
 const reportBtn      = document.getElementById("reportBtn");
-const changeNameBtn  = document.getElementById("changeNameBtn");
 const interestsBtn   = document.getElementById("interestsBtn");
 const bioPopup       = document.getElementById("bioPopup");
 const bioInput       = document.getElementById("bioInput");
@@ -1347,7 +1346,7 @@ socket.on("nameAccepted", (acceptedName) => {
 
   // Interests/bio and "change name" now live in the ⋮ menu instead of as
   // separate main-bar buttons — keeps the main bar less cluttered. See
-  // regMenuInt / regMenuChangeName in the dropdown.
+  // regMenuInt in the dropdown.
 
   // Show "ჩემი გვერდი" (My Page / dashboard) — same main-bar-icon treatment
   // as before, not the ⋮ menu (that's reserved for registered users, who
@@ -1838,30 +1837,6 @@ messageInput.addEventListener("input", () => {
   }, 1500);
 });
 
-function openChangeNameModal() {
-  // Guests can't choose a name at all — opening the modal would just offer
-  // a button that hands them back the same "სტუმარი####". Say why instead.
-  if (!window.gaicaniAuthUser) {
-    addSystemMessage("👤 სტუმრებს სახელის შეცვლა არ შეუძლიათ — დარეგისტრირდი, რომ საკუთარი სახელი გქონდეს");
-    return;
-  }
-  // Registered users reuse this modal to change their random-chat display
-  // name, so the box (hidden by default for guests) is revealed for them.
-  nameInput.style.display = "";
-  const guestNotice = document.getElementById("guestNameNotice");
-  if (guestNotice) guestNotice.style.display = "none";
-  nameInput.value         = userName;
-  saveNameBtn.textContent = "Save Name";
-  clearNameError();
-  nameModal.style.display = "flex";
-  const closeBtn = document.getElementById("nameModalClose");
-  if (closeBtn) closeBtn.style.display = "block";
-  setTimeout(() => nameInput.focus(), 50);
-}
-changeNameBtn?.addEventListener("click", openChangeNameModal);
-// Exposed for the same reason as openBioPopup above — "სახელის შეცვლა"
-// lives only in the ⋮ menu now (auth-client.js calls this directly).
-window.openChangeNameModal = openChangeNameModal;
 
 saveNameBtn.addEventListener("click", saveName);
 nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveName(); } });

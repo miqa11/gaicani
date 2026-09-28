@@ -1098,14 +1098,6 @@
     if (typeof window.openBioPopup === "function") window.openBioPopup();
   });
 
-  // სახელის შეცვლა (Change Name) — calls the same modal-opening logic the
-  // old standalone main-bar button used to run, now exposed directly since
-  // that button no longer exists in the DOM at all (moved here entirely).
-  $("regMenuChangeName")?.addEventListener("click", () => {
-    closeRegMenu();
-    if (typeof window.openChangeNameModal === "function") window.openChangeNameModal();
-  });
-
   // ჩემი გვერდი (My Page) — navigate to the full dashboard page
   $("regMenuDash")?.addEventListener("click", () => {
     closeRegMenu();

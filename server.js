@@ -2960,6 +2960,13 @@ io.on("connection", (socket) => {
     //                                          converting their name here would
     //                                          wrongly strand them as a guest.
     const isRealAccount = !!(socket._regUser && !socket._regUser.isGuest);
+    // Names can't be chosen or changed: a real account always appears under
+    // its own account name. Enforced here, so sending setName by hand with
+    // another name changes nothing.
+    if (isRealAccount) trimmed = socket._regUser.username;
+    // A guest who already has a guest name keeps it, instead of drawing a new
+    // random number on every setName.
+    if (!isRealAccount && socket.userName && GUEST_NAME_RE.test(socket.userName)) trimmed = socket.userName;
     if (!isRealAccount && !GUEST_NAME_RE.test(trimmed) && !authReservedNames.has(trimmed.toLowerCase())) {
       // Reuse this socket's existing guest identity if it has one, so random
       // chat and the rest of the site show the SAME name, not two different

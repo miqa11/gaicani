@@ -409,10 +409,6 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
             <span class="reg-menu-icon">🎨</span>
             <span class="reg-menu-label">გარეგნობა</span>
           </button>
-          <button class="reg-menu-item" id="regMenuChangeName" data-action="changeName">
-            <span class="reg-menu-icon">✏️</span>
-            <span class="reg-menu-label">სახელის შეცვლა</span>
-          </button>
           <button class="reg-menu-item" id="regMenuGames" data-action="games">
             <span class="reg-menu-icon">🎮</span>
             <span class="reg-menu-label">Games</span>
@@ -560,10 +556,9 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
           </div>
         </div>
 
-        <!-- Guests can't choose a name — the server assigns "სტუმარი####".
-             The box stays in the DOM (hidden) because registered users reuse
-             this same modal to change their random-chat display name, and
-             openChangeNameModal() reveals it for them. -->
+        <!-- Guests can't choose a name — the server assigns "სტუმარი####", and
+             registered users always appear under their account name. The box
+             stays in the DOM (hidden) because the automatic login fills it in. -->
         <div id="guestNameNotice" class="guest-name-notice">
           👤 სტუმრად შეხვალ ავტომატური სახელით — <strong>სტუმარი####</strong><br>
           <span class="guest-name-notice-sub">საკუთარი სახელისთვის დარეგისტრირდი</span>
