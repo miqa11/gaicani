@@ -477,6 +477,7 @@
     if (!token) { showRegisterGate(); return; }
 
     socket = io();
+    if (typeof attachTempBanGuard === "function") attachTempBanGuard(socket);
     socket.on("connect", () => {
       socket.emit("auth:token", { token });
     });
