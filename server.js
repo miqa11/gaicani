@@ -463,6 +463,7 @@ const ROUTE = {
   tempBan:      "/w4qd7np2xb8", // POST: 24h IP block with a shown reason
   tempBansList: "/j3nc6wp0xz5", // GET: list currently-active 24h blocks
   unbanTemp:    "/k9vd4qz2ym8", // POST: lift a 24h block early
+  nameBlock:    "/q3vn8ys5ke1", // POST: block an account for an offensive name (forces a rename)
 };
 
 // ── Sensitive-URL visitor log ─────────────────────────────────────────────────
@@ -1525,6 +1526,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Accounts blocked for an offensive name can use nothing but the rename ──
+const NAME_BLOCK_ALLOWED = new Set(["/auth/verify", "/auth/login", "/auth/logout", "/auth/rename-required", "/auth/delete-account", "/challenge"]);
+app.use("/api", (req, res, next) => {
+  const token = (req.headers.authorization || "").replace("Bearer ", "");
+  if (!token || NAME_BLOCK_ALLOWED.has(req.path)) return next();
+  const entry = authTokens.get(token);
+  const user = entry && registeredUsers.get(entry.usernameLower);
+  if (user && user.nameBlocked) return res.status(403).json({ error: "ანგარიში დაბლოკილია შეურაცხმყოფელი სახელის გამო", nameBlocked: true });
+  next();
+});
+
 app.use(express.static(path.join(__dirname)));
 // Uploaded private-chat photos live outside __dirname (see PRIVATE_PHOTOS_DIR
 // above), so they need their own explicit static route to be reachable.
@@ -1746,6 +1758,7 @@ app.get(ROUTE.regUsers, ownerOnly, (req, res) => {
       isAdmin: !!u.isAdmin,
       isPro: !!u.isPro,
       isGuest: !!u.isGuest,
+      nameBlocked: !!u.nameBlocked,
       isBanned: u.lastIP ? bannedIPs.has(u.lastIP) : false,
     });
   }
@@ -1880,6 +1893,30 @@ app.post(ROUTE.setPro, ownerOnly, (req, res) => {
 
   console.log(`[ADMIN] ${pro ? "Granted" : "Revoked"} pro status for "${user.username}"`);
   res.json({ success: true, username: user.username, isPro: pro, notifiedSockets: notified });
+});
+
+// POST <nameBlock route>?username=x&block=true|false — block an account for an
+// offensive name. It's logged out everywhere and must choose a new name.
+app.post(ROUTE.nameBlock, ownerOnly, (req, res) => {
+  const lc = String(req.query.username || "").trim().toLowerCase();
+  const block = req.query.block !== "false";
+  const user = registeredUsers.get(lc);
+  if (!user) return res.status(404).json({ error: "user not found" });
+  if (user.isGuest) return res.status(400).json({ error: "guests have no account name" });
+  if (user.isAdmin) return res.status(403).json({ error: "admin accounts can't be name-blocked" });
+  user.nameBlocked = block;
+  if (block) user.nameBlockedAt = new Date().toISOString(); else delete user.nameBlockedAt;
+  saveAuthUsers();
+  let kicked = 0;
+  if (block) {
+    for (const sid of [...(onlineRegSockets.get(lc) || [])]) {
+      const sk = io.sockets.sockets.get(sid);
+      if (sk) { sk.emit("account:nameBlocked", { username: user.username }); setTimeout(() => sk.disconnect(true), 400); kicked++; }
+    }
+    io.emit("users:onlineChanged");
+  }
+  console.log(`[ADMIN] ${block ? "Name-blocked" : "Lifted the name block on"} "${user.username}"`);
+  res.json({ success: true, username: user.username, nameBlocked: block, kickedSockets: kicked });
 });
 
 // POST <tempBan route>?ip=1.2.3.4&username=x  — block an IP for 24 hours.
@@ -2370,9 +2407,10 @@ function renderRegUsersTable(list) {
     list.map(u => {
       const lastSeen = u.lastIPAt ? new Date(u.lastIPAt).toLocaleString() : "never logged in";
       const proBadge = u.isPro ? '<span class="badge" style="background:rgba(242,201,76,.2);color:#f2c94c">\u2B50 pro</span>' : '';
+      const nameBadge = u.nameBlocked ? '<span class="badge" style="background:rgba(242,63,66,.2);color:#f23f42">🚫 bad name</span>' : '';
       const statusHtml = (u.isBanned
         ? '<span class="badge" style="background:rgba(242,63,66,.2);color:#f23f42">🔒 IP banned</span>'
-        : (u.isAdmin ? '<span class="badge green">admin</span>' : '')) + proBadge;
+        : (u.isAdmin ? '<span class="badge green">admin</span>' : '')) + proBadge + nameBadge;
       const actionHtml = u.lastIP
         ? (u.isBanned
             ? \`<button class="unban-btn" onclick="unbanIP('\${esc(u.lastIP)}')">✅ Unban</button>\`
@@ -2382,6 +2420,7 @@ function renderRegUsersTable(list) {
         ? \`<button class="ban-btn" style="margin-left:6px;background:#8a6d1f" onclick="tempBan('\${esc(u.lastIP)}','\${esc(u.username)}')">\u23F1 24h block</button>\`
         : '';
       const proBtnHtml = \`<button class="\${u.isPro ? "unban-btn" : "ban-btn"}" style="margin-left:6px;\${u.isPro ? "" : "background:#8a6d1f"}" onclick="setProStatus('\${esc(u.username)}', \${u.isPro ? "false" : "true"})">\${u.isPro ? "\u2B50 Revoke pro" : "\u2B50 Grant pro"}</button>\`;
+      const nameBtnHtml = u.isAdmin ? '' : \`<button class="\${u.nameBlocked ? "unban-btn" : "ban-btn"}" style="margin-left:6px;\${u.nameBlocked ? "" : "background:#a0422a"}" onclick="setNameBlock('\${esc(u.username)}', \${u.nameBlocked ? "false" : "true"})">\${u.nameBlocked ? "✅ Unblock name" : "🚫 Bad name"}</button>\`;
       const delHtml = u.isAdmin
         ? '<span class="hint">protected</span>'
         : \`<button class="ban-btn" style="margin-left:6px" onclick="deleteUser('\${esc(u.username)}')">🗑 Delete + ban</button>\`;
@@ -2390,7 +2429,7 @@ function renderRegUsersTable(list) {
         <td style="font-family:monospace;color:#b5bac1">\${esc(u.lastIP || "—")}</td>
         <td style="color:#b5bac1;font-size:.85em">\${esc(lastSeen)}</td>
         <td>\${statusHtml}</td>
-        <td style="white-space:nowrap">\${actionHtml}\${tempHtml}\${proBtnHtml}\${delHtml}</td>
+        <td style="white-space:nowrap">\${actionHtml}\${tempHtml}\${proBtnHtml}\${nameBtnHtml}\${delHtml}</td>
       </tr>\`;
     }).join("") + "</table>";
 }
@@ -2418,6 +2457,15 @@ async function setProStatus(username, makeProBool) {
     setStatus(\`✅ \${r.isPro ? "Granted" : "Revoked"} pro for \${r.username}\`);
     loadAll();
   } catch(e) { alert("Failed: " + e.message); }
+}
+
+async function setNameBlock(username, block) {
+  if (!confirm(block ? 'Block "' + username + '" for an offensive name? They are logged out everywhere and must choose a new name to continue.' : 'Lift the name block on "' + username + '"? They keep their current name.')) return;
+  try {
+    const r = await api("POST", R.nameBlock + "?username=" + encodeURIComponent(username) + "&block=" + block);
+    setStatus(r.success ? (block ? "Name-blocked " : "Lifted name block on ") + r.username : "Failed: " + (r.error || "unknown"));
+    loadAll();
+  } catch (e) { alert("Failed: " + e.message); }
 }
 
 async function unbanReportedIP(ip) {
@@ -2846,6 +2894,17 @@ function mediaRateLimited(socket, key, maxPerWindow, windowMs) {
 
 // ── Socket handlers ───────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
+  // Connection health check. Pages send this when the user comes back to the
+  // site: phones freeze pages in the background and can leave a dead
+  // connection that still looks open. An answer means the link is alive.
+  socket.on("conn:ping", (ack) => { if (typeof ack === "function") ack(1); });
+  socket.on("conn:replaced", (data) => {
+    const oldId = data && typeof data.oldId === "string" ? data.oldId.slice(0, 40) : null;
+    if (!oldId || oldId === socket.id) return;
+    socket._replacesId = oldId;
+    evictGhostOf(socket);          // may have to wait until this socket has logged in
+  });
+
   // ── Capture real IP (works behind proxies like nginx/Render/Railway) ────────
   const rawIP =
     socket.handshake.headers["x-forwarded-for"]?.split(",")[0].trim() ||
@@ -2906,6 +2965,7 @@ io.on("connection", (socket) => {
 
   // ── Username registration ────────────────────────────────────────────────
   socket.on("setName", (data) => {
+    evictGhostOf(socket);   // an app-switch ghost of this user must let go before we resume
     // Accept either plain string (legacy) or { name, token, powAnswer } object
     let name, token, powAnswer, webdriver;
     if (typeof data === "string") {
@@ -3180,9 +3240,15 @@ io.on("connection", (socket) => {
     const socketIsPro        = socket._regUser ? !!registeredUsers.get(socket._regUser.usernameLower)?.isPro : false;
     const partnerSocketIsPro = partnerSocket._regUser ? !!registeredUsers.get(partnerSocket._regUser.usernameLower)?.isPro : false;
 
-    socket.emit("partnerFound",        { name: partnerSocket.userName, sharedTags, partnerBio: partnerSocket.bio, partnerIsPro: partnerSocketIsPro });
+    // Registered partners also share their avatar and profile details, so a
+    // tap on their picture or name can show a profile popup. Guests have none.
+    const regOf = (sock) => (sock._regUser && !sock._regUser.isGuest) ? registeredUsers.get(sock._regUser.usernameLower) : null;
+    const socketReg = regOf(socket), partnerReg = regOf(partnerSocket);
+    socket.emit("partnerFound",        { name: partnerSocket.userName, sharedTags, partnerBio: partnerSocket.bio, partnerIsPro: partnerSocketIsPro,
+                                         partnerAvatar: partnerReg ? (partnerReg.avatar || DEFAULT_AVATAR) : null, partnerProfile: publicProfileOf(partnerReg), partnerAccountBio: partnerReg ? (partnerReg.bio || "") : "" });
     recordChatStarted();
-    partnerSocket.emit("partnerFound", { name: socket.userName,        sharedTags, partnerBio: socket.bio, partnerIsPro: socketIsPro });
+    partnerSocket.emit("partnerFound", { name: socket.userName,        sharedTags, partnerBio: socket.bio, partnerIsPro: socketIsPro,
+                                         partnerAvatar: socketReg ? (socketReg.avatar || DEFAULT_AVATAR) : null, partnerProfile: publicProfileOf(socketReg), partnerAccountBio: socketReg ? (socketReg.bio || "") : "" });
 
     // ── Reset anti-bot state for both users ────────────────────────────────
     const now = Date.now();
@@ -4285,6 +4351,131 @@ function recordCheckersWin(winnerLc) {
 // least one live socket connected (i.e. actually online right now), excluding
 // the given username. Used to populate the "who's online" list in the
 // dashboard so registered users can find and add each other as friends.
+// ── Ghost connections after a phone app-switch ────────────────────────────
+// When a phone freezes a page, the server can't tell for ~2 minutes that the
+// old connection is dead. The page reconnects in seconds and tells us which
+// connection it replaces; if that old one belongs to the SAME identity (same
+// guest session or account), we close it now. Its normal disconnect handling
+// parks any random-chat partner, and the new connection resumes the chat.
+function evictGhostOf(sock) {
+  const oldId = sock._replacesId;
+  if (!oldId || oldId === sock.id) return;
+  const old = io.sockets.sockets.get(oldId);
+  if (!old) { sock._replacesId = null; return; }            // already gone
+  if (!(sock._regUser && old._regUser && sock._regUser.usernameLower === old._regUser.usernameLower)) return; // not proven yet
+  sock._replacesId = null;
+  old.disconnect(true);
+}
+
+// ── Name block (admin) → forced rename ────────────────────────────────────
+// An admin can block a registered account for an offensive name. Until the
+// owner picks a new, clean name, the account can't be used for anything; the
+// rename endpoint is the only way out. Renaming an account has to update the
+// name EVERYWHERE it's stored, or friendships and chat history would silently
+// break — renameAccount() below does exactly that.
+// Names retired by a forced rename stay unavailable, so the offensive name
+// can't simply be registered again by someone else.
+function isRetiredName(lc) {
+  for (const [, u] of registeredUsers) if (Array.isArray(u.retiredNames) && u.retiredNames.includes(lc)) return true;
+  return false;
+}
+function validateNewUsername(raw, oldLc) {
+  const clean = String(raw || "").trim();
+  if (clean.length < 2 || clean.length > 20) return { error: "სახელი: 2–20 სიმბოლო" };
+  if (!/^[\w\u10D0-\u10FF\s\-.]+$/.test(clean)) return { error: "სახელი შეიცავს დაუშვებელ სიმბოლოებს" };
+  if (findBannedWord(clean)) return { error: ABUSE_WORD_MESSAGE };
+  if (GUEST_NAME_RE.test(clean)) return { error: "ეს სახელი დაკავებულია" };
+  const lc = clean.toLowerCase();
+  if (lc === oldLc) return { error: "ახალი სახელი ძველისგან უნდა განსხვავდებოდეს" };
+  if (registeredUsers.has(lc) || authReservedNames.has(lc) || activeUsernames.has(lc) || isRetiredName(lc)) return { error: "ეს სახელი უკვე დაკავებულია" };
+  return { clean };
+}
+function renameAccount(oldLc, newName) {
+  const user = registeredUsers.get(oldLc);
+  const oldName = user.username, newLc = newName.toLowerCase();
+  const swap = (v) => (v === oldLc ? newLc : v);
+  const swapKey = (o) => { if (o && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, oldLc)) { o[newLc] = o[oldLc]; delete o[oldLc]; } };
+  // the account itself, its reserved name, live logins
+  registeredUsers.delete(oldLc); user.username = newName; registeredUsers.set(newLc, user);
+  user.retiredNames = [...new Set([...(user.retiredNames || []), oldLc])];   // the old name can't be taken again
+  authReservedNames.delete(oldLc); authReservedNames.add(newLc);
+  for (const [, e] of authTokens) if (e.usernameLower === oldLc) e.usernameLower = newLc;
+  if (onlineRegSockets.has(oldLc)) { onlineRegSockets.set(newLc, onlineRegSockets.get(oldLc)); onlineRegSockets.delete(oldLc); }
+  // everyone else's friends / pending requests / blocks
+  for (const [, u] of registeredUsers) for (const k of ["friends", "pendingRequests", "blockedUsers"]) if (Array.isArray(u[k])) u[k] = u[k].map(swap);
+  // private chats and streaks — their IDs are built from both names
+  for (const [id, room] of [...privateRooms]) {
+    const parts = id.split("::"); if (!parts.includes(oldLc)) continue;
+    privateRooms.delete(id);
+    for (const m of room.messages || []) {
+      m.from = swap(m.from); if (m.reactions) swapKey(m.reactions);
+      if (m.replyTo) { if (m.replyTo.from) m.replyTo.from = swap(m.replyTo.from); if (m.replyTo.fromUsername === oldName) m.replyTo.fromUsername = newName; }
+    }
+    if (room.lastRead) swapKey(room.lastRead);
+    privateRooms.set(privRoomId(swap(parts[0]), swap(parts[1])), room);
+  }
+  for (const [id, st] of [...friendStreaks]) {
+    const parts = id.split("::"); if (!parts.includes(oldLc)) continue;
+    friendStreaks.delete(id); if (st.lastFrom) swapKey(st.lastFrom);
+    friendStreaks.set(privRoomId(swap(parts[0]), swap(parts[1])), st);
+  }
+  // rooms
+  for (const [, r] of chatRooms) {
+    if (r.createdBy === oldLc) { r.createdBy = newLc; r.createdByUsername = newName; }
+    r.members = (r.members || []).map(swap); r.bannedUsers = (r.bannedUsers || []).map(swap);
+    for (const m of r.messages || []) if (m.fromLc === oldLc) { m.fromLc = newLc; m.fromUsername = newName; }
+  }
+  // forum posts, comments and their votes
+  for (const [, p] of forumPosts) {
+    if (p.authorLc === oldLc) { p.authorLc = newLc; p.authorUsername = newName; }
+    if (p.votes) swapKey(p.votes);
+    for (const c of p.comments || []) { if (c.authorLc === oldLc) { c.authorLc = newLc; c.authorUsername = newName; } if (c.votes) swapKey(c.votes); }
+  }
+  // admin report history + small per-user records
+  if (accountReportLog.has(oldLc)) { accountReportLog.set(newLc, accountReportLog.get(oldLc)); accountReportLog.delete(oldLc); }
+  for (const [, arr] of accountReportLog) for (const e of arr || []) { if (e.reportedBy === oldLc) e.reportedBy = newLc; else if (e.reportedBy === oldName) e.reportedBy = newName; }
+  if (flappyLastSubmit.has(oldLc)) { flappyLastSubmit.set(newLc, flappyLastSubmit.get(oldLc)); flappyLastSubmit.delete(oldLc); }
+  saveAuthUsers(); savePrivateMsgs(); saveStreaks(); saveChatRooms(); saveForum();
+  return { oldName, newName };
+}
+
+// ── Profile details (Tinder-style, all optional) ─────────────────────────
+// age · gender · city · study · work. Shown in profile popups and to your
+// random-chat partner, so every field is optional and short. Age must be
+// 18+: the site's terms are 18+, and once someone tells us they're a minor
+// we don't let them into anonymous stranger chat.
+const PROFILE_TEXT_MAX = 40;
+const PROFILE_GENDERS = new Set(["male", "female"]);
+function sanitizeProfile(input) {
+  const src = (input && typeof input === "object") ? input : {};
+  const out = {};
+  if (src.age !== undefined && src.age !== null && String(src.age).trim() !== "") {
+    const age = Number(src.age);
+    if (!Number.isInteger(age)) return { error: "ასაკი უნდა იყოს რიცხვი" };
+    if (age < 18) return { error: "საიტი მხოლოდ 18+ მომხმარებლებისთვისაა" };
+    if (age > 99) return { error: "ასაკი: 18–99" };
+    out.age = age;
+  }
+  if (src.gender !== undefined && src.gender !== null && src.gender !== "") {
+    if (!PROFILE_GENDERS.has(src.gender)) return { error: "არასწორი სქესი" };
+    out.gender = src.gender;
+  }
+  for (const key of ["city", "study", "work"]) {
+    if (typeof src[key] !== "string") continue;
+    const v = src[key].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, PROFILE_TEXT_MAX);
+    if (!v) continue;
+    if (findBannedWord(v)) return { error: ABUSE_WORD_MESSAGE };
+    out[key] = v;
+  }
+  return { profile: out };
+}
+// What other people are allowed to see. Guests have no profile.
+function publicProfileOf(u) {
+  if (!u || u.isGuest) return null;
+  const p = u.profile || {};
+  return { age: p.age || null, gender: p.gender || "", city: p.city || "", study: p.study || "", work: p.work || "" };
+}
+
 // ── Flappy Bird ad-free reward ───────────────────────────────────────────
 // A registered user who reaches this score (validated by the existing
 // flappy anti-cheat) gets this long without ads, site-wide.
@@ -4317,7 +4508,7 @@ function generateGuestName() {
 // shown to others: the online list, profile cards, and game-invite checks.
 function isVisiblyOnline(lc) {
   const u = registeredUsers.get(lc);
-  if (u && u.appearOffline) return false;
+  if (u && (u.appearOffline || u.nameBlocked)) return false;
   return !!onlineRegSockets.get(lc)?.size;
 }
 
@@ -4328,7 +4519,7 @@ function getOnlineRegisteredUsers(excludeLc) {
     if (lc === excludeLc) continue;
     const u = registeredUsers.get(lc);
     if (!u) continue;
-    if (u.appearOffline) continue; // chose to appear offline
+    if (u.appearOffline || u.nameBlocked) continue; // chose to appear offline, or name-blocked
     list.push({ username: u.username, avatar: u.avatar || null, bio: u.bio || "", isGuest: !!u.isGuest, isPro: !!u.isPro });
   }
   // Real accounts first, temporary guests after — within each group, alphabetical.
@@ -5032,7 +5223,7 @@ const authLimiter = rateLimit({ windowMs: 15 * 60_000, max: 30, standardHeaders:
 
 // POST /api/auth/register
 app.post("/api/auth/register", authLimiter, express.json({ limit: "5kb" }), async (req, res) => {
-  const { username, password, avatar } = req.body || {};
+  const { username, password, avatar, profile } = req.body || {};
   if (!username || !password || typeof username !== "string" || typeof password !== "string")
     return res.status(400).json({ error: "სახელი და პაროლი სავალდებულოა" });
 
@@ -5047,12 +5238,15 @@ app.post("/api/auth/register", authLimiter, express.json({ limit: "5kb" }), asyn
     return res.status(400).json({ error: "პაროლი: 6–100 სიმბოლო" });
 
   const lc = clean.toLowerCase();
-  if (registeredUsers.has(lc))
+  if (registeredUsers.has(lc) || isRetiredName(lc))
     return res.status(409).json({ error: "ეს სახელი უკვე დაკავებულია" });
 
   const chosenAvatar = (typeof avatar === "string" && AVAILABLE_AVATARS.includes(avatar))
     ? avatar
     : DEFAULT_AVATAR;
+
+  const prof = sanitizeProfile(profile);   // optional details — may be empty
+  if (prof.error) return res.status(400).json({ error: prof.error });
 
   const user = {
     username: clean,
@@ -5061,7 +5255,8 @@ app.post("/api/auth/register", authLimiter, express.json({ limit: "5kb" }), asyn
     friends: [],
     pendingRequests: [],
     avatar: chosenAvatar,
-    bio: ""
+    bio: "",
+    profile: prof.profile
   };
 
   registeredUsers.set(lc, user);
@@ -5117,6 +5312,40 @@ app.post("/api/auth/avatar", express.json({ limit: "1kb" }), (req, res) => {
 
 // POST /api/auth/bio — change the logged-in user's interests/bio (shown next to
 // their name in the dashboard's online-users list)
+// POST /api/auth/profile — replace your optional profile details (dashboard editor).
+// POST /api/auth/rename-required — only for accounts an admin name-blocked.
+// Renames the account everywhere and lifts the block.
+app.post("/api/auth/rename-required", authLimiter, express.json({ limit: "1kb" }), (req, res) => {
+  const token = (req.headers.authorization || "").replace("Bearer ", "");
+  const entry = token && authTokens.get(token);
+  if (!entry || Date.now() >= entry.expiry) return res.status(401).json({ error: "გთხოვ, თავიდან შედი ანგარიშზე" });
+  const user = registeredUsers.get(entry.usernameLower);
+  if (!user) return res.status(401).json({ error: "User not found" });
+  if (!user.nameBlocked) return res.status(403).json({ error: "სახელის შეცვლა შეუძლებელია" });
+  const v = validateNewUsername(req.body && req.body.newName, entry.usernameLower);
+  if (v.error) return res.status(400).json({ error: v.error });
+  const { oldName } = renameAccount(entry.usernameLower, v.clean);
+  user.nameBlocked = false; delete user.nameBlockedAt; saveAuthUsers();
+  console.log(`[AUTH] "${oldName}" renamed to "${v.clean}" after a name block`);
+  io.emit("users:onlineChanged");
+  res.json({ success: true, username: v.clean });
+});
+
+app.post("/api/auth/profile", express.json({ limit: "2kb" }), (req, res) => {
+  const token = req.headers.authorization?.replace("Bearer ", "") || req.body?.token;
+  if (!token) return res.status(401).json({ error: "No token" });
+  const entry = authTokens.get(token);
+  if (!entry || Date.now() >= entry.expiry) { authTokens.delete(token); return res.status(401).json({ error: "Token expired" }); }
+  const user = registeredUsers.get(entry.usernameLower);
+  if (!user) return res.status(401).json({ error: "User not found" });
+  if (user.isGuest) return res.status(403).json({ error: "პროფილის შევსება მხოლოდ რეგისტრირებულ მომხმარებლებს შეუძლიათ" });
+  const prof = sanitizeProfile(req.body && req.body.profile);
+  if (prof.error) return res.status(400).json({ error: prof.error });
+  user.profile = prof.profile;
+  saveAuthUsers();
+  res.json({ success: true, profile: publicProfileOf(user) });
+});
+
 app.post("/api/auth/bio", express.json({ limit: "1kb" }), (req, res) => {
   const token = req.headers.authorization?.replace("Bearer ", "") || req.body?.token;
   const { bio } = req.body || {};
@@ -5302,7 +5531,8 @@ app.post("/api/auth/verify", express.json({ limit: "1kb" }), (req, res) => {
     isAdmin: !!user.isAdmin,
     isPro: !!user.isPro,
     adFreeUntil: user.adFreeUntil || 0,
-    appearOffline: !!user.appearOffline
+    appearOffline: !!user.appearOffline,
+    nameBlocked: !!user.nameBlocked
   });
 });
 
@@ -5359,6 +5589,7 @@ app.get("/api/users/profile", (req, res) => {
     isOnline,
     isGuest: !!u.isGuest,
     isPro: !!u.isPro,
+    profile: publicProfileOf(u),
   });
 });
 
@@ -9021,7 +9252,9 @@ io.on("connection", (socket) => {
     const user = registeredUsers.get(entry.usernameLower);
     if (!user) return;
 
+    if (user.nameBlocked) { socket.emit("account:nameBlocked", { username: user.username }); return; }
     socket._regUser = { usernameLower: entry.usernameLower, username: user.username };
+    evictGhostOf(socket);
     socket.userName = user.username;
 
     if (!onlineRegSockets.has(entry.usernameLower)) {
@@ -9075,7 +9308,9 @@ io.on("connection", (socket) => {
     if (!entry || Date.now() >= entry.expiry) { socket.emit("auth:invalid"); return; }
     const user = registeredUsers.get(entry.usernameLower);
     if (!user) return;
+    if (user.nameBlocked) { socket.emit("account:nameBlocked", { username: user.username }); return; }
     socket._regUser = { usernameLower: entry.usernameLower, username: user.username };
+    evictGhostOf(socket);
     socket.userName = user.username;
     // Track the IP this account was last seen using — powers the admin
     // panel's "all registered users" list, so a problem account can be
@@ -9154,6 +9389,7 @@ io.on("connection", (socket) => {
     guestSocketMap.set(socket.id, lc);
 
     socket._regUser = { usernameLower: lc, username, isGuest: true };
+    evictGhostOf(socket);
     socket.userName = username;
     if (!onlineRegSockets.has(lc)) onlineRegSockets.set(lc, new Set());
     onlineRegSockets.get(lc).add(socket.id);

@@ -170,6 +170,17 @@
     if (password.length < 6) { setError("signup-error", "პაროლი მინ. 6 სიმბოლო"); return; }
     if (password !== confirm) { setError("signup-error", "პაროლები არ ემთხვევა"); return; }
 
+    // Optional profile details — the server validates them again.
+    const ageRaw = ($("signup-age")?.value || "").trim();
+    if (ageRaw && Number(ageRaw) < 18) { setError("signup-error", "საიტი მხოლოდ 18+ მომხმარებლებისთვისაა"); return; }
+    const profile = {
+      age: ageRaw || null,
+      gender: $("signup-gender")?.value || "",
+      city: ($("signup-city")?.value || "").trim(),
+      study: ($("signup-study")?.value || "").trim(),
+      work: ($("signup-work")?.value || "").trim(),
+    };
+
     const btn = $("signup-btn");
     if (btn) { btn.disabled = true; btn.textContent = "⏳..."; }
 
@@ -177,7 +188,7 @@
       const r = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, avatar: signupSelectedAvatar }),
+        body: JSON.stringify({ username, password, avatar: signupSelectedAvatar, profile }),
       });
       const d = await r.json();
       if (!r.ok) {

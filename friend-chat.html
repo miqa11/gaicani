@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>GAICANI – პირადი ჩატი</title>
-  <meta name="theme-color" content="#1e1f22" />
+  <meta name="theme-color" content="#130f26" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <link rel="icon" type="image/png" href="/logo.png" />
@@ -870,6 +870,93 @@
       }
     }
   </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wdth,wght@62.5..100,100..900&display=swap" rel="stylesheet">
+  <style id="gaicani-enamel">
+/* ═══════════════════════════════════════════════════════════════════════
+   GAICANI private chat — "Minankari" design layer (matches dashboard and
+   random chat). Georgian cloisonné enamel: jewel fills held by gold lines.
+   VISUAL ONLY — no script, id or behaviour changes. The message-area
+   BACKGROUNDS you and your friend pick keep their exact colours; only the
+   default background becomes enamel night. Remove this <style> block to
+   get the previous look back.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:#130f26; --surface:#1f1a3b; --border:rgba(214,168,79,.16);
+  --accent:#4f6cff; --accent-lt:#93a4ff; --text:#f5f0ff; --muted:#978fb8;
+  --bubble-me:radial-gradient(120% 140% at 0% 0%,rgba(255,255,255,.18),transparent 50%),linear-gradient(135deg,#5b77ff,#6d4dff 60%,#8b55ff);
+  --bubble-me-text:#fff;
+  --bubble-them:linear-gradient(180deg,#2f2858,#241e46);
+  --bubble-them-text:#f3eeff;
+  --gold:#d6a84f; --gold-lt:#f4d98f; --cobalt:#4f6cff; --ruby:#e33b5f; --emerald:#1fc18a; --amethyst:#9d5cff;
+  --cloison:linear-gradient(135deg,rgba(244,217,143,.60),rgba(214,168,79,.16) 42%,rgba(214,168,79,.10) 62%,rgba(244,217,143,.48));
+  --cta:radial-gradient(90% 120% at 50% -20%,rgba(255,255,255,.28),transparent 55%),linear-gradient(135deg,#5b77ff,#6d4dff 55%,#9d5cff);
+  --enamel-night:radial-gradient(700px 420px at 50% -80px,rgba(79,108,255,.17),transparent 70%),radial-gradient(600px 520px at 110% 110%,rgba(157,92,255,.09),transparent 70%),#130f26;
+}
+html, body { font-family: "Noto Sans Georgian",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+button, textarea, input { font-family: inherit; }
+
+/* ── Message area: the DEFAULT background becomes enamel night. The script
+      writes the chosen background inline; only the default one is matched
+      here, so midnight / sunset / ocean / rose / forest / charcoal / amber /
+      aurora stay exactly as picked. ── */
+#fc-messages { background: var(--enamel-night); }
+#fc-messages[style*="rgb(34, 35, 44)"], #fc-messages[style*="#22232c"] { background: var(--enamel-night) !important; }
+.fc-theme-swatch[style*="rgb(34, 35, 44)"], .fc-theme-swatch[style*="#22232c"] {
+  background: radial-gradient(circle at 30% 22%,rgba(79,108,255,.6),transparent 62%), radial-gradient(circle at 80% 90%,rgba(214,168,79,.45),transparent 55%), #130f26 !important;
+}
+#fc-messages::-webkit-scrollbar-thumb { background: rgba(214,168,79,.22); }
+
+/* ── Header: your friend, framed in an enamel ring ── */
+.fc-header { background: rgba(19,15,38,.92); border-bottom: 1px solid rgba(214,168,79,.22); box-shadow: 0 10px 26px -14px rgba(0,0,0,.8); }
+.fc-back { background: rgba(255,255,255,.05); color: var(--gold-lt); box-shadow: inset 0 0 0 1px rgba(214,168,79,.36); }
+.fc-avatar {
+  position: relative; isolation: isolate; overflow: visible;
+  background: linear-gradient(135deg,var(--cobalt),var(--amethyst));
+  box-shadow: 0 0 0 2px #19142f;
+}
+.fc-avatar::before {
+  content: ""; position: absolute; inset: -5px; border-radius: 50%; z-index: -1;
+  background: conic-gradient(var(--cobalt),var(--emerald),var(--gold-lt),var(--ruby),var(--amethyst),var(--cobalt));
+  -webkit-mask: radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2.5px));
+          mask: radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2.5px));
+}
+.fc-avatar img { border-radius: 50%; }
+.fc-name { color: #fff; font-weight: 800; }
+.fc-streak { color: #ffc15e; text-shadow: 0 0 10px rgba(240,185,58,.55); }
+.fc-theme-btn { background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px rgba(214,168,79,.36); }
+
+/* ── Bubbles ── */
+.fc-row:not(.me) .fc-bubble { box-shadow: 0 8px 18px -12px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.05); }
+.fc-row.me .fc-bubble { box-shadow: inset 0 0 0 1px rgba(244,217,143,.30), 0 12px 24px -14px rgba(109,77,255,.95); }
+.fc-meta { color: #9f96c6; }
+.fc-meta-action-btn { color: var(--gold-lt); }
+.fc-row.me .fc-seen.is-seen { color: #aab8ff; }
+.fc-reply-quote { background: rgba(214,168,79,.09); border-left-color: var(--gold); }
+.fc-reply-quote-name { color: var(--gold-lt); }
+.fc-reaction-mine { border-color: var(--gold); background: rgba(214,168,79,.14); }
+.fc-reaction-picker { border: 1px solid transparent; background: linear-gradient(180deg,#261f49,#1c1735) padding-box, var(--cloison) border-box; }
+.fc-question-card { background: linear-gradient(135deg,rgba(79,108,255,.18),rgba(157,92,255,.10)); border-color: rgba(214,168,79,.34); }
+.fc-new-msg-pill { background: var(--cta); box-shadow: 0 10px 24px -10px rgba(109,77,255,.9), inset 0 1px 0 rgba(255,255,255,.25); }
+
+/* ── Input bar ── */
+#fc-input-bar { background: rgba(19,15,38,.95); border-top: 1px solid rgba(214,168,79,.24); box-shadow: 0 -14px 32px -16px rgba(0,0,0,.85); }
+#fc-input { background: #221c42; border-color: rgba(214,168,79,.22); font-family: "Segoe UI", Arial, sans-serif; }  /* keeps the text box on its original font so the placeholder still fits */
+#fc-input:focus { border-color: rgba(244,217,143,.6); box-shadow: 0 0 0 3px rgba(214,168,79,.14); }
+.fc-extra-btn { background: #221c42; border-color: rgba(214,168,79,.36); color: var(--gold-lt); }
+#fc-send { background: var(--cta); box-shadow: 0 8px 18px -8px rgba(109,77,255,.95), inset 0 1px 0 rgba(255,255,255,.3); }
+#fc-reply-preview { background: rgba(214,168,79,.07); border-top-color: rgba(214,168,79,.22); }
+.fc-reply-preview-label, #fc-reply-preview-name { color: var(--gold-lt); }
+
+/* ── Panels ── */
+.fc-theme-sheet, #fc-gif-picker { background: linear-gradient(180deg,#261f49,#1c1735); box-shadow: inset 0 1px 0 rgba(214,168,79,.35), 0 -18px 44px -16px rgba(0,0,0,.85); }
+.profile-card-modal { border: 1px solid transparent; background: linear-gradient(180deg,#261f49,#1c1735) padding-box, var(--cloison) border-box; }
+#fc-toast { border-color: rgba(214,168,79,.30); }
+:where(a, button, textarea, input, [role="button"]):focus-visible { outline: 2px solid var(--gold-lt); outline-offset: 2px; }
+    .pf-chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:10px; }
+    .pf-chip { background:rgba(255,255,255,.07); border:1px solid rgba(214,168,79,.30); border-radius:999px; padding:4px 11px; font-size:.8em; line-height:1.4; }
+  </style>
 </head>
 <body>
 <div id="app">
@@ -1074,7 +1161,7 @@
         <div class="profile-card-avatar">${avatarHtml}</div>
         <div class="profile-card-name">${esc(d.username)}${d.isPro ? ' <span class="pro-star" title="Pro">⭐</span>' : ""}</div>
         ${statusHtml}
-        ${bioHtml}`;
+        ${bioHtml}${profileChipsHTML(d.profile)}`;
     } catch (_) {
       body.innerHTML = '<div class="profile-card-loading">პროფილის ჩატვირთვა ვერ მოხერხდა</div>';
     }
@@ -1144,6 +1231,16 @@
 
   /* ── Main ────────────────────────────────────────────────────── */
   const { token, username } = loadAuth();
+  function profileChipsHTML(p) {
+    if (!p) return "";
+    const c = [];
+    if (p.age) c.push("🎂 " + esc(String(p.age)) + " წლის");
+    if (p.gender === "male") c.push("👨 კაცი"); else if (p.gender === "female") c.push("👩 ქალი");
+    if (p.city) c.push("📍 " + esc(p.city));
+    if (p.study) c.push("🎓 " + esc(p.study));
+    if (p.work) c.push("💼 " + esc(p.work));
+    return c.length ? '<div class="pf-chips">' + c.map(x => '<span class="pf-chip">' + x + "</span>").join("") + "</div>" : "";
+  }
   const friendName = getFriendParam();
   let myIsPro = false; // set from the auth:authenticated payload once connected
   const revealedPhotoIds = new Set(); // photos tapped-to-reveal this session

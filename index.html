@@ -295,6 +295,34 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) :where(button, a, textarea, input, [role="button"]):focus-visible { outline: 2px solid var(--gold-lt); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .partner-found-card { animation: none; } }
   </style>
+  <style id="profile-fields">
+    .pf-chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:10px; }
+    .pf-chip { background:rgba(255,255,255,.07); border:1px solid rgba(214,168,79,.30); border-radius:999px; padding:4px 11px; font-size:.8em; line-height:1.4; }
+    #partnerNameDisplay { cursor: pointer; }
+    .pp-overlay { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(8,6,20,.62); }
+    .pp-card { position:relative; width:100%; max-width:330px; text-align:center; padding:26px 18px 20px; border-radius:22px; color:#f5f0ff;
+      border:1.5px solid transparent; background:linear-gradient(180deg,#261f49,#1a1533) padding-box,
+      linear-gradient(135deg,rgba(244,217,143,.6),rgba(214,168,79,.14) 45%,rgba(244,217,143,.45)) border-box; box-shadow:0 24px 60px -20px rgba(0,0,0,.85); }
+    .pp-close { position:absolute; top:10px; right:12px; width:32px; height:32px; border:none; background:transparent; color:#aaa3c8; font-size:1.1em; cursor:pointer; }
+    .pp-avatar { width:84px; height:84px; margin:0 auto 12px; border-radius:50%; overflow:hidden; display:grid; place-items:center; font-size:2em; font-weight:800;
+      background:linear-gradient(135deg,#4f6cff,#9d5cff); box-shadow:0 0 0 3px #1a1533, 0 0 0 5px #d6a84f; }
+    .pp-avatar img { width:100%; height:100%; object-fit:cover; }
+    .pp-name { font-size:1.25em; font-weight:800; }
+    .pp-bio { margin-top:8px; color:#d2cbec; font-size:.9em; line-height:1.5; } .pp-bio.empty { opacity:.55; font-style:italic; }
+    .pp-guest { margin-top:10px; color:#aaa3c8; font-size:.88em; }
+    body.rc-theme-light .pp-card { background:#fff padding-box, linear-gradient(135deg,#e7c877,#f3e6c4) border-box; color:#222; }
+    body.rc-theme-light .pp-bio, body.rc-theme-light .pp-guest { color:#555; } body.rc-theme-light .pf-chip { background:#f5f3fb; }
+    .signup-extra { margin: 4px 0 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); }
+    .signup-extra > summary { list-style: none; cursor: pointer; padding: 11px 14px; font-weight: 700; font-size: .9em; user-select: none; }
+    .signup-extra > summary::-webkit-details-marker { display: none; }
+    .signup-extra > summary::after { content: "▾"; float: right; opacity: .7; transition: transform .2s; }
+    .signup-extra[open] > summary::after { transform: rotate(180deg); }
+    .signup-extra-opt { font-weight: 400; opacity: .6; font-size: .9em; }
+    .signup-extra-body { padding: 0 12px 12px; margin: 0; }
+    .signup-extra-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .signup-extra select.auth-input { appearance: none; -webkit-appearance: none; }
+    .signup-extra-hint { font-size: .76em; opacity: .7; line-height: 1.45; margin-top: 2px; }
+  </style>
 </head>
 <body>
 
@@ -617,6 +645,26 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 
         <div class="avatar-picker-label">აირჩიე პროფილის სურათი</div>
         <div id="signup-avatar-grid" class="avatar-picker-grid"></div>
+
+        <!-- Optional profile details (Tinder-style). Folded by default so
+             signing up stays as quick as before for anyone who skips it. -->
+        <details class="signup-extra">
+          <summary>✨ დამატებითი ინფორმაცია <span class="signup-extra-opt">(არასავალდებულო)</span></summary>
+          <div class="auth-form-group signup-extra-body">
+            <div class="signup-extra-row">
+              <input id="signup-age" class="auth-input" type="number" inputmode="numeric" min="18" max="99" placeholder="ასაკი (18+)" />
+              <select id="signup-gender" class="auth-input">
+                <option value="">სქესი</option>
+                <option value="male">კაცი</option>
+                <option value="female">ქალი</option>
+              </select>
+            </div>
+            <input id="signup-city" class="auth-input" type="text" maxlength="40" placeholder="ქალაქი (მაგ. თბილისი)" />
+            <input id="signup-study" class="auth-input" type="text" maxlength="40" placeholder="სად სწავლობ (მაგ. თსუ)" />
+            <input id="signup-work" class="auth-input" type="text" maxlength="40" placeholder="სად მუშაობ" />
+            <div class="signup-extra-hint">🔒 ეს ინფორმაცია სხვებსაც გამოუჩნდება — გაუზიარე მხოლოდ ის, რაც გინდა.</div>
+          </div>
+        </details>
 
         <div id="signup-error" class="auth-form-error"></div>
         <button id="signup-btn" class="auth-submit-btn">რეგისტრაცია</button>

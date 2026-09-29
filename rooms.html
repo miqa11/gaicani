@@ -343,7 +343,9 @@
     }
     .rm-report-cancel { background: #40444b; color: var(--text); }
     .rm-report-send { background: var(--danger); color: #fff; }
-  </style>
+      .pf-chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:10px; }
+    .pf-chip { background:rgba(255,255,255,.07); border:1px solid rgba(214,168,79,.30); border-radius:999px; padding:4px 11px; font-size:.8em; line-height:1.4; }
+</style>
 </head>
 <body>
 <div id="app">
@@ -713,6 +715,16 @@
 
       body.appendChild(av); body.appendChild(nameEl);
       body.appendChild(status); body.appendChild(bio);
+      if (d.profile) {                                  // optional details, via textContent
+        const p = d.profile, chips = [];
+        if (p.age) chips.push("🎂 " + p.age + " წლის");
+        if (p.gender === "male") chips.push("👨 კაცი"); else if (p.gender === "female") chips.push("👩 ქალი");
+        if (p.city) chips.push("📍 " + p.city);
+        if (p.study) chips.push("🎓 " + p.study);
+        if (p.work) chips.push("💼 " + p.work);
+        if (chips.length) { const w = document.createElement("div"); w.className = "pf-chips";
+          chips.forEach(t => { const c = document.createElement("span"); c.className = "pf-chip"; c.textContent = t; w.appendChild(c); }); body.appendChild(w); }
+      }
 
       const isMe = (d.username || "").toLowerCase() === myUsernameLower;
       if (!isMe) {

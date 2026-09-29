@@ -1036,6 +1036,20 @@ html, body {
 }
   </style>
   <style id="privacy-settings">
+    .pf-chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:10px; }
+    .pf-chip { background:rgba(255,255,255,.07); border:1px solid rgba(214,168,79,.30); border-radius:999px; padding:4px 11px; font-size:.8em; line-height:1.4; }
+    .pe-backdrop { position:fixed; inset:0; z-index:9000; background:rgba(8,6,20,.62); display:flex; align-items:center; justify-content:center; padding:20px; }
+    .pe-modal { width:100%; max-width:380px; background:linear-gradient(180deg,#261f49,#1c1735); border:1px solid rgba(214,168,79,.35); border-radius:20px; padding:20px 18px; }
+    .pe-title { font-weight:800; font-size:1.1em; margin-bottom:6px; }
+    .pe-sub { color:var(--muted); font-size:.8em; line-height:1.45; margin-bottom:12px; }
+    .pe-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .pe-input { width:100%; box-sizing:border-box; margin-bottom:8px; padding:11px 12px; border-radius:12px; border:1px solid rgba(214,168,79,.25); background:#221c42; color:var(--text); font-size:16px; font-family:inherit; }
+    select.pe-input { appearance:none; -webkit-appearance:none; }
+    .pe-error { color:#ff8aa1; font-size:.82em; min-height:1.2em; margin:2px 0 6px; }
+    .pe-actions { display:flex; gap:8px; justify-content:flex-end; }
+    .pe-cancel, .pe-save { border:none; border-radius:12px; padding:10px 16px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .pe-cancel { background:rgba(255,255,255,.07); color:var(--text); }
+    .pe-save { background:linear-gradient(135deg,#5b77ff,#8b55ff); color:#fff; }
     .privacy-row { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--raised); border-radius:var(--radius-md); padding:14px 16px; margin:10px 12px; }
     .privacy-row + .privacy-row { margin-top: 0; }
     #privacySection { padding-bottom: 2px; }
@@ -1084,6 +1098,7 @@ html, body {
         <div class="user-meta" id="userMeta">რეგისტრირებული მომხმარებელი</div>
         <div class="user-bio-display" id="userBioDisplay" style="display:none"></div>
         <button class="btn-change-avatar" id="changeAvatarBtn">🖼️ სურათის შეცვლა</button>
+        <button class="btn-change-bio" id="editProfileBtn">✨ პროფილის დეტალები — ასაკი, ქალაქი, სწავლა, სამსახური</button>
         <button class="btn-change-bio" id="changeBioBtn">აღწერე შენი თავი მოკლედ  სხვა რეგისტრირებული იუზერებისთვის</button>
         <button class="btn-change-name-guest" id="changeGuestNameBtn" style="display:none">✏️ სახელის შეცვლა</button>
       </div>
@@ -1127,6 +1142,26 @@ html, body {
           <input type="checkbox" id="dndToggleInput">
           <span class="dnd-toggle-slider"></span>
         </label>
+      </div>
+    </div>
+
+    <!-- Profile details editor (registered accounts; opened from the user card) -->
+    <div class="pe-backdrop" id="profileEditBackdrop" style="display:none">
+      <div class="pe-modal" role="dialog" aria-modal="true" aria-labelledby="peTitle">
+        <div class="pe-title" id="peTitle">✨ პროფილის დეტალები</div>
+        <div class="pe-sub">ყველა ველი არასავალდებულოა. ეს ინფორმაცია სხვებსაც გამოუჩნდება — გაუზიარე მხოლოდ ის, რაც გინდა.</div>
+        <div class="pe-row">
+          <input id="peAge" class="pe-input" type="number" inputmode="numeric" min="18" max="99" placeholder="ასაკი (18+)">
+          <select id="peGender" class="pe-input"><option value="">სქესი</option><option value="male">კაცი</option><option value="female">ქალი</option></select>
+        </div>
+        <input id="peCity" class="pe-input" type="text" maxlength="40" placeholder="ქალაქი (მაგ. თბილისი)">
+        <input id="peStudy" class="pe-input" type="text" maxlength="40" placeholder="სად სწავლობ (მაგ. თსუ)">
+        <input id="peWork" class="pe-input" type="text" maxlength="40" placeholder="სად მუშაობ">
+        <div class="pe-error" id="peError"></div>
+        <div class="pe-actions">
+          <button class="pe-cancel" id="peCancel" type="button">გაუქმება</button>
+          <button class="pe-save" id="peSave" type="button">შენახვა</button>
+        </div>
       </div>
     </div>
 
@@ -1568,6 +1603,8 @@ html, body {
       const changeBioBtn = document.getElementById("changeBioBtn");
       if (changeAvatarBtn) changeAvatarBtn.style.display = "none";
       if (changeBioBtn) changeBioBtn.style.display = "none";
+      const editProfileBtn = document.getElementById("editProfileBtn");
+      if (editProfileBtn) editProfileBtn.style.display = "none";
       const changeGuestNameBtn = document.getElementById("changeGuestNameBtn");
       // Guests can no longer choose a name (server rejects auth:guest:rename),
       // so the button stays hidden rather than offering a control that always fails.
@@ -1737,6 +1774,51 @@ html, body {
       document.getElementById("userMeta")?.classList.toggle("is-invisible", e.target.checked);
       showToast(e.target.checked ? "👻 ახლა ოფლაინად ჩანხარ" : "🟢 ახლა ონლაინ ჩანხარ");
     });
+
+function profileChipsHTML(p) {
+      if (!p) return "";
+      const c = [];
+      if (p.age) c.push("🎂 " + esc(String(p.age)) + " წლის");
+      if (p.gender === "male") c.push("👨 კაცი"); else if (p.gender === "female") c.push("👩 ქალი");
+      if (p.city) c.push("📍 " + esc(p.city));
+      if (p.study) c.push("🎓 " + esc(p.study));
+      if (p.work) c.push("💼 " + esc(p.work));
+      return c.length ? '<div class="pf-chips">' + c.map(x => '<span class="pf-chip">' + x + "</span>").join("") + "</div>" : "";
+    }
+
+    /* ── Profile details editor ───────────────────────────────────────── */
+    (function () {
+      const bd = () => document.getElementById("profileEditBackdrop");
+      const $v = (id) => document.getElementById(id);
+      function tokenNow() { const { token } = loadAuth(); return token || authUser?.token; }
+      async function openEditor() {
+        $v("peError").textContent = "";
+        bd().style.display = "flex";
+        try {
+          const r = await fetch(`/api/users/profile?username=${encodeURIComponent(authUser.username)}`, { headers: { Authorization: `Bearer ${tokenNow()}` } });
+          const p = (await r.json()).profile || {};
+          $v("peAge").value = p.age || ""; $v("peGender").value = p.gender || "";
+          $v("peCity").value = p.city || ""; $v("peStudy").value = p.study || ""; $v("peWork").value = p.work || "";
+        } catch (_) {}
+      }
+      async function save() {
+        const age = $v("peAge").value.trim();
+        if (age && Number(age) < 18) { $v("peError").textContent = "საიტი მხოლოდ 18+ მომხმარებლებისთვისაა"; return; }
+        const profile = { age: age || null, gender: $v("peGender").value, city: $v("peCity").value, study: $v("peStudy").value, work: $v("peWork").value };
+        const btn = $v("peSave"); btn.disabled = true;
+        try {
+          const r = await fetch("/api/auth/profile", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenNow()}` }, body: JSON.stringify({ profile }) });
+          const d = await r.json();
+          if (!r.ok) { $v("peError").textContent = d.error || "ვერ შეინახა"; return; }
+          bd().style.display = "none"; showToast("✅ პროფილი განახლდა");
+        } catch (_) { $v("peError").textContent = "კავშირის შეცდომა"; }
+        finally { btn.disabled = false; }
+      }
+      $v("editProfileBtn")?.addEventListener("click", openEditor);
+      $v("peSave")?.addEventListener("click", save);
+      $v("peCancel")?.addEventListener("click", () => { bd().style.display = "none"; });
+      bd()?.addEventListener("click", (e) => { if (e.target === bd()) bd().style.display = "none"; });
+    })();
 
     function setupSocket(token) {
       socket = io(); attachTempBanGuard(socket);
@@ -2220,6 +2302,7 @@ html, body {
         const bioHtml = d.bio
           ? `<div class="profile-card-bio">${esc(d.bio)}</div>`
           : '<div class="profile-card-bio empty">ბიოგრაფია ჯერ არ დაუწერია</div>';
+        const detailsHtml = profileChipsHTML(d.profile);
 
         const isMe = d.username.toLowerCase() === (authUser?.username || "").toLowerCase();
         const isBlocked = blockedUsers.has(d.username.toLowerCase());
@@ -2236,6 +2319,7 @@ html, body {
           <div class="profile-card-name">${esc(d.username)}${d.isPro ? ' <span class="pro-star" title="Pro">⭐</span>' : ""}</div>
           ${statusHtml}
           ${bioHtml}
+          ${detailsHtml}
           <div class="profile-card-actions">
             <button class="profile-card-msg-btn" id="profileCardMsgBtn">💬 პირადი მიწერა</button>
             ${blockBtnHtml}

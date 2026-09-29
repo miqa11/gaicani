@@ -64,6 +64,7 @@ let partnerConnected    = false;
 Object.defineProperty(window, 'partnerConnected', { get: () => partnerConnected });
 let partnerName         = "";
 let partnerIsVip        = false;
+let partnerCardData     = null;   // what the partner profile popup shows
 let isFirstLogin        = true;
 let isReconnecting      = false;
 
@@ -308,6 +309,43 @@ function addSystemImageMessage(imgSrc, altText) {
 }
 
 // ── Partner-found card (avatar + name + status) ─────────────────────────────
+// ── Partner profile popup — tap the partner's card or their name in the
+//    header. All user text goes in via textContent (never innerHTML).
+function openPartnerProfile() {
+  const d = partnerCardData;
+  if (!d) return;
+  document.getElementById("partnerProfileOverlay")?.remove();
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const ov = el("div", "pp-overlay"); ov.id = "partnerProfileOverlay";
+  const card = el("div", "pp-card"); card.setAttribute("role", "dialog"); card.setAttribute("aria-modal", "true");
+  const close = el("button", "pp-close", "✕"); close.type = "button"; close.setAttribute("aria-label", "დახურვა");
+  const av = el("div", "pp-avatar");
+  if (d.avatar) { const img = el("img"); img.src = "/" + d.avatar; img.alt = ""; av.appendChild(img); }
+  else av.textContent = (d.name || "?").charAt(0).toUpperCase();
+  const name = el("div", "pp-name", d.name || "");
+  if (d.isVip) { const v = el("span", "vip-badge"); v.innerHTML = 'VIP <span class="pro-star">⭐</span>'; name.appendChild(v); }
+  card.append(close, av, name);
+  if (!d.profile) {
+    card.appendChild(el("div", "pp-guest", "👤 სტუმარი — ჯერ არ დარეგისტრირებულა"));
+  } else {
+    card.appendChild(el("div", "pp-bio" + (d.bio ? "" : " empty"), d.bio || "ბიოგრაფია ჯერ არ დაუწერია"));
+    const p = d.profile, chips = [];
+    if (p.age) chips.push("🎂 " + p.age + " წლის");
+    if (p.gender === "male") chips.push("👨 კაცი"); else if (p.gender === "female") chips.push("👩 ქალი");
+    if (p.city) chips.push("📍 " + p.city);
+    if (p.study) chips.push("🎓 " + p.study);
+    if (p.work) chips.push("💼 " + p.work);
+    if (chips.length) { const w = el("div", "pf-chips"); chips.forEach(t => w.appendChild(el("span", "pf-chip", t))); card.appendChild(w); }
+  }
+  ov.appendChild(card); document.body.appendChild(ov);
+  const shut = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") shut(); };
+  close.addEventListener("click", shut);
+  ov.addEventListener("click", (e) => { if (e.target === ov) shut(); });
+  document.addEventListener("keydown", onKey);
+}
+document.getElementById("partnerNameDisplay")?.addEventListener("click", () => { if (partnerName) openPartnerProfile(); });
+
 function addPartnerFoundCard(name, isVip) {
   const card       = document.createElement("div");
   card.className   = "partner-found-card";
@@ -337,6 +375,9 @@ function addPartnerFoundCard(name, isVip) {
   info.appendChild(statusEl);
   card.appendChild(avatar);
   card.appendChild(info);
+  card.title = "პროფილის ნახვა";
+  card.style.cursor = "pointer";
+  card.addEventListener("click", openPartnerProfile);   // tap the card → partner's profile
   chat.appendChild(card);
   scheduleScroll();
 
@@ -1281,6 +1322,15 @@ function _doSetName(name) {
 
 // ── Socket events ─────────────────────────────────────────────────────────────
 
+// The connection dropped for a network reason (bad signal, phone app-switch):
+// remember to resume our chat when we're back — the server holds the partner
+// for up to 30 minutes. This trigger was missing, so chats never resumed after
+// any drop. Deliberate closes (a ban, a name block) are not resumed.
+socket.on("disconnect", (reason) => {
+  if (reason === "io server disconnect" || reason === "io client disconnect") return;
+  if (userName && !isFirstLogin) isReconnecting = true;
+});
+
 socket.on("connect", () => {
   _reconnectNameRetries = 0; // reset on every fresh connect
   // Only silently re-auth if the user was already in an active chat (partnerConnected or was searching)
@@ -1456,6 +1506,8 @@ socket.on("partnerFound", (partner) => {
   partnerConnected     = true;
   partnerName          = partner.name || "Anonymous";
   partnerIsVip         = !!partner.partnerIsPro;
+  partnerCardData      = { name: partnerName, isVip: partnerIsVip, bio: partner.partnerAccountBio || partner.partnerBio || "",  // account bio first, else the chat interests line
+                           avatar: partner.partnerAvatar || null, profile: partner.partnerProfile || null };
   lastPartnerName      = "";
   canBlockDisconnected = false;
 
