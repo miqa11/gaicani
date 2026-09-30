@@ -763,6 +763,9 @@ function getOrCreateDay(key) {
       ips: new Set(), sessions: 0, totalDurationMs: 0,
       chats: 0, hours, peakOnline: 0, peakOnlineAt: null,
       newIPs: new Set(),
+      counters: {},                       // messages, forum, games … (see bumpStat)
+      devices: newDeviceSets(),           // unique visitors per device type
+      pages: {},                          // page opens per page
     });
     // Keep only last 14 days
     const keys = [...stats.days.keys()].sort();
@@ -771,6 +774,44 @@ function getOrCreateDay(key) {
   return stats.days.get(key);
 }
 
+// ── Extra activity tracking (aggregate numbers only — no names, no content) ──
+const DEVICE_KINDS = ["ios", "android", "windows", "mac", "linux", "other"];
+function newDeviceSets() { const o = {}; for (const k of DEVICE_KINDS) o[k] = new Set(); return o; }
+function deviceClass(ua) {
+  ua = String(ua || "");
+  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  if (/Android/i.test(ua)) return "android";
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "mac";
+  if (/Linux|CrOS/i.test(ua)) return "linux";
+  return "other";
+}
+function bumpStat(key, n = 1) {
+  const d = getOrCreateDay(todayKey());
+  d.counters[key] = (d.counters[key] || 0) + n;
+  if (!stats.extendedSince) stats.extendedSince = todayKey();
+  statsDirty = true; scheduleStatsSave();
+}
+// Only the site's real pages count — never secret admin/stats addresses or
+// whatever paths bots probe for (this list is shown on the public stats page).
+const PAGE_VIEW_PATHS = (() => {
+  const set = new Set(["/"]);
+  try { for (const f of fs.readdirSync(__dirname)) if (f.endsWith(".html")) set.add("/" + f); } catch { /* keep "/" */ }
+  return set;
+})();
+function recordPageView(pathname) {
+  const pth = String(pathname || "/");
+  if (!PAGE_VIEW_PATHS.has(pth)) return;
+  const d = getOrCreateDay(todayKey());
+  if (!(pth in d.pages) && Object.keys(d.pages).length >= 40) return;
+  d.pages[pth] = (d.pages[pth] || 0) + 1;
+  if (!stats.extendedSince) stats.extendedSince = todayKey();
+  statsDirty = true; scheduleStatsSave();
+}
+// Games are counted when a round starts.
+const STAT_GAME_EVENTS = { "poker:start": "poker", "joker:start": "joker", "chess:start": "chess", "checkers:start": "checkers",
+  "blackjack:start": "blackjack", "imposter:start": "imposter", "drawGuess:start": "drawGuess", "flappy:start": "flappy" };
+
 function getUniqueOnlineIPCount() {
   if (!io) return 0;
   const ips = new Set();
@@ -778,8 +819,10 @@ function getUniqueOnlineIPCount() {
   return ips.size;
 }
 
-function recordConnect(ip) {
+function recordConnect(ip, userAgent) {
   const day = getOrCreateDay(todayKey());
+  day.devices[deviceClass(userAgent)].add(ip);
+  if (!stats.extendedSince) stats.extendedSince = todayKey();
   const hour = tbilisiNow().getUTCHours(); // 0-23, Tbilisi local hour
 
   day.ips.add(ip);
@@ -835,6 +878,9 @@ function _saveStatsToDisk() {
       peakOnline: d.peakOnline,
       peakOnlineAt: d.peakOnlineAt,
       newIPs: [...d.newIPs],
+      counters: d.counters || {},
+      devices: Object.fromEntries(DEVICE_KINDS.map(k => [k, [...(d.devices?.[k] || [])]])),
+      pages: d.pages || {},
     };
   }
   const out = {
@@ -843,6 +889,7 @@ function _saveStatsToDisk() {
     peakOnline: stats.peakOnline,
     peakOnlineAt: stats.peakOnlineAt,
     serverStartedAt: stats.serverStartedAt,
+    extendedSince: stats.extendedSince || null,
   };
   try {
     fs.writeFileSync(STATS_FILE, JSON.stringify(out), "utf8");
@@ -867,8 +914,12 @@ function loadStats() {
         peakOnline: d.peakOnline || 0,
         peakOnlineAt: d.peakOnlineAt || null,
         newIPs: new Set(d.newIPs || []),
+        counters: d.counters || {},
+        devices: Object.fromEntries(DEVICE_KINDS.map(k => [k, new Set((d.devices && d.devices[k]) || [])])),
+        pages: d.pages || {},
       });
     }
+    stats.extendedSince = obj.extendedSince || null;
     stats.allTimeIPs = new Set(obj.allTimeIPs || []);
     stats.peakOnline = obj.peakOnline || 0;
     stats.peakOnlineAt = obj.peakOnlineAt || null;
@@ -1453,6 +1504,7 @@ setInterval(() => {
 
 // (see shouldLogSiteVisit/recordSiteVisit above — skips assets/API/socket.io)
 app.use((req, res, next) => {
+  if (req.method === "GET") recordPageView(req.path);   // stats: page opens
   if (shouldLogSiteVisit(req)) recordSiteVisit(req);
   next();
 });
@@ -2967,6 +3019,7 @@ io.on("connection", (socket) => {
   // site: phones freeze pages in the background and can leave a dead
   // connection that still looks open. An answer means the link is alive.
   socket.on("conn:ping", (ack) => { if (typeof ack === "function") ack(1); });
+  socket.use((packet, next) => { const g = STAT_GAME_EVENTS[packet && packet[0]]; if (g) bumpStat("game:" + g); next(); });
   socket.on("conn:replaced", (data) => {
     const oldId = data && typeof data.oldId === "string" ? data.oldId.slice(0, 40) : null;
     if (!oldId || oldId === socket.id) return;
@@ -3003,7 +3056,7 @@ io.on("connection", (socket) => {
 
   console.log("User connected", socket.id, rawIP);
   socket._connectedAt = Date.now();
-  recordConnect(rawIP);
+  recordConnect(rawIP, socket.handshake.headers["user-agent"]);
 
   // Queue non-Georgian IPs for VirusTotal reputation check
   getCountry(rawIP).then(country => {
@@ -3432,6 +3485,7 @@ io.on("connection", (socket) => {
       socket.partner._messageQueue.push({ text, messageId, replyTo });
     } else {
       socket.partner.emit("message", { text, messageId, replyTo });
+      bumpStat("msgRandom");
     }
   });
 
@@ -3863,38 +3917,80 @@ io.on("connection", (socket) => {
 app.get(ROUTE.statsApi, (req, res) => {
   const now       = Date.now();
   const uptimeSec = Math.floor((now - stats.serverStartedAt) / 1000);
-  const days      = [];
+  const dayKeys   = [...stats.days.keys()].sort();
 
-  for (const dk of [...stats.days.keys()].sort()) {
+  // Sign-ups per day (Tbilisi dates), from account creation times
+  const regsByDay = {};
+  for (const [, u] of registeredUsers) {
+    if (u.isGuest) continue;
+    const t = Date.parse(u.createdAt || "");
+    if (t) { const dk = new Date(t + TBILISI_OFFSET_MS).toISOString().slice(0, 10); regsByDay[dk] = (regsByDay[dk] || 0) + 1; }
+  }
+
+  const days = dayKeys.map((dk, i) => {
     const d          = stats.days.get(dk);
-    const avgDurSec  = d.sessions > 0
-      ? Math.round(d.totalDurationMs / d.sessions / 1000) : 0;
-
-    // Hourly breakdown — serialize Sets to counts
-    const hours = d.hours.map((h, i) => ({
-      hour:     i,           // 0-23, Tbilisi local time
-      label:    i.toString().padStart(2, "0") + ":00",
-      uniqueIPs: h.ips.size,
-      sessions:  h.sessions,
+    const avgDurSec  = d.sessions > 0 ? Math.round(d.totalDurationMs / d.sessions / 1000) : 0;
+    const hours = d.hours.map((h, hi) => ({
+      hour: hi, label: hi.toString().padStart(2, "0") + ":00", uniqueIPs: h.ips.size, sessions: h.sessions,
     }));
+    const peakHour = hours.reduce((best, h) => (h.uniqueIPs > best.uniqueIPs ? h : best), hours[0]);
+    // Did this day's first-time visitors come back? (next day / within the next 7 days we still have)
+    let nextDayReturn = null, weekReturn = null;
+    if (d.newIPs.size && i + 1 < dayKeys.length) {
+      const next = stats.days.get(dayKeys[i + 1]);
+      let back1 = 0, back7 = 0;
+      const later = dayKeys.slice(i + 1, i + 8).map(k => stats.days.get(k));
+      for (const ip of d.newIPs) {
+        if (next.ips.has(ip)) back1++;
+        if (later.some(x => x.ips.has(ip))) back7++;
+      }
+      nextDayReturn = Math.round((back1 / d.newIPs.size) * 100);
+      weekReturn    = Math.round((back7 / d.newIPs.size) * 100);
+    }
+    const devices = {};
+    for (const k of DEVICE_KINDS) devices[k] = d.devices?.[k]?.size || 0;
+    return {
+      date: dk, uniqueIPs: d.ips.size, newIPs: d.newIPs.size, returningIPs: d.ips.size - d.newIPs.size,
+      sessions: d.sessions, avgSessionSec: avgDurSec, chats: d.chats, peakOnline: d.peakOnline,
+      peakOnlineAt: d.peakOnlineAt, peakHour, hours,
+      nextDayReturn, weekReturn, signups: regsByDay[dk] || 0,
+      counters: d.counters || {}, devices, pages: d.pages || {},
+    };
+  });
 
-    // Peak hour (by unique IPs)
-    const peakHour = hours.reduce((best, h) =>
-      h.uniqueIPs > best.uniqueIPs ? h : best, hours[0]);
+  // Community totals — aggregate numbers only, nothing that identifies anyone
+  let accounts = 0, vip = 0, newAccounts7d = 0, friendLinks = 0, profilesFilled = 0;
+  const gender = { male: 0, female: 0 };
+  const ageGroups = { "18–20": 0, "21–25": 0, "26–30": 0, "31–40": 0, "41+": 0 };
+  const weekAgo = now - 7 * 864e5;
+  for (const [, u] of registeredUsers) {
+    if (u.isGuest) continue;
+    accounts++;
+    if (u.isPro) vip++;
+    const t = Date.parse(u.createdAt || ""); if (t && t >= weekAgo) newAccounts7d++;
+    friendLinks += Array.isArray(u.friends) ? u.friends.length : 0;
+    const pr = u.profile || {};
+    if (pr.age || pr.gender || pr.city || pr.study || pr.work) profilesFilled++;
+    if (pr.gender === "male" || pr.gender === "female") gender[pr.gender]++;
+    if (pr.age) { const x = pr.age; ageGroups[x <= 20 ? "18–20" : x <= 25 ? "21–25" : x <= 30 ? "26–30" : x <= 40 ? "31–40" : "41+"]++; }
+  }
+  const yesterday = addDaysUTC(todayUTC(), -1);
+  let activeStreaks = 0, longestStreak = 0;
+  for (const [, st] of friendStreaks) {
+    if (st.count > 0 && st.lastDate && st.lastDate >= yesterday) { activeStreaks++; if (st.count > longestStreak) longestStreak = st.count; }
+  }
+  let privateMessagesStored = 0; for (const [, r] of privateRooms) privateMessagesStored += (r.messages || []).length;
+  let roomMessagesStored = 0;    for (const [, r] of chatRooms) roomMessagesStored += (r.messages || []).length;
+  let forumComments = 0;         for (const [, fp] of forumPosts) forumComments += (fp.comments || []).length;
 
-    days.push({
-      date:          dk,
-      uniqueIPs:     d.ips.size,
-      newIPs:        d.newIPs.size,        // first-time visitors
-      returningIPs:  d.ips.size - d.newIPs.size,
-      sessions:      d.sessions,
-      avgSessionSec: avgDurSec,
-      chats:         d.chats,
-      peakOnline:    d.peakOnline,
-      peakOnlineAt:  d.peakOnlineAt,
-      peakHour,
-      hours,
-    });
+  // Right now
+  const regOnline = new Set(), guestOnline = new Set();
+  let chatting = 0;
+  for (const sk of io.sockets.sockets.values()) {
+    if (sk.partner) chatting++;
+    const r = sk._regUser;
+    if (r && r.isGuest) guestOnline.add(r.usernameLower);
+    else if (r && isVisiblyOnline(r.usernameLower)) regOnline.add(r.usernameLower);
   }
 
   res.json({
@@ -3903,6 +3999,14 @@ app.get(ROUTE.statsApi, (req, res) => {
     peakOnlineAt:     stats.peakOnlineAt,
     allTimeUniqueIPs: stats.allTimeIPs.size,
     uptimeSec,
+    memoryMB:         Math.round(process.memoryUsage().rss / 1048576),
+    extendedSince:    stats.extendedSince || null,
+    live: { registered: regOnline.size, guests: guestOnline.size, chatting, waiting: waitingQueue.length },
+    community: {
+      accounts, vip, newAccounts7d, friendships: Math.round(friendLinks / 2), activeStreaks, longestStreak,
+      privateConversations: privateRooms.size, privateMessagesStored, rooms: chatRooms.size, roomMessagesStored,
+      forumPosts: forumPosts.size, forumComments, profilesFilled, gender, ageGroups,
+    },
     days,
   });
 });
@@ -3915,152 +4019,247 @@ app.get(ROUTE.stats, (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>GAICANI Stats</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>GAICANI — Statistics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#1e1f22;color:#dcddde;font-family:"Segoe UI",Arial,sans-serif;padding:24px;max-width:980px;margin:0 auto}
-h1{color:#fff;font-size:1.4em;margin-bottom:4px}
-.sub{color:#72767d;font-size:.82em;margin-bottom:24px}
-h2{color:#5865f2;font-size:.85em;margin:28px 0 12px;text-transform:uppercase;letter-spacing:.6px;font-weight:700}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:8px}
-.sc{background:#2b2d31;border-radius:10px;padding:14px 16px}
-.sv{font-size:1.7em;font-weight:700;color:#fff;line-height:1.1}
-.sv.g{color:#3ba55d}.sv.y{color:#faa61a}.sv.b{color:#5865f2}.sv.r{color:#f23f42}
-.sl{font-size:.73em;color:#72767d;margin-top:3px}
-table{width:100%;border-collapse:collapse;background:#2b2d31;border-radius:10px;overflow:hidden;margin-bottom:8px}
-th{background:#232428;color:#72767d;font-size:.76em;font-weight:600;padding:9px 12px;text-align:left;border-bottom:1px solid #1a1b1e}
-td{padding:9px 12px;font-size:.84em;border-bottom:1px solid #1e1f22;vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,.02)}
-.bar-wrap{background:#1e1f22;border-radius:3px;height:6px;width:100%;margin-top:4px}
-.bar{height:6px;border-radius:3px;background:#5865f2;min-width:2px;transition:width .4s}
-.bar.g{background:#3ba55d}.bar.y{background:#faa61a}.bar.r{background:#f23f42}
-.rb{background:#5865f2;color:#fff;border:none;border-radius:6px;padding:7px 16px;cursor:pointer;font-size:.85em}
-.rb:hover{background:#4752c4}
-#lu{color:#72767d;font-size:.78em;margin-left:10px}
-.day-block{background:#2b2d31;border-radius:12px;padding:18px;margin-bottom:16px}
-.day-title{color:#fff;font-weight:700;font-size:1em;margin-bottom:14px;display:flex;align-items:center;gap:10px}
-.day-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:16px}
-.day-sc{background:#1e1f22;border-radius:8px;padding:10px 13px}
-.day-sv{font-size:1.3em;font-weight:700;color:#fff}
-.day-sl{font-size:.7em;color:#72767d;margin-top:2px}
-.hour-chart{display:flex;align-items:flex-end;gap:2px;height:52px;margin-top:4px}
-.hour-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
-.hour-bar{width:100%;border-radius:2px 2px 0 0;background:#5865f2;min-height:2px;transition:height .3s}
-.hour-bar.peak{background:#faa61a}
-.hour-label{font-size:8px;color:#72767d;white-space:nowrap}
-.peak-badge{background:rgba(250,166,26,.15);color:#faa61a;border:1px solid rgba(250,166,26,.3);border-radius:5px;font-size:.72em;padding:2px 7px;margin-left:auto}
+:root { --bg:#130f26; --card:#1c1735; --raised:#241e44; --line:rgba(214,168,79,.18); --gold:#f4d98f; --text:#f3eeff; --muted:#9a92bd;
+  --c-new:#4f6cff; --c-ret:#1fc18a; --c-sess:#9d5cff; --c-amber:#f0b93a; --c-ruby:#e33b5f; --c-teal:#19b3a6; --c-pink:#ec4f9c; }
+* { box-sizing:border-box; }
+body { margin:0; background:radial-gradient(900px 500px at 50% -150px,rgba(79,108,255,.18),transparent 70%),var(--bg); color:var(--text);
+  font-family:"Noto Sans Georgian",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; font-size:15px;
+  padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0); }
+.wrap { max-width:1100px; margin:0 auto; padding:18px 14px 40px; }
+header { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+h1 { margin:0; font-size:1.55em; font-weight:800; }
+h1 .gt { background:linear-gradient(180deg,#fff4d2,#f4d98f 45%,#d6a84f); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.sub { color:var(--muted); font-size:.82em; }
+.live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--c-ret); box-shadow:0 0 8px var(--c-ret); margin-right:6px; vertical-align:middle; }
+h2 { font-size:1.05em; font-weight:800; margin:26px 2px 4px; color:var(--gold); }
+.note { color:var(--muted); font-size:.8em; margin:0 2px 10px; line-height:1.5; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+.kpi { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:13px 14px; }
+.kpi .v { font-size:1.65em; font-weight:800; line-height:1.15; }
+.kpi .l { color:var(--muted); font-size:.8em; margin-top:3px; }
+.kpi .x { color:var(--gold); font-size:.78em; margin-top:4px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:14px; margin-top:10px; }
+.card h3 { margin:0 0 14px; font-size:.95em; font-weight:800; }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; }
+.legend { display:flex; flex-wrap:wrap; gap:12px; font-size:.78em; color:var(--muted); margin:6px 0 8px; }
+.legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+.bars { display:flex; align-items:flex-end; gap:4px; height:170px; padding-top:16px; border-bottom:1px solid var(--line); }
+.col { flex:1 1 0; min-width:0; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:stretch; position:relative; }
+.stack { display:flex; flex-direction:column-reverse; border-radius:6px 6px 2px 2px; overflow:hidden; min-height:2px; }
+.seg { width:100%; }
+.top { position:absolute; left:0; right:0; text-align:center; font-size:.68em; color:var(--text); opacity:.85; transform:translateY(-15px); white-space:nowrap; }
+.xl { display:flex; gap:4px; margin-top:4px; }
+.xl span { flex:1 1 0; min-width:0; text-align:center; font-size:.68em; color:var(--muted); overflow:hidden; }
+.hb { display:grid; grid-template-columns:minmax(90px,38%) 1fr auto; gap:8px 10px; align-items:center; font-size:.86em; }
+.hb .t { background:rgba(255,255,255,.05); border-radius:6px; height:14px; overflow:hidden; }
+.hb .f { height:100%; border-radius:6px; }
+.hb .n { color:var(--muted); font-variant-numeric:tabular-nums; }
+.heat { max-width:760px; display:grid; grid-template-columns:44px repeat(24,minmax(0,1fr)); gap:2px; font-size:.64em; }
+.heat .h { color:var(--muted); text-align:center; }
+.heat .r { color:var(--muted); text-align:right; padding-right:4px; white-space:nowrap; }
+.heat .c { aspect-ratio:1/1; border-radius:3px; background:rgba(255,255,255,.04); }
+.tbl-wrap { overflow-x:auto; margin-top:10px; }
+table { border-collapse:collapse; width:100%; font-size:.8em; white-space:nowrap; }
+th, td { padding:7px 8px; text-align:right; border-bottom:1px solid rgba(255,255,255,.06); }
+th { color:var(--gold); font-weight:700; } th:first-child, td:first-child { text-align:left; }
+.empty { color:var(--muted); font-size:.85em; padding:18px 4px; text-align:center; }
+.pill { display:inline-block; padding:2px 9px; border-radius:999px; background:rgba(214,168,79,.12); border:1px solid var(--line); color:var(--gold); font-size:.78em; }
+footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; text-align:center; }
 </style>
 </head>
 <body>
-<h1>📊 GAICANI Statistics</h1>
-<p class="sub">Last 14 days · Hours in Tbilisi time (GMT+4) · Auto-refreshes every 20s</p>
-<button class="rb" onclick="load()">↻ Refresh</button><span id="lu"></span>
+<div class="wrap">
+  <header>
+    <div><h1>📊 <span class="gt">GAICANI Statistics</span></h1><div class="sub"><span class="live-dot"></span><span id="updated">loading…</span></div></div>
+    <div class="sub" id="server"></div>
+  </header>
 
-<h2>Right Now</h2>
-<div class="grid" id="now">Loading...</div>
+  <h2>Right now</h2>
+  <div class="kpis" id="live"></div>
 
-<h2>All Time (since last restart)</h2>
-<div class="grid" id="alltime">Loading...</div>
+  <h2>All time</h2>
+  <div class="kpis" id="totals"></div>
 
-<h2>Per-Day Breakdown</h2>
-<div id="daily">Loading...</div>
+  <h2>Visitors per day</h2>
+  <p class="note">Last 14 days (Tbilisi time). New = first visit ever; returning = seen before.</p>
+  <div class="card"><div class="legend"><span><i style="background:var(--c-new)"></i>New visitors</span><span><i style="background:var(--c-ret)"></i>Returning visitors</span></div><div id="chVisitors"></div></div>
 
+  <div class="grid2">
+    <div class="card"><h3>Random chats started</h3><div id="chChats"></div></div>
+    <div class="card"><h3>Average time on the site</h3><div id="chDur"></div></div>
+    <div class="card"><h3>New accounts</h3><div id="chSignups"></div></div>
+    <div class="card"><h3>Most people online at once</h3><div id="chPeak"></div></div>
+  </div>
+
+  <h2>When people are online</h2>
+  <p class="note">Unique visitors per hour, each row is a day. Brighter = busier.</p>
+  <div class="card"><div id="heat"></div><div class="note" id="busiest" style="margin:10px 0 0"></div></div>
+
+  <h2>Do new visitors come back?</h2>
+  <p class="note">Share of each day's first-time visitors who returned the next day.</p>
+  <div class="card"><div id="retKpis" class="kpis" style="margin-bottom:10px"></div><div id="chRet"></div></div>
+
+  <h2>Activity</h2>
+  <p class="note" id="sinceNote"></p>
+  <div class="card"><h3>Messages per day</h3>
+    <div class="legend"><span><i style="background:var(--c-new)"></i>Random chat</span><span><i style="background:var(--c-sess)"></i>Private chat</span><span><i style="background:var(--c-teal)"></i>Rooms</span><span><i style="background:var(--c-amber)"></i>Private photos</span></div>
+    <div id="chMsgs"></div></div>
+  <div class="grid2">
+    <div class="card"><h3>Games played (last 14 days)</h3><div id="games"></div></div>
+    <div class="card"><h3>Forum (last 14 days)</h3><div id="forum"></div></div>
+    <div class="card"><h3>Devices</h3><p class="note" style="margin:2px 0 10px">Share of daily visitors, last 14 days.</p><div id="devices"></div></div>
+    <div class="card"><h3>Most opened pages (last 14 days)</h3><div id="pages"></div></div>
+  </div>
+
+  <h2>Community</h2>
+  <div class="kpis" id="content"></div>
+  <div class="grid2">
+    <div class="card"><h3>Gender</h3><p class="note" style="margin:2px 0 10px" id="genderNote"></p><div id="gender"></div></div>
+    <div class="card"><h3>Age groups</h3><p class="note" style="margin:2px 0 10px">Only people who entered an age.</p><div id="ages"></div></div>
+  </div>
+
+  <h2>Day by day</h2>
+  <div class="card"><div class="tbl-wrap"><table id="table"></table></div></div>
+
+  <footer>Totals only: this page never shows names, messages or IP addresses.<br>Refreshes automatically every 30 seconds.</footer>
+</div>
 <script>
-const API = '${API}';
+var API = "${API}";
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function fmt(n) { return (Number(n) || 0).toLocaleString("en-US"); }
+function dur(sec) { sec = Math.round(sec || 0); if (sec < 60) return sec + "s"; var m = Math.floor(sec / 60); if (m < 60) return m + "m " + (sec % 60) + "s"; return Math.floor(m / 60) + "h " + (m % 60) + "m"; }
+function up(sec) { var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return (d ? d + "d " : "") + h + "h " + m + "m"; }
+function when(iso) { if (!iso) return ""; var d = new Date(iso); return d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tbilisi" }); }
+function dlabel(k) { return String(k).slice(8); }
+function kpi(v, l, x) { return '<div class="kpi"><div class="v">' + v + '</div><div class="l">' + l + '</div>' + (x ? '<div class="x">' + x + '</div>' : '') + '</div>'; }
 
-function fmt(s) {
-  if (s < 60)   return s + 's';
-  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
-  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+// Stacked vertical bars: series = [{ color, values:[...] }], labels = [...]
+function bars(el, labels, series, opts) {
+  opts = opts || {};
+  var totals = labels.map(function (_, i) { return series.reduce(function (s, se) { return s + (se.values[i] || 0); }, 0); });
+  var max = Math.max.apply(null, totals.concat([1]));
+  if (!labels.length) { el.innerHTML = '<div class="empty">No data yet</div>'; return; }
+  var h = '<div class="bars">';
+  labels.forEach(function (lab, i) {
+    var t = totals[i], pct = t ? Math.max(2, Math.round(t / max * 100)) : 0;
+    var tip = esc(opts.tipLabels ? opts.tipLabels[i] : lab) + ": " + (opts.fmt ? opts.fmt(t) : fmt(t));
+    h += '<div class="col" title="' + tip + '">';
+    if (t) h += '<div class="top" style="bottom:' + pct + '%">' + (opts.topFmt ? opts.topFmt(t) : opts.fmt ? opts.fmt(t) : fmt(t)) + '</div>';
+    h += '<div class="stack" style="height:' + pct + '%">';
+    series.forEach(function (se) { var v = se.values[i] || 0; if (v) h += '<div class="seg" style="flex:' + v + ';background:' + se.color + '"></div>'; });
+    h += '</div></div>';
+  });
+  h += '</div><div class="xl">' + labels.map(function (l) { return '<span>' + esc(l) + '</span>'; }).join("") + '</div>';
+  el.innerHTML = h;
 }
-function pct(v, m) { return m ? Math.round(v / m * 100) : 0; }
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+// Horizontal bars: rows = [{ label, value, color }]
+function hbars(el, rows, opts) {
+  opts = opts || {};
+  rows = rows.filter(function (r) { return r.value > 0; });
+  if (!rows.length) { el.innerHTML = '<div class="empty">' + (opts.empty || "No data yet") + '</div>'; return; }
+  var total = rows.reduce(function (s, r) { return s + r.value; }, 0), max = Math.max.apply(null, rows.map(function (r) { return r.value; }));
+  el.innerHTML = '<div class="hb">' + rows.map(function (r) {
+    var share = opts.share ? " (" + Math.round(r.value / total * 100) + "%)" : "";
+    return '<div>' + esc(r.label) + '</div><div class="t"><div class="f" style="width:' + Math.max(2, Math.round(r.value / max * 100)) + '%;background:' + (r.color || "var(--c-new)") + '"></div></div><div class="n">' + fmt(r.value) + share + '</div>';
+  }).join("") + '</div>';
 }
-function bar(v, max, cls='') {
-  return '<div class="bar-wrap"><div class="bar ' + cls + '" style="width:' + pct(v,max) + '%"></div></div>';
-}
+function sumCounter(days, key) { return days.reduce(function (s, d) { return s + ((d.counters || {})[key] || 0); }, 0); }
 
-async function load() {
-  try {
-    const d = await fetch(API).then(r => r.json());
+var GAMES = [["poker", "🃏 Poker"], ["joker", "🎴 Joker"], ["chess", "♟️ Chess"], ["checkers", "⚫ Checkers"], ["blackjack", "🂡 Blackjack"], ["imposter", "🕵️ Imposter"], ["drawGuess", "🎨 Draw & Guess"], ["flappy", "🐤 Flappy Bird"]];
+var DEVICES = [["ios", "📱 iPhone / iPad", "#cfc6ee"], ["android", "🤖 Android", "#1fc18a"], ["windows", "🪟 Windows", "#4f6cff"], ["mac", "💻 Mac", "#9d5cff"], ["linux", "🐧 Linux", "#f0b93a"], ["other", "❓ Other", "#8f87ad"]];
+var PAGE_NAMES = { "/": "Random chat", "/index.html": "Random chat", "/dashboard.html": "Dashboard", "/friend-chat.html": "Private chat", "/rooms.html": "Rooms",
+  "/forum.html": "Forum", "/poker.html": "Poker", "/joker.html": "Joker", "/chess.html": "Chess", "/checkers.html": "Checkers", "/blackjack.html": "Blackjack",
+  "/imposter.html": "Imposter", "/draw-guess.html": "Draw & Guess", "/flappy-bird.html": "Flappy Bird", "/install.html": "Install app", "/privacy.html": "Privacy", "/terms.html": "Terms" };
 
-    // ── Right now ──
-    document.getElementById('now').innerHTML =
-      sc(d.currentOnline, 'Online now', 'g') +
-      sc(d.peakOnline,    'All-time peak', 'y') +
-      (d.peakOnlineAt ? sc(new Date(d.peakOnlineAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tbilisi'}) + ' ' + new Date(d.peakOnlineAt).toLocaleDateString([], {timeZone:'Asia/Tbilisi'}), 'Peak time', '') : '');
+function render(d) {
+  var days = d.days || [], labels = days.map(function (x) { return dlabel(x.date); }), dates = days.map(function (x) { return x.date; });
+  var c = d.community || {}, lv = d.live || {};
+  $("updated").textContent = "Live, updated " + new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tbilisi" }) + " (Tbilisi)";
+  $("server").textContent = "Server up " + up(d.uptimeSec) + (d.memoryMB ? ", " + d.memoryMB + " MB memory" : "");
 
-    // ── All time ──
-    document.getElementById('alltime').innerHTML =
-      sc(d.allTimeUniqueIPs, 'Unique IPs ever', 'b') +
-      sc(fmt(d.uptimeSec),   'Server uptime', '');
+  $("live").innerHTML = kpi(fmt(d.currentOnline), "people online") + kpi(fmt(lv.registered), "registered online") + kpi(fmt(lv.guests), "guests online") +
+    kpi(fmt(lv.chatting), "in a random chat", fmt(lv.waiting) + " waiting for a partner");
+  $("totals").innerHTML = kpi(fmt(d.allTimeUniqueIPs), "visitors ever") + kpi(fmt(c.accounts), "accounts", "+" + fmt(c.newAccounts7d) + " this week") +
+    kpi(fmt(c.vip), "VIP members") + kpi(fmt(c.friendships), "friendships") + kpi(fmt(c.activeStreaks), "active 🔥 streaks", c.longestStreak ? "longest: " + c.longestStreak + " days" : "") +
+    kpi(fmt(d.peakOnline), "most online at once", when(d.peakOnlineAt));
 
-    if (!d.days || !d.days.length) {
-      document.getElementById('daily').innerHTML = '<p style="color:#72767d;padding:12px 0">No data yet</p>';
-      document.getElementById('lu').textContent = 'Updated ' + new Date().toLocaleTimeString([], {timeZone:'Asia/Tbilisi'});
-      return;
-    }
+  bars($("chVisitors"), labels, [{ color: "var(--c-new)", values: days.map(function (x) { return x.newIPs; }) }, { color: "var(--c-ret)", values: days.map(function (x) { return x.returningIPs; }) }], { tipLabels: dates });
+  bars($("chChats"), labels, [{ color: "var(--c-pink)", values: days.map(function (x) { return x.chats; }) }], { tipLabels: dates });
+  bars($("chDur"), labels, [{ color: "var(--c-sess)", values: days.map(function (x) { return x.avgSessionSec; }) }], { tipLabels: dates, fmt: dur, topFmt: function (v) { return v < 60 ? Math.round(v) + "s" : Math.round(v / 60) + "m"; } });
+  bars($("chSignups"), labels, [{ color: "var(--c-amber)", values: days.map(function (x) { return x.signups; }) }], { tipLabels: dates });
+  bars($("chPeak"), labels, [{ color: "var(--c-teal)", values: days.map(function (x) { return x.peakOnline; }) }], { tipLabels: dates });
 
-    // ── Per-day blocks (newest first) ──
-    const days = [...d.days].reverse();
-    const maxH  = Math.max(...days.flatMap(day => day.hours.map(h => h.uniqueIPs)), 1);
-
-    let html = '';
-    days.forEach(day => {
-      const peakHr  = day.peakHour;
-      const isToday = day.date === new Date(Date.now() + 4*60*60*1000).toISOString().slice(0,10);
-
-      // Hourly bars
-      const maxHourIPs = Math.max(...day.hours.map(h => h.uniqueIPs), 1);
-      const hourBars = day.hours.map(h => {
-        const isPeak = h.hour === peakHr.hour && h.uniqueIPs > 0;
-        const heightPct = Math.max(pct(h.uniqueIPs, maxHourIPs), h.uniqueIPs > 0 ? 4 : 0);
-        return '<div class="hour-bar-wrap" title="' + esc(h.label) + ': ' + h.uniqueIPs + ' IPs, ' + h.sessions + ' sessions">' +
-          '<div class="hour-bar' + (isPeak ? ' peak' : '') + '" style="height:' + heightPct + '%"></div>' +
-          (h.hour % 6 === 0 ? '<div class="hour-label">' + esc(h.label.slice(0,2)) + '</div>' : '<div class="hour-label">&nbsp;</div>') +
-          '</div>';
-      }).join('');
-
-      html += '<div class="day-block">' +
-        '<div class="day-title">' +
-          '<span>' + esc(day.date) + (isToday ? ' <span style="color:#3ba55d;font-size:.75em">(today)</span>' : '') + '</span>' +
-          (peakHr.uniqueIPs > 0 ? '<span class="peak-badge">⏰ Peak ' + esc(peakHr.label) + ' Tbilisi (' + peakHr.uniqueIPs + ' IPs)</span>' : '') +
-        '</div>' +
-
-        '<div class="day-grid">' +
-          dsc(day.uniqueIPs,     'Unique IPs') +
-          dsc(day.newIPs,        'New visitors', '#3ba55d') +
-          dsc(day.returningIPs,  'Returning', '#5865f2') +
-          dsc(day.sessions,      'Connections') +
-          dsc(day.chats,         'Chats started') +
-          dsc(fmt(day.avgSessionSec), 'Avg session') +
-          dsc(day.peakOnline,    'Peak online', '#faa61a') +
-        '</div>' +
-
-        '<div style="font-size:.72em;color:#72767d;margin-bottom:6px">Unique IPs per hour (Tbilisi time)</div>' +
-        '<div class="hour-chart">' + hourBars + '</div>' +
-        '</div>';
+  // heat-map
+  var maxCell = 1, hourTotals = new Array(24).fill(0);
+  days.forEach(function (x) { x.hours.forEach(function (h, i) { maxCell = Math.max(maxCell, h.uniqueIPs); hourTotals[i] += h.uniqueIPs; }); });
+  var hm = '<div class="heat"><div></div>';
+  for (var i = 0; i < 24; i++) hm += '<div class="h">' + (i % 3 === 0 ? i : "") + '</div>';
+  days.forEach(function (x) {
+    hm += '<div class="r">' + esc(x.date.slice(5)) + '</div>';
+    x.hours.forEach(function (h) {
+      var a = h.uniqueIPs / maxCell;
+      hm += '<div class="c" title="' + esc(x.date) + ' ' + h.label + ': ' + h.uniqueIPs + ' visitors" style="background:rgba(244,217,143,' + (h.uniqueIPs ? (0.12 + a * 0.88).toFixed(2) : 0.04) + ')"></div>';
     });
+  });
+  $("heat").innerHTML = days.length ? hm + '</div>' : '<div class="empty">No data yet</div>';
+  var top = hourTotals.map(function (v, i) { return [i, v]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 3).filter(function (x) { return x[1] > 0; });
+  $("busiest").innerHTML = top.length ? "Busiest hours: " + top.map(function (x) { return '<span class="pill">' + String(x[0]).padStart(2, "0") + ':00</span>'; }).join(" ") : "";
 
-    document.getElementById('daily').innerHTML = html;
-    document.getElementById('lu').textContent = 'Updated ' + new Date().toLocaleTimeString([], {timeZone:'Asia/Tbilisi'});
-  } catch(e) { console.error(e); }
+  // returns
+  var rd = days.filter(function (x) { return x.nextDayReturn !== null; });
+  var avg1 = rd.length ? Math.round(rd.reduce(function (s, x) { return s + x.nextDayReturn; }, 0) / rd.length) : null;
+  var w = days.filter(function (x) { return x.weekReturn !== null; });
+  var avg7 = w.length ? Math.round(w.reduce(function (s, x) { return s + x.weekReturn; }, 0) / w.length) : null;
+  $("retKpis").innerHTML = kpi(avg1 === null ? "–" : avg1 + "%", "come back the next day (average)") + kpi(avg7 === null ? "–" : avg7 + "%", "come back within a week (average)");
+  bars($("chRet"), rd.map(function (x) { return dlabel(x.date); }), [{ color: "var(--c-ret)", values: rd.map(function (x) { return x.nextDayReturn; }) }], { tipLabels: rd.map(function (x) { return x.date; }), fmt: function (v) { return v + "%"; } });
+
+  // activity (tracked since the update)
+  $("sinceNote").textContent = d.extendedSince ? "Counted since " + d.extendedSince + ". Earlier days show zero because they weren't tracked yet." : "Counting starts now.";
+  bars($("chMsgs"), labels, [
+    { color: "var(--c-new)", values: days.map(function (x) { return (x.counters || {}).msgRandom || 0; }) },
+    { color: "var(--c-sess)", values: days.map(function (x) { return (x.counters || {}).msgPrivate || 0; }) },
+    { color: "var(--c-teal)", values: days.map(function (x) { return (x.counters || {}).msgRooms || 0; }) },
+    { color: "var(--c-amber)", values: days.map(function (x) { return (x.counters || {}).photoPrivate || 0; }) }], { tipLabels: dates });
+  hbars($("games"), GAMES.map(function (g) { return { label: g[1], value: sumCounter(days, "game:" + g[0]), color: "var(--c-sess)" }; }).sort(function (a, b) { return b.value - a.value; }));
+  hbars($("forum"), [{ label: "📝 New posts", value: sumCounter(days, "forumPosts"), color: "var(--c-amber)" }, { label: "💬 Comments", value: sumCounter(days, "forumComments"), color: "var(--c-teal)" }]);
+  hbars($("devices"), DEVICES.map(function (dv) { return { label: dv[1], value: days.reduce(function (s, x) { return s + ((x.devices || {})[dv[0]] || 0); }, 0), color: dv[2] }; }).sort(function (a, b) { return b.value - a.value; }), { share: true });
+  var pages = {};
+  days.forEach(function (x) { Object.keys(x.pages || {}).forEach(function (p) { var n = PAGE_NAMES[p] || p; pages[n] = (pages[n] || 0) + x.pages[p]; }); });
+  hbars($("pages"), Object.keys(pages).map(function (k) { return { label: k, value: pages[k], color: "var(--c-new)" }; }).sort(function (a, b) { return b.value - a.value; }).slice(0, 12));
+
+  // community
+  $("content").innerHTML = kpi(fmt(c.privateConversations), "private conversations", fmt(c.privateMessagesStored) + " messages kept") +
+    kpi(fmt(c.rooms), "rooms", fmt(c.roomMessagesStored) + " messages") + kpi(fmt(c.forumPosts), "forum posts", fmt(c.forumComments) + " comments") +
+    kpi(fmt(c.profilesFilled), "profiles with details", c.accounts ? Math.round(c.profilesFilled / c.accounts * 100) + "% of accounts" : "");
+  var g = c.gender || {};
+  $("genderNote").textContent = "Only people who chose one (" + fmt((g.male || 0) + (g.female || 0)) + " of " + fmt(c.accounts) + " accounts).";
+  hbars($("gender"), [{ label: "👨 Men", value: g.male || 0, color: "#4f6cff" }, { label: "👩 Women", value: g.female || 0, color: "#ec4f9c" }], { share: true, empty: "Nobody has chosen yet" });
+  var ag = c.ageGroups || {};
+  hbars($("ages"), Object.keys(ag).map(function (k) { return { label: k, value: ag[k], color: "var(--c-teal)" }; }), { share: true, empty: "Nobody has entered an age yet" });
+
+  // table
+  var rows = days.slice().reverse().map(function (x) {
+    var ct = x.counters || {};
+    var msgs = (ct.msgRandom || 0) + (ct.msgPrivate || 0) + (ct.msgRooms || 0);
+    return "<tr><td>" + esc(x.date) + "</td><td>" + fmt(x.uniqueIPs) + "</td><td>" + fmt(x.newIPs) + "</td><td>" + fmt(x.returningIPs) + "</td><td>" + fmt(x.sessions) +
+      "</td><td>" + dur(x.avgSessionSec) + "</td><td>" + fmt(x.chats) + "</td><td>" + fmt(msgs) + "</td><td>" + fmt(x.signups) + "</td><td>" + fmt(x.peakOnline) +
+      "</td><td>" + (x.peakHour && x.peakHour.uniqueIPs ? x.peakHour.label : "–") + "</td><td>" + (x.nextDayReturn === null ? "–" : x.nextDayReturn + "%") + "</td></tr>";
+  }).join("");
+  $("table").innerHTML = "<tr><th>Day</th><th>Visitors</th><th>New</th><th>Returning</th><th>Sessions</th><th>Avg time</th><th>Chats</th><th>Messages</th><th>Sign-ups</th><th>Peak online</th><th>Busiest hour</th><th>Came back</th></tr>" + rows;
 }
 
-function sc(v, label, cls) {
-  return '<div class="sc"><div class="sv ' + (cls||'') + '">' + esc(v) + '</div><div class="sl">' + esc(label) + '</div></div>';
+function load() {
+  fetch(API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(render).catch(function () { $("updated").textContent = "Could not load — retrying…"; });
 }
-function dsc(v, label, color) {
-  return '<div class="day-sc"><div class="day-sv"' + (color ? ' style="color:' + color + '"' : '') + '>' + esc(v) + '</div><div class="day-sl">' + esc(label) + '</div></div>';
-}
-
-load();
-setInterval(load, 20000);
+load(); setInterval(load, 30000);
 </script>
 </body>
 </html>`);
@@ -9878,6 +10077,7 @@ io.on("connection", (socket) => {
     };
 
     room.messages.push(msg);
+    bumpStat("msgPrivate");
     if (room.messages.length > 100) room.messages.shift();
     room.expiresAt = Date.now() + PRIVATE_MSG_TTL;
 
@@ -10034,6 +10234,7 @@ io.on("connection", (socket) => {
       ts: new Date().toISOString(),
     };
     room.messages.push(msg);
+    bumpStat("photoPrivate");
     if (room.messages.length > 100) room.messages.shift();
     room.expiresAt = Date.now() + PRIVATE_MSG_TTL;
     savePrivateMsgs();
@@ -11886,6 +12087,7 @@ io.on("connection", (socket) => {
       ts: new Date().toISOString(),
     };
     room.messages.push(msg);
+    bumpStat("msgRooms");
     if (room.messages.length > ROOM_MSG_CAP) room.messages.shift();
     saveChatRooms();
 
@@ -12050,6 +12252,7 @@ io.on("connection", (socket) => {
       comments: [],
     };
     forumPosts.set(post.id, post);
+    bumpStat("forumPosts");
     saveForum();
 
     io.emit("forum:postCreated", { post: forumPostSummary(post, null) });
@@ -12090,6 +12293,7 @@ io.on("connection", (socket) => {
       votes: {},
     };
     post.comments.push(comment);
+    bumpStat("forumComments");
     if (post.comments.length > FORUM_COMMENT_CAP) post.comments.shift();
     saveForum();
 
