@@ -210,11 +210,70 @@ function getClientIP(req) {
 const BANNED_IPS_FILE = path.join(DATA_PATH, "banned_ips.json");
 const bannedIPs       = new Set();
 
+// ── Range bans ────────────────────────────────────────────────────────────────
+// Besides single addresses, the ban list accepts whole ranges in CIDR form:
+//   2a09:bac0::/29   (IPv6 — e.g. all of Cloudflare WARP's VPN addresses)
+//   104.28.0.0/16    (IPv4)
+// Single addresses still match exactly, as before; ranges are kept parsed in
+// bannedRanges so every check is fast.
+const bannedRanges = [];
+function ipToBig(raw) {
+  let ip = String(raw || "").trim().toLowerCase();
+  if (!ip) return null;
+  const pct = ip.indexOf("%"); if (pct >= 0) ip = ip.slice(0, pct);          // strip IPv6 zone ids
+  const m4 = ip.match(/^(?:::ffff:)?(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/); // IPv4, incl. ::ffff:-mapped
+  if (m4) {
+    const p = m4.slice(1).map(Number);
+    if (p.some(x => x > 255)) return null;
+    return { v: 4, n: BigInt(p[0] * 16777216 + p[1] * 65536 + p[2] * 256 + p[3]) };
+  }
+  if (!ip.includes(":") || !/^[0-9a-f:]+$/.test(ip)) return null;
+  const halves = ip.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (halves.length === 2 ? fill < 1 : head.length !== 8) return null;
+  const groups = [...head, ...Array(fill).fill("0"), ...tail];
+  if (groups.length !== 8 || groups.some(g => !/^[0-9a-f]{1,4}$/.test(g))) return null;
+  let n = 0n;
+  for (const g of groups) n = (n << 16n) + BigInt(parseInt(g, 16));
+  return { v: 6, n };
+}
+// "1.2.3.0/24", "2a09:bac0::/29", or a single address → { v, bits, shift, net } | null
+function parseBanEntry(entry) {
+  const parts = String(entry || "").trim().split("/");
+  if (parts.length > 2) return null;
+  const a = ipToBig(parts[0]);
+  if (!a) return null;
+  const total = a.v === 4 ? 32 : 128;
+  const bits = parts.length === 2 ? Number(parts[1]) : total;
+  if (!Number.isInteger(bits) || bits < 0 || bits > total || (parts.length === 2 && !/^\d{1,3}$/.test(parts[1]))) return null;
+  const shift = BigInt(total - bits);
+  return { v: a.v, bits, shift, net: a.n >> shift };
+}
+function rebuildBannedRanges() {
+  bannedRanges.length = 0;
+  for (const e of bannedIPs) if (String(e).includes("/")) { const r = parseBanEntry(e); if (r) bannedRanges.push(r); }
+}
+function ipInRange(ip, r) { const a = ipToBig(ip); return !!a && a.v === r.v && (a.n >> r.shift) === r.net; }
+// Is this address banned — exactly, or by falling inside a banned range?
+function isIPBanned(ip) {
+  if (!ip) return false;
+  if (bannedIPs.has(ip)) return true;
+  if (!bannedRanges.length) return false;
+  const a = ipToBig(ip);
+  if (!a) return false;
+  for (const r of bannedRanges) if (a.v === r.v && (a.n >> r.shift) === r.net) return true;
+  return false;
+}
+
 function loadBannedIPs() {
   try {
     const arr = JSON.parse(fs.readFileSync(BANNED_IPS_FILE, "utf8"));
     if (Array.isArray(arr)) {
       arr.forEach(ip => bannedIPs.add(ip));
+      rebuildBannedRanges();
       console.log(`[BAN] Loaded ${arr.length} persistent manual ban(s) from disk`);
     }
   } catch { /* file doesn't exist yet — fine */ }
@@ -396,7 +455,7 @@ function pollVTBans() {
       console.log(`[VT] Detected ${newBans} new VT-ban(s) — kicking live sockets`);
       // Kick any connected sockets that are now VT-banned
       for (const [, socket] of io.sockets.sockets) {
-        if (bannedIPs.has(socket.clientIP)) {
+        if (isIPBanned(socket.clientIP)) {
           console.log(`[VT] Kicking VT-banned IP: ${socket.clientIP}`);
           socket.emit("autoKicked");
           setTimeout(() => socket.disconnect(true), 500);
@@ -1236,7 +1295,7 @@ app.use((req, res, next) => {
     res.send(tempBanPageHtml(tb));
     return;
   }
-  if (bannedIPs.has(ip)) {
+  if (isIPBanned(ip) || isIPBanned(req.headers["cf-connecting-ip"])) {
     // Return a generic 403 — don't reveal why or that a ban system exists
     res.status(403).end();
     return;
@@ -1759,7 +1818,7 @@ app.get(ROUTE.regUsers, ownerOnly, (req, res) => {
       isPro: !!u.isPro,
       isGuest: !!u.isGuest,
       nameBlocked: !!u.nameBlocked,
-      isBanned: u.lastIP ? bannedIPs.has(u.lastIP) : false,
+      isBanned: u.lastIP ? isIPBanned(u.lastIP) : false,
     });
   }
   // Most-recently-seen first — the accounts an admin is most likely to be
@@ -1981,12 +2040,22 @@ app.post(ROUTE.unbanTemp, ownerOnly, (req, res) => {
 app.post(ROUTE.ban, ownerOnly, (req, res) => {
   const ip = (req.query.ip || "").trim();
   if (!ip) return res.status(400).json({ error: "ip param required" });
+  if (ip.includes("/")) {
+    const r = parseBanEntry(ip);
+    if (!r) return res.status(400).json({ error: `"${ip}" is not a valid range — use e.g. 2a09:bac0::/29 or 104.28.0.0/16` });
+    if ((r.v === 4 && r.bits < 8) || (r.v === 6 && r.bits < 16))
+      return res.status(400).json({ error: "That range is too large — it would ban a huge part of the internet" });
+    const mine = [getClientIP(req), req.headers["cf-connecting-ip"]].filter(Boolean);
+    if (mine.some(a => ipInRange(a, r)))
+      return res.status(400).json({ error: "That range includes YOUR OWN address — you would lock yourself out" });
+  }
 
   bannedIPs.add(ip);
+  rebuildBannedRanges();
   saveBannedIPs(); // persist to disk — survives restarts
   let kicked = 0;
   for (const [, socket] of io.sockets.sockets) {
-    if (socket.clientIP === ip) {
+    if (isIPBanned(socket.clientIP) || isIPBanned(socket.handshake.headers["cf-connecting-ip"])) {
       socket.emit("autoKicked");
       setTimeout(() => socket.disconnect(true), 500);
       kicked++;
@@ -2001,7 +2070,7 @@ app.post(ROUTE.unban, ownerOnly, (req, res) => {
   const ip = (req.query.ip || "").trim();
   if (!ip) return res.status(400).json({ error: "ip param required" });
   const existed = bannedIPs.delete(ip);
-  if (existed) saveBannedIPs(); // persist removal to disk
+  if (existed) { rebuildBannedRanges(); saveBannedIPs(); } // persist removal to disk
   res.json({ ok: true, ip, wasBanned: existed });
 });
 
@@ -2028,7 +2097,7 @@ app.get(ROUTE.reported, ownerOnly, (req, res) => {
       count:          entry.count,
       autoBanned:     autoBanActive,
       remainingHrs,
-      permaBanned:    bannedIPs.has(ip),
+      permaBanned:    isIPBanned(ip),
       names:          entry.names ? [...entry.names] : [],
       reasons:        entry.reasons || [],
       firstReportAt:  entry.firstReportAt ? new Date(entry.firstReportAt).toISOString() : null,
@@ -2226,11 +2295,11 @@ tr:hover td{background:rgba(255,255,255,.03)}
   <div class="section-body">
   <div class="manual-ban-box">
     <label>IP address(es) to ban forever</label>
-    <textarea id="manualIPs" placeholder="1.2.3.4&#10;5.6.7.8&#10;or comma-separated: 1.2.3.4, 5.6.7.8"></textarea>
+    <textarea id="manualIPs" placeholder="1.2.3.4&#10;5.6.7.8&#10;ranges too: 2a09:bac0::/29"></textarea>
     <label>Reason (optional, for your notes)</label>
     <input type="text" id="manualReason" placeholder="e.g. spammer, harassment..." />
     <button class="do-ban-btn" onclick="manualBan()">🚫 Ban Forever</button>
-    <p class="hint">Enter one IP per line, or separate with commas. Bans are saved to disk and survive restarts.</p>
+    <p class="hint">Enter one IP per line, or separate with commas. Whole ranges work too, e.g. <code>2a09:bac0::/29</code> (Cloudflare WARP VPN) or <code>104.28.0.0/16</code>. Bans are saved to disk and survive restarts.</p>
   </div>
   </div>
 </details>
@@ -2519,7 +2588,7 @@ async function manualBan() {
   if (!ips.length) { setStatus("⚠️ No IPs entered"); return; }
 
   // Basic IP validation (v4 and v6 allowed)
-  const invalid = ips.filter(ip => !/^[0-9a-fA-F:.]+$/.test(ip));
+  const invalid = ips.filter(ip => !/^[0-9a-fA-F:.]+(\\/\\d{1,3})?$/.test(ip));
   if (invalid.length) {
     setStatus("⚠️ Invalid IP(s): " + invalid.join(", "));
     return;
@@ -2914,7 +2983,7 @@ io.on("connection", (socket) => {
   socket.userAgent = socket.handshake.headers["user-agent"] || "";
 
   // ── Drop banned IPs / user-agents immediately ───────────────────────────────
-  if (bannedIPs.has(rawIP) || isLinkBanned(rawIP) || isReportBanned(rawIP) || isUABanned(socket.userAgent)) {
+  if (isIPBanned(rawIP) || isIPBanned(socket.handshake.headers["cf-connecting-ip"]) || isLinkBanned(rawIP) || isReportBanned(rawIP) || isUABanned(socket.userAgent)) {
     socket.emit("autoKicked");
     setTimeout(() => socket.disconnect(true), 500);
     return;
