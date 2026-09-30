@@ -1104,7 +1104,10 @@
   });
 
   // ინტერესები (Interests)
-  $("regMenuInt")?.addEventListener("click", () => {
+  $("regMenuInt")?.addEventListener("click", (e) => {
+    // Stop this tap here: otherwise it continues up to the popup's
+    // "tapped outside → close" rule and the popup closes the instant it opens.
+    e.stopPropagation();
     closeRegMenu();
     if (typeof window.openBioPopup === "function") window.openBioPopup();
   });

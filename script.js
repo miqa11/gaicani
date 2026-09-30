@@ -1234,7 +1234,10 @@ document.getElementById("bioCloseBtn").addEventListener("click", (e) => { e.stop
 
 // Close popup when clicking outside it
 document.addEventListener("click", (e) => {
-  if (bioPopupOpen && !bioPopup.contains(e.target) && e.target !== interestsBtn) {
+  // On phones the popup's layer covers the whole screen with the card on top,
+  // so a tap on that empty layer itself also counts as "outside".
+  if (bioPopupOpen && (e.target === bioPopup || !bioPopup.contains(e.target)) && e.target !== interestsBtn &&
+      !(e.target.closest && e.target.closest("#regMenuInt"))) {   // the ⋮ menu item that opens it
     closeBioPopup();
   }
 });
