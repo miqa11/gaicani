@@ -4141,6 +4141,15 @@ h1 .gt { background:linear-gradient(180deg,#fff4d2,#f4d98f 45%,#d6a84f); -webkit
 .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--c-ret); box-shadow:0 0 8px var(--c-ret); margin-right:6px; vertical-align:middle; }
 h2 { font-size:1.05em; font-weight:800; margin:26px 2px 4px; color:var(--gold); }
 .note { color:var(--muted); font-size:.8em; margin:0 2px 10px; line-height:1.5; }
+.hero { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:14px 0 4px; }
+.hero-card { border-radius:20px; padding:16px; border:1px solid var(--line); background:linear-gradient(180deg,#241e46,var(--card)); }
+.hero-card .hl { font-size:.85em; font-weight:700; color:var(--muted); }
+.hero-card .hv { font-size:2.8em; font-weight:800; line-height:1.05; margin-top:6px; font-variant-numeric:tabular-nums; }
+.hero-card .hs { font-size:.78em; color:var(--muted); margin-top:6px; line-height:1.45; }
+.hero-card.now { border-color:rgba(31,193,138,.45); box-shadow:0 14px 34px -22px rgba(31,193,138,.9); }
+.hero-card.now .hv { color:#62e3b3; }
+.hero-card.peak { border-color:rgba(244,217,143,.45); box-shadow:0 14px 34px -22px rgba(240,185,58,.9); }
+.hero-card.peak .hv { color:var(--gold); }
 .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
 .kpi { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:13px 14px; }
 .kpi .v { font-size:1.65em; font-weight:800; line-height:1.15; }
@@ -4181,6 +4190,11 @@ footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; 
     <div><h1>📊 <span class="gt">GAICANI Statistics</span></h1><div class="sub"><span class="live-dot"></span><span id="updated">loading…</span></div></div>
     <div class="sub" id="server"></div>
   </header>
+
+  <div class="hero">
+    <div class="hero-card now"><div class="hl"><span class="live-dot"></span>Online right now</div><div class="hv" id="heroNow">–</div><div class="hs" id="heroNowSub"></div></div>
+    <div class="hero-card peak"><div class="hl">📈 Most online at once today</div><div class="hv" id="heroPeak">–</div><div class="hs" id="heroPeakSub"></div></div>
+  </div>
 
   <h2>Right now</h2>
   <div class="kpis" id="live"></div>
@@ -4286,7 +4300,13 @@ function render(d) {
   $("updated").textContent = "Live, updated " + new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tbilisi" }) + " (Tbilisi)";
   $("server").textContent = "Server up " + up(d.uptimeSec) + (d.memoryMB ? ", " + d.memoryMB + " MB memory" : "");
 
-  $("live").innerHTML = kpi(fmt(d.currentOnline), "people online") + kpi(fmt(lv.registered), "registered online") + kpi(fmt(lv.guests), "guests online") +
+  var td = days[days.length - 1] || {};
+  $("heroNow").textContent = fmt(d.currentOnline);
+  $("heroNowSub").textContent = fmt(lv.registered) + " registered, " + fmt(lv.guests) + " guests";
+  $("heroPeak").textContent = fmt(td.peakOnline || 0);
+  var peakTime = td.peakOnlineAt ? new Date(td.peakOnlineAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tbilisi" }) : "";
+  $("heroPeakSub").innerHTML = (peakTime ? "at " + peakTime + " (Tbilisi)<br>" : "") + "All-time record: " + fmt(d.peakOnline) + (d.peakOnlineAt ? ", " + when(d.peakOnlineAt) : "");
+  $("live").innerHTML = kpi(fmt(lv.registered), "registered online") + kpi(fmt(lv.guests), "guests online") +
     kpi(fmt(lv.chatting), "in a random chat", fmt(lv.waiting) + " waiting for a partner");
   $("totals").innerHTML = kpi(fmt(d.allTimeUniqueIPs), "visitors ever") + kpi(fmt(c.accounts), "accounts", "+" + fmt(c.newAccounts7d) + " this week") +
     kpi(fmt(c.vip), "VIP members") + kpi(fmt(c.friendships), "friendships") + kpi(fmt(c.activeStreaks), "active 🔥 streaks", c.longestStreak ? "longest: " + c.longestStreak + " days" : "") +
