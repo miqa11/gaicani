@@ -2332,15 +2332,115 @@ tr:hover td{background:rgba(255,255,255,.03)}
   td,th{padding:8px 6px;font-size:.8em}
 }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;800&display=swap" rel="stylesheet">
+<style id="admin-enamel">
+/* GAICANI admin — "Minankari" design layer (matches the site and the stats
+   page). Visual only: every button, id and script below is unchanged.
+   Delete this block to get the previous look back. */
+:root { --en-bg:#130f26; --en-card:#1c1735; --en-raised:#241e44; --en-line:rgba(214,168,79,.18); --en-gold:#f4d98f; --en-text:#f3eeff; --en-muted:#9a92bd; }
+html, body { background:radial-gradient(900px 500px at 50% -150px,rgba(79,108,255,.18),transparent 70%),var(--en-bg); color:var(--en-text);
+  font-family:"Noto Sans Georgian",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+h1 { font-weight:800; }
+h1 .gt { background:linear-gradient(180deg,#fff4d2,#f4d98f 45%,#d6a84f); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.subtitle { color:var(--en-muted); }
+.top-bar { background:rgba(19,15,38,.88); border-bottom:1px solid var(--en-line); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+.refresh-btn { background:linear-gradient(135deg,#5b77ff,#8b55ff); border:1px solid rgba(244,217,143,.35); box-shadow:0 8px 20px -10px rgba(109,77,255,.9); }
+.collapse-all-btn { background:rgba(255,255,255,.05); border:1px solid var(--en-line); color:var(--en-gold); }
+#status { color:var(--en-gold); }
+details.section { background:linear-gradient(180deg,#211b40,var(--en-card)); border:1px solid var(--en-line); border-radius:16px; box-shadow:inset 0 1px 0 rgba(255,255,255,.04); }
+details.section > summary { color:var(--en-text); font-weight:800; }
+details.section > summary::before { color:var(--en-gold); }
+details.section > summary .count-badge { background:linear-gradient(135deg,#f4d98f,#d6a84f); color:#2a1d05; font-weight:800; }
+details.section[open] > summary { border-bottom:1px solid var(--en-line); }
+th { color:var(--en-gold); border-bottom:1px solid var(--en-line); }
+td { border-bottom:1px solid rgba(255,255,255,.05); }
+tr:hover td { background:rgba(214,168,79,.05); }
+.ip { color:#cbb0ff; }
+.badge { background:rgba(79,108,255,.16); color:#aab8ff; border:1px solid rgba(79,108,255,.35); border-radius:999px; }
+.badge.green { background:rgba(31,193,138,.14); color:#62e3b3; border-color:rgba(31,193,138,.38); }
+.ban-btn { background:linear-gradient(135deg,#ff5f80,#c21d49); }
+.unban-btn { background:linear-gradient(135deg,#27d39a,#159a6c); }
+.do-ban-btn { background:linear-gradient(135deg,#ff5f80,#c21d49); box-shadow:0 10px 24px -12px rgba(227,59,95,.9); }
+.block-ua-btn { background:linear-gradient(135deg,#f6c453,#d9820f); }
+.ban-btn, .unban-btn, .do-ban-btn, .block-ua-btn, .refresh-btn, .collapse-all-btn { border-radius:10px; }
+.manual-ban-box textarea, .manual-ban-box input[type=text], input[type=search], #regSearch { background:#221c42; border:1px solid rgba(214,168,79,.22); color:var(--en-text); }
+.manual-ban-box textarea:focus, .manual-ban-box input[type=text]:focus { border-color:rgba(244,217,143,.6); box-shadow:0 0 0 3px rgba(214,168,79,.14); outline:none; }
+.hint { color:var(--en-muted); }
+code { background:rgba(214,168,79,.12); color:var(--en-gold); border-radius:5px; padding:1px 5px; }
+.reason-list li { border-color:rgba(255,255,255,.06); }
+.manual-ban-box { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); }
+/* overview strip */
+.ov-wrap { margin:14px 0 16px; padding:14px; background:linear-gradient(180deg,#221c42,var(--en-card)); border:1px solid var(--en-line); border-radius:18px; }
+.ov-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.ov-title { font-weight:800; color:var(--en-gold); font-size:1.05em; }
+.ov-link { color:var(--en-gold); text-decoration:none; font-size:.85em; padding:6px 12px; border-radius:999px; border:1px solid var(--en-line); background:rgba(214,168,79,.08); }
+.ov-group { color:var(--en-muted); font-size:.75em; font-weight:700; margin:12px 2px 6px; }
+.ov-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; }
+.ov-card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:10px 12px; }
+.ov-card .v { font-size:1.35em; font-weight:800; line-height:1.15; }
+.ov-card .l { color:var(--en-muted); font-size:.76em; margin-top:2px; }
+.ov-card .x { color:var(--en-gold); font-size:.72em; margin-top:3px; }
+.ov-card.live .v { color:#62e3b3; }
+.ov-card.warn { border-color:rgba(240,185,58,.45); background:rgba(240,185,58,.08); }
+.ov-card.warn .v { color:#f6c453; }
+@media (max-width:600px) { .manual-ban-box textarea, .manual-ban-box input[type=text], #regSearch { font-size:16px; } }
+</style>
 </head>
 <body>
-<h1>🛡️ Admin Panel</h1>
+<h1>🛡️ <span class="gt">Admin Panel</span></h1>
 <div class="subtitle">GAICANI moderation</div>
 <div class="top-bar">
   <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
   <button class="collapse-all-btn" onclick="toggleAllSections()" id="collapseAllBtn">⇕ Collapse all</button>
   <span id="status"></span>
 </div>
+<div class="ov-wrap" id="overview">
+  <div class="ov-head"><span class="ov-title">Overview</span><a class="ov-link" id="ovStatsLink" target="_blank" rel="noopener">📊 Open full statistics</a></div>
+  <div id="ovBody"><div class="ov-grid"><div class="ov-card"><div class="v">…</div><div class="l">loading</div></div></div></div>
+</div>
+<script>
+/* Overview strip — at-a-glance numbers. Uses the public stats data plus the
+   same admin lists the sections below already load. Read-only: it changes
+   nothing, and nothing below depends on it. */
+function ovCount(x) {
+  if (Array.isArray(x)) return x.length;
+  if (x && typeof x === "object") { for (var k in x) if (Array.isArray(x[k])) return x[k].length; }
+  return 0;
+}
+function ovCard(v, l, extra, tone) {
+  return '<div class="ov-card' + (tone ? " " + tone : "") + '"><div class="v">' + v + '</div><div class="l">' + l + '</div>' + (extra ? '<div class="x">' + extra + '</div>' : '') + '</div>';
+}
+function ovNum(n) { return (Number(n) || 0).toLocaleString("en-US"); }
+async function loadOverview() {
+  try {
+    document.getElementById("ovStatsLink").href = R.stats;
+    var res = await Promise.all([
+      fetch(R.statsApi, { cache: "no-store" }).then(function (r) { return r.json(); }),
+      api("GET", R.reported).catch(function () { return []; }),
+      api("GET", R.accountReports).catch(function () { return []; }),
+      api("GET", R.bans).catch(function () { return []; }),
+      api("GET", R.tempBansList).catch(function () { return []; })
+    ]);
+    var st = res[0], lv = st.live || {}, cm = st.community || {}, days = st.days || [], today = days[days.length - 1] || {}, ct = today.counters || {};
+    var msgs = (ct.msgRandom || 0) + (ct.msgPrivate || 0) + (ct.msgRooms || 0);
+    var reports = ovCount(res[1]) + ovCount(res[2]), bans = ovCount(res[3]), blocks = ovCount(res[4]);
+    document.getElementById("ovBody").innerHTML =
+      '<div class="ov-group">Right now</div><div class="ov-grid">' +
+        ovCard(ovNum(st.currentOnline), "people online", "", "live") + ovCard(ovNum(lv.registered), "registered online") +
+        ovCard(ovNum(lv.guests), "guests online") + ovCard(ovNum(lv.chatting), "in random chat", ovNum(lv.waiting) + " waiting") + '</div>' +
+      '<div class="ov-group">Today</div><div class="ov-grid">' +
+        ovCard(ovNum(today.uniqueIPs), "visitors") + ovCard(ovNum(today.chats), "random chats") +
+        ovCard(ovNum(msgs), "messages") + ovCard(ovNum(today.signups), "new accounts") + '</div>' +
+      '<div class="ov-group">Community &amp; moderation</div><div class="ov-grid">' +
+        ovCard(ovNum(cm.accounts), "accounts", "+" + ovNum(cm.newAccounts7d) + " this week") + ovCard(ovNum(cm.vip), "VIP members") +
+        ovCard(ovNum(reports), "reported", "", reports ? "warn" : "") + ovCard(ovNum(bans), "banned IPs / ranges") +
+        ovCard(ovNum(blocks), "24h blocks", "", blocks ? "warn" : "") + '</div>';
+  } catch (e) {
+    document.getElementById("ovBody").innerHTML = '<div class="hint">Overview unavailable right now.</div>';
+  }
+}
+</script>
 
 <details class="section" open>
   <summary>🔒 Manual Permanent Ban</summary>
@@ -2674,6 +2774,7 @@ function setStatus(msg) {
 }
 
 async function loadAll() {
+  loadOverview();
   try {
     const d = await api("GET", R.users);
     const el = document.getElementById("users");
@@ -9524,6 +9625,12 @@ io.on("connection", (socket) => {
     socket._regUser = { usernameLower: entry.usernameLower, username: user.username };
     evictGhostOf(socket);
     socket.userName = user.username;
+    // Last-used IP for the admin panel. This was only recorded on the game
+    // pages' login path, so most accounts showed "never logged in" and
+    // "Delete + ban" had no IP to ban.
+    user.lastIP = socket.clientIP || "unknown";
+    user.lastIPAt = Date.now();
+    authUsersDirty = true; scheduleSave();
 
     if (!onlineRegSockets.has(entry.usernameLower)) {
       onlineRegSockets.set(entry.usernameLower, new Set());
