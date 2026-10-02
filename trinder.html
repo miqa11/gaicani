@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#130f26">
+<meta name="robots" content="noindex, nofollow">
+<title>Trinder — GAICANI</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E💞%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wdth,wght@62.5..100,400..900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#130f26; --plate:#1c1735; --plate2:#241e44; --field:#221c42; --line:rgba(214,168,79,.22);
+  --gold:#f4d98f; --gold-d:#d6a84f; --text:#f5f0ff; --muted:#9a92bd;
+  --rose:#ff4d7d; --rose-d:#e33b5f; --violet:#9d5cff; --emerald:#1fc18a;
+  --font:"Noto Sans Georgian",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; }
+body { background:radial-gradient(700px 420px at 50% -120px,rgba(255,77,125,.16),transparent 70%),var(--bg); color:var(--text); font-family:var(--font); font-size:15px;
+  -webkit-tap-highlight-color:transparent; padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0); }
+button, input, select, textarea { font-family:inherit; }
+:where(a, button, input, select, textarea, [tabindex]):focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+.wrap { max-width:460px; margin:0 auto; padding:0 14px 32px; }
+
+/* header + tabs */
+.tb-top { position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:10px; padding:10px 14px; max-width:460px; margin:0 auto;
+  background:rgba(19,15,38,.86); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
+.tb-back { width:36px; height:36px; border-radius:50%; display:grid; place-items:center; color:var(--gold); text-decoration:none; font-size:1.1em; box-shadow:inset 0 0 0 1px var(--line); }
+.tb-brand { display:flex; align-items:center; gap:8px; font-weight:900; font-stretch:80%; font-size:1.35em; letter-spacing:.01em; }
+.tb-brand span { background:linear-gradient(90deg,#ff7aa0,var(--rose) 45%,var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.tabs { display:flex; gap:6px; max-width:460px; margin:10px auto 4px; padding:0 14px; }
+.tabs button { flex:1; min-width:0; padding:7px 2px 6px; border-radius:12px; border:1px solid transparent; background:transparent; color:var(--muted); font-weight:700; font-size:.72em;
+  cursor:pointer; white-space:nowrap; overflow:hidden; display:flex; flex-direction:column; align-items:center; gap:3px; }
+.tabs .ti { position:relative; font-size:1.55em; line-height:1; }
+.tabs button.on { background:var(--plate2); color:var(--text); border-color:var(--line); }
+.count { position:absolute; top:-5px; left:calc(100% - 6px); min-width:17px; padding:0 4px; border-radius:999px; background:var(--rose); color:#fff; font-size:.6em; line-height:17px; font-weight:800; }
+[hidden] { display:none !important; }
+
+/* deck */
+.deck { position:relative; height:min(66vh,560px); margin-top:8px; }
+.card { position:absolute; inset:0; border-radius:24px; overflow:hidden; touch-action:none; user-select:none; cursor:grab;
+  border:1.5px solid transparent; background:linear-gradient(180deg,#2a2350,#1a1533) padding-box, linear-gradient(140deg,rgba(244,217,143,.75),rgba(214,168,79,.15) 45%,rgba(244,217,143,.55)) border-box;
+  box-shadow:0 22px 50px -24px rgba(0,0,0,.9); will-change:transform; }
+.card.back { transform:scale(.95) translateY(12px); filter:brightness(.8); cursor:default; }
+.card-photo { position:absolute; inset:0; background-size:cover; background-position:center; }
+.card-shade { position:absolute; inset:0; background:linear-gradient(180deg,transparent 45%,rgba(12,9,26,.55) 68%,rgba(12,9,26,.95)); }
+.card-info { position:absolute; left:0; right:0; bottom:0; padding:18px 18px 16px; }
+.card-name { font-weight:900; font-stretch:82%; font-size:2em; line-height:1.05; }
+.card-name .age { font-weight:400; font-size:.8em; margin-left:6px; }
+.card-sub { margin-top:6px; color:#e4dcf7; font-size:.9em; line-height:1.45; }
+.card-online { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--emerald); box-shadow:0 0 8px var(--emerald); margin-left:6px; vertical-align:middle; }
+.stamp { position:absolute; top:26px; padding:6px 14px; border-radius:10px; font-weight:900; font-size:1.5em; letter-spacing:.02em; opacity:0; transform:rotate(-14deg); pointer-events:none; }
+.stamp.like { left:20px; color:#ffd1dd; border:3px solid var(--rose); background:rgba(255,77,125,.18); }
+.stamp.nope { right:20px; color:#d6d0ea; border:3px solid #8f87ad; background:rgba(143,135,173,.18); transform:rotate(14deg); }
+.actions { display:flex; justify-content:center; gap:26px; margin:16px 0 4px; }
+.act { width:66px; height:66px; border-radius:50%; border:none; cursor:pointer; font-size:1.7em; display:grid; place-items:center; transition:transform .12s; }
+.act:active { transform:scale(.92); }
+.act.pass { background:var(--plate2); color:#cfc8e8; box-shadow:inset 0 0 0 1.5px var(--line), 0 10px 24px -12px rgba(0,0,0,.9); }
+.act.like { background:linear-gradient(135deg,#ff7aa0,var(--rose) 50%,var(--violet)); color:#fff; box-shadow:0 14px 30px -12px rgba(255,77,125,.85), inset 0 1px 0 rgba(255,255,255,.3); }
+.details { margin-top:14px; background:var(--plate); border:1px solid var(--line); border-radius:18px; padding:14px; }
+.details h3 { margin:0 0 8px; font-size:.95em; color:var(--gold); }
+.details p { margin:0 0 10px; line-height:1.55; color:#e4dcf7; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.chip { padding:5px 11px; border-radius:999px; font-size:.82em; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); }
+.empty { text-align:center; padding:48px 16px; color:var(--muted); line-height:1.6; }
+.empty b { color:var(--text); font-size:1.1em; display:block; margin-bottom:6px; }
+
+/* buttons */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:12px 18px; border-radius:14px; border:none; cursor:pointer; font-weight:800; font-size:.95em; text-decoration:none; }
+.btn.primary { background:linear-gradient(135deg,#ff7aa0,var(--rose) 50%,var(--violet)); color:#fff; box-shadow:0 12px 26px -12px rgba(255,77,125,.9); }
+.btn.ghost { background:rgba(255,255,255,.06); color:var(--text); box-shadow:inset 0 0 0 1px var(--line); }
+.btn.danger { background:rgba(227,59,95,.12); color:#ff8aa1; box-shadow:inset 0 0 0 1px rgba(227,59,95,.4); }
+.btn.wide { width:100%; }
+
+/* join / profile form */
+.intro { text-align:center; margin:14px 0 6px; }
+.intro h1 { margin:6px 0 4px; font-size:1.5em; font-weight:900; font-stretch:85%; }
+.intro p { margin:0; color:var(--muted); line-height:1.5; font-size:.92em; }
+.block { background:var(--plate); border:1px solid var(--line); border-radius:18px; padding:14px; margin-top:12px; }
+.block h2 { margin:0 0 10px; font-size:.95em; color:var(--gold); }
+.photo-row { display:flex; align-items:center; gap:12px; }
+.photo-row img { width:72px; height:72px; border-radius:18px; object-fit:cover; box-shadow:0 0 0 2px var(--gold-d); }
+.photo-row small { color:var(--muted); line-height:1.45; }
+.photo-row a { color:var(--gold); }
+label.f { display:block; font-size:.82em; color:var(--muted); margin:10px 0 5px; }
+label.f .req { color:var(--rose); }
+.in { width:100%; padding:12px 13px; border-radius:12px; border:1px solid rgba(214,168,79,.22); background:var(--field); color:var(--text); font-size:16px; }
+.in:focus { outline:none; border-color:rgba(244,217,143,.6); box-shadow:0 0 0 3px rgba(214,168,79,.14); }
+textarea.in { min-height:84px; resize:vertical; line-height:1.5; }
+select.in { appearance:none; -webkit-appearance:none; }
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.seg { display:flex; gap:6px; flex-wrap:wrap; }
+.opt { padding:9px 13px; border-radius:999px; cursor:pointer; font-size:.86em; background:rgba(255,255,255,.05); color:var(--text); border:1px solid rgba(255,255,255,.12); }
+.opt.on { background:rgba(255,77,125,.18); border-color:var(--gold-d); color:#fff; }
+.hint { color:var(--muted); font-size:.78em; margin-top:6px; }
+.counter { text-align:right; color:var(--muted); font-size:.75em; margin-top:3px; }
+.confirm { display:flex; gap:10px; align-items:flex-start; margin-top:14px; font-size:.88em; line-height:1.45; }
+.confirm input { width:20px; height:20px; margin-top:1px; accent-color:var(--rose); flex-shrink:0; }
+.err { color:#ff8aa1; font-size:.86em; min-height:1.3em; margin:12px 2px 0; }
+.form-actions { margin-top:12px; display:grid; gap:10px; }
+
+/* likes + matches */
+.likes-head { text-align:center; margin:16px 0 12px; line-height:1.5; }
+.likes-head b { font-size:1.15em; }
+.likes-head small { color:var(--muted); display:block; margin-top:4px; }
+.grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.tile { position:relative; aspect-ratio:3/4; border-radius:16px; overflow:hidden; background:var(--plate2); border:1px solid var(--line); }
+.tile .ph { position:absolute; inset:0; background-size:cover; background-position:center; }
+.tile.blur .ph { filter:blur(14px) saturate(1.2); transform:scale(1.2); }
+.tile .heart { position:absolute; inset:0; display:grid; place-items:center; font-size:1.6em; }
+.tile .nm { position:absolute; left:0; right:0; bottom:0; padding:22px 8px 7px; font-size:.8em; font-weight:800; background:linear-gradient(transparent,rgba(12,9,26,.92)); }
+.tile .row { position:absolute; top:6px; right:6px; display:flex; gap:4px; }
+.tile .mini { width:30px; height:30px; border-radius:50%; border:none; cursor:pointer; font-size:.95em; }
+.tile .mini.y { background:linear-gradient(135deg,var(--rose),var(--violet)); color:#fff; }
+.tile .mini.n { background:rgba(19,15,38,.8); color:#cfc8e8; }
+.match-row { display:flex; align-items:center; gap:12px; padding:10px; border-radius:16px; background:var(--plate); border:1px solid var(--line); margin-bottom:8px; }
+.match-row img { width:52px; height:52px; border-radius:16px; object-fit:cover; }
+.match-row .who { flex:1; min-width:0; font-weight:800; }
+.match-row .who small { display:block; color:var(--muted); font-weight:400; margin-top:2px; }
+
+/* match celebration */
+.match-ov { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:24px;
+  background:radial-gradient(600px 420px at 50% 40%,rgba(255,77,125,.35),transparent 70%),rgba(12,9,26,.94); }
+.match-box { text-align:center; max-width:360px; width:100%; }
+.match-title { font-size:2.6em; font-weight:900; font-stretch:78%; background:linear-gradient(90deg,#ffd1dd,var(--rose),var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.match-pics { position:relative; height:150px; margin:18px 0 10px; }
+.match-pics img { position:absolute; top:10px; width:124px; height:124px; border-radius:28px; object-fit:cover; box-shadow:0 0 0 3px var(--gold-d), 0 18px 40px -16px rgba(0,0,0,.9); }
+.match-pics .a { left:calc(50% - 116px); transform:rotate(-8deg); animation:inL .55s cubic-bezier(.2,.9,.2,1.1) both; }
+.match-pics .b { right:calc(50% - 116px); transform:rotate(8deg); animation:inR .55s cubic-bezier(.2,.9,.2,1.1) both; }
+.match-pics .h { position:absolute; left:50%; top:52px; transform:translateX(-50%); font-size:2.6em; animation:pop .5s .35s cubic-bezier(.2,.9,.3,1.4) both; }
+.match-box p { color:#e4dcf7; line-height:1.55; margin:0 0 16px; }
+@keyframes inL { from { transform:translateX(-120px) rotate(-30deg); opacity:0; } to { transform:rotate(-8deg); opacity:1; } }
+@keyframes inR { from { transform:translateX(120px) rotate(30deg); opacity:0; } to { transform:rotate(8deg); opacity:1; } }
+@keyframes pop { from { transform:translateX(-50%) scale(0); } to { transform:translateX(-50%) scale(1); } }
+
+.toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:120; padding:11px 16px; border-radius:14px;
+  background:rgba(36,30,68,.97); border:1px solid var(--line); box-shadow:0 14px 30px -12px rgba(0,0,0,.9); font-size:.9em; max-width:90vw; }
+.loading { text-align:center; color:var(--muted); padding:60px 0; }
+@media (prefers-reduced-motion: reduce) { .match-pics img, .match-pics .h { animation:none; } .card { transition:none !important; } }
+</style>
+</head>
+<body>
+<header class="tb-top">
+  <a href="/dashboard.html" class="tb-back" aria-label="დეშბორდზე დაბრუნება">←</a>
+  <div class="tb-brand"><span id="logoTop"></span><span>Trinder</span></div>
+</header>
+<nav class="tabs" id="tabs" hidden>
+  <button data-tab="deck" class="on"><span class="ti">🔍</span>აღმოაჩინე</button>
+  <button data-tab="likes"><span class="ti">💗<span class="count" id="likesCount" hidden>0</span></span>მოგწონს</button>
+  <button data-tab="matches"><span class="ti">💬</span>მატჩები</button>
+  <button data-tab="profile"><span class="ti">👤</span>პროფილი</button>
+</nav>
+
+<main class="wrap">
+  <div class="loading" id="vLoading">იტვირთება…</div>
+
+  <section id="vGate" hidden>
+    <div class="empty"><b>Trinder მხოლოდ რეგისტრირებული მომხმარებლებისთვისაა</b>
+      დარეგისტრირდი უფასოდ — სულ 2 წამი სჭირდება.<br><br><a class="btn primary" href="/">რეგისტრაცია</a></div>
+  </section>
+
+  <section id="vForm" hidden>
+    <div class="intro" id="formIntro">
+      <div id="logoBig"></div>
+      <h1>შეუერთდი Trinder-ს</h1>
+      <p>შეავსე პროფილი, მოიწონე ადამიანები და როცა მოწონება ორმხრივია — ეს მატჩია: ხდებით მეგობრები და შეგიძლიათ პირადად მიწეროთ ერთმანეთს.</p>
+    </div>
+    <form id="tForm" novalidate>
+      <div class="block">
+        <h2>ფოტო</h2>
+        <div class="photo-row"><img id="fPhoto" alt=""><small>ფოტოდ შენი პროფილის სურათი გამოიყენება. შეცვლა შეგიძლია <a href="/dashboard.html">დეშბორდზე</a>.</small></div>
+      </div>
+      <div class="block">
+        <h2>შენ შესახებ</h2>
+        <label class="f" for="fName">სახელი <span class="req">*</span></label>
+        <input class="in" id="fName" maxlength="20" autocomplete="given-name" placeholder="მაგ. ნინო">
+        <div class="row2">
+          <div><label class="f" for="fAge">ასაკი <span class="req">*</span></label><input class="in" id="fAge" type="number" inputmode="numeric" min="18" max="99" placeholder="18+"></div>
+          <div><label class="f" for="fHeight">სიმაღლე (სმ)</label><input class="in" id="fHeight" type="number" inputmode="numeric" min="140" max="220" placeholder="მაგ. 175"></div>
+        </div>
+        <label class="f">სქესი <span class="req">*</span></label>
+        <div class="seg" data-one="gender"><button type="button" class="opt" data-v="male">👨 კაცი</button><button type="button" class="opt" data-v="female">👩 ქალი</button></div>
+        <label class="f">ვინ გაინტერესებს <span class="req">*</span></label>
+        <div class="seg" data-one="interestedIn"><button type="button" class="opt" data-v="men">კაცები</button><button type="button" class="opt" data-v="women">ქალები</button><button type="button" class="opt" data-v="everyone">ყველა</button></div>
+      </div>
+      <div class="block">
+        <h2>დეტალები</h2>
+        <label class="f" for="fCity">სად ცხოვრობ</label>
+        <input class="in" id="fCity" list="cities" maxlength="40" placeholder="მაგ. თბილისი">
+        <datalist id="cities"><option value="თბილისი"><option value="ბათუმი"><option value="ქუთაისი"><option value="რუსთავი"><option value="გორი"><option value="ზუგდიდი"><option value="ფოთი"><option value="ქობულეთი"><option value="ხაშური"><option value="სამტრედია"><option value="სენაკი"><option value="ზესტაფონი"><option value="მარნეული"><option value="თელავი"><option value="ახალციხე"><option value="ოზურგეთი"><option value="ბორჯომი"><option value="მცხეთა"><option value="სიღნაღი"><option value="საზღვარგარეთ"></datalist>
+        <div class="row2">
+          <div><label class="f" for="fJob">სამსახური</label><input class="in" id="fJob" maxlength="40" placeholder="მაგ. დიზაინერი"></div>
+          <div><label class="f" for="fUni">უნივერსიტეტი</label><input class="in" id="fUni" maxlength="60" placeholder="მაგ. თსუ"></div>
+        </div>
+        <label class="f" for="fZodiac">ზოდიაქო</label>
+        <select class="in" id="fZodiac"></select>
+        <label class="f">რას ეძებ</label>
+        <div class="seg" data-one="lookingFor" id="segLooking"></div>
+      </div>
+      <div class="block">
+        <h2>ჩემ შესახებ</h2>
+        <textarea class="in" id="fAbout" maxlength="300" placeholder="რამდენიმე სიტყვა შენზე — რა გიყვარს, რით ერთობი…"></textarea>
+        <div class="counter"><span id="aboutN">0</span>/300</div>
+      </div>
+      <div class="block">
+        <h2>მუსიკა</h2>
+        <div class="seg" data-many="music" data-max="6" id="segMusic"></div>
+        <div class="hint">აირჩიე 6-მდე</div>
+      </div>
+      <div class="block">
+        <h2>ჰობი და ინტერესები</h2>
+        <div class="seg" data-many="hobbies" data-max="8" id="segHobbies"></div>
+        <div class="hint">აირჩიე 8-მდე</div>
+      </div>
+      <div class="block">
+        <h2>ცხოვრების წესი</h2>
+        <label class="f">მოწევა</label><div class="seg" data-one="smoking" id="segSmoking"></div>
+        <label class="f">ალკოჰოლი</label><div class="seg" data-one="drinking" id="segDrinking"></div>
+        <label class="f">შინაური ცხოველი</label><div class="seg" data-one="pets" id="segPets"></div>
+      </div>
+      <label class="confirm" id="ageConfirmRow"><input type="checkbox" id="fAdult"><span>ვადასტურებ, რომ 18 წლის ან მეტის ვარ</span></label>
+      <div class="err" id="fErr" role="alert"></div>
+      <div class="form-actions">
+        <button class="btn primary wide" type="submit" id="fSubmit">Trinder-ზე შესვლა</button>
+        <button class="btn danger wide" type="button" id="fLeave" hidden>Trinder-იდან გასვლა</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="vDeck" hidden>
+    <div class="deck" id="deck"></div>
+    <div class="empty" id="deckEmpty" hidden><b>ამ წუთას ახალი პროფილები აღარ არის</b>
+      შემოიარე მოგვიანებით — ახალი ადამიანები ყოველდღე ემატებიან.<br><br>
+      <button class="btn ghost" id="btnReset" type="button">გამოტოვებულების თავიდან ნახვა</button></div>
+    <div class="actions" id="deckActions">
+      <button class="act pass" id="btnPass" type="button" aria-label="გამოტოვება">✕</button>
+      <button class="act like" id="btnLike" type="button" aria-label="მომწონს">❤</button>
+    </div>
+    <div class="details" id="details" hidden></div>
+  </section>
+
+  <section id="vLikes" hidden><div id="likesBody"><div class="loading">იტვირთება…</div></div></section>
+  <section id="vMatches" hidden><div id="matchesBody"></div></section>
+</main>
+
+<div class="match-ov" id="matchOv" hidden>
+  <div class="match-box" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="match-title" id="mTitle">მატჩი!</div>
+    <div class="match-pics"><img class="a" id="mMe" alt=""><img class="b" id="mThem" alt=""><div class="h">💞</div></div>
+    <p id="mText"></p>
+    <div class="form-actions"><a class="btn primary wide" id="mChat" href="#">💬 მიწერა</a><button class="btn ghost wide" id="mClose" type="button">გაგრძელება</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/ban-notice.js"></script>
+<script>
+(function () {
+  "use strict";
+  // ── Labels for the choices the server stores as keys ─────────────────────
+  var Z = { aries: "♈ ვერძი", taurus: "♉ კურო", gemini: "♊ ტყუპები", cancer: "♋ კირჩხიბი", leo: "♌ ლომი", virgo: "♍ ქალწული", libra: "♎ სასწორი",
+    scorpio: "♏ მორიელი", sagittarius: "♐ მშვილდოსანი", capricorn: "♑ თხის რქა", aquarius: "♒ მერწყული", pisces: "♓ თევზები" };
+  var LOOK = { relationship: "💞 სერიოზული ურთიერთობა", friendship: "🤝 მეგობრობა", fun: "🎉 გართობა", unsure: "🤔 ჯერ არ ვიცი" };
+  var MUSIC = { pop: "პოპი", rock: "როკი", hiphop: "ჰიპ-ჰოპი", rap: "რეპი", electronic: "ელექტრონული", jazz: "ჯაზი", classical: "კლასიკური",
+    georgian: "ქართული", rnb: "R&B", metal: "მეტალი", indie: "ინდი", kpop: "K-pop", latin: "ლათინო", lofi: "Lo-fi" };
+  var HOBBY = { sport: "🏅 სპორტი", football: "⚽ ფეხბურთი", travel: "✈️ მოგზაურობა", movies: "🎬 კინო", books: "📚 წიგნები", gaming: "🎮 თამაშები",
+    cooking: "🍳 კულინარია", photography: "📷 ფოტოგრაფია", dance: "💃 ცეკვა", hiking: "🥾 ლაშქრობა", art: "🎨 ხელოვნება", tech: "💻 ტექნოლოგიები",
+    fashion: "👗 მოდა", animals: "🐾 ცხოველები", fitness: "🏋️ ფიტნესი", music: "🎵 მუსიკა" };
+  var SMOKE = { no: "🚭 არ ვეწევი", sometimes: "ხანდახან", yes: "ვეწევი" };
+  var DRINK = { no: "არ ვსვამ", social: "კომპანიაში", yes: "ვსვამ" };
+  var PETS = { dog: "🐶 ძაღლი", cat: "🐱 კატა", other: "🐾 სხვა", none: "არ მყავს" };
+
+  // An original mark: two overlapping enamel hearts with a gold spark.
+  var logoN = 0;
+  function logo(size) {
+    var n = ++logoN;
+    var heart = "M16 29C4 20 1 14 1 9 1 4.6 4.6 1 9 1c3 0 5.6 1.8 7 4.3C17.4 2.8 20 1 23 1c4.4 0 8 3.6 8 8 0 5-3 11-15 20z";
+    return '<svg viewBox="0 0 48 44" width="' + size + '" height="' + Math.round(size * 44 / 48) + '" aria-hidden="true">' +
+      '<defs><linearGradient id="tA' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b07bff"/><stop offset="1" stop-color="#6d3ad6"/></linearGradient>' +
+      '<linearGradient id="tB' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff86a8"/><stop offset="1" stop-color="#e33b5f"/></linearGradient></defs>' +
+      '<path d="' + heart + '" transform="translate(14 7) scale(.95)" fill="url(#tA' + n + ')"/>' +
+      '<path d="' + heart + '" transform="translate(1 12)" fill="url(#tB' + n + ')" stroke="#130f26" stroke-width="1.5"/>' +
+      '<path d="M41 1l1.7 4.3L47 7l-4.3 1.7L41 13l-1.7-4.3L35 7l4.3-1.7z" fill="#f4d98f"/></svg>';
+  }
+  document.getElementById("logoTop").innerHTML = logo(30);
+  document.getElementById("logoBig").innerHTML = logo(64);
+
+  var $ = function (id) { return document.getElementById(id); };
+  var REDUCE = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  var token = null; try { token = localStorage.getItem("gaicani_auth_token"); } catch (e) {}
+  var state = null, queue = [], swiped = new Set(), deckLoading = false, deckDry = false, busy = false, booted = false;
+
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.hidden = true; }, 2800);
+  }
+  function show(id) {
+    ["vLoading", "vGate", "vForm", "vDeck", "vLikes", "vMatches"].forEach(function (v) { $(v).hidden = v !== id; });
+  }
+  function setLikes(n) { var c = $("likesCount"); c.textContent = n; c.hidden = !(n > 0); }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  // ── Connection ──────────────────────────────────────────────────────────
+  if (!token) { show("vGate"); return; }
+  var socket = io();
+  if (typeof attachTempBanGuard === "function") attachTempBanGuard(socket);
+  var call = function (ev, data) { return new Promise(function (res) { socket.emit(ev, data || null, res); }); };
+  socket.on("connect", function () { socket.emit("auth:login", { token: token }); });
+  socket.on("auth:error", function () { show("vGate"); });
+  socket.on("auth:authenticated", function (d) {
+    if (!d || d.isGuest) { show("vGate"); return; }
+    call("trinder:state").then(function (st) {
+      if (!st || st.error) { show("vGate"); return; }
+      applyState(st);
+      if (booted) return;            // a reconnect: keep whatever the person is doing
+      booted = true;
+      if (!st.joined) openForm(false); else openTab("deck");
+    });
+  });
+  socket.on("trinder:liked", function (d) { setLikes(d.likesCount); toast("💗 ვიღაცას მოეწონე! ნახე „მოგწონს“"); });
+  socket.on("trinder:match", function (d) { setLikes(d.likesCount); addMatch(d.with); celebrate(d.with); });
+
+  function applyState(st) {
+    state = st;
+    setLikes(st.likesCount || 0);
+    $("tabs").hidden = !st.joined;
+  }
+  function addMatch(m) {
+    if (!state || !m) return;
+    if (!state.matches.some(function (x) { return x.username === m.username; })) state.matches.unshift(m);
+    if (!$("vMatches").hidden) renderMatches();
+  }
+
+  // ── Tabs ────────────────────────────────────────────────────────────────
+  document.querySelectorAll("#tabs button").forEach(function (b) { b.addEventListener("click", function () { openTab(b.dataset.tab); }); });
+  function openTab(tab) {
+    document.querySelectorAll("#tabs button").forEach(function (b) { b.classList.toggle("on", b.dataset.tab === tab); });
+    if (tab === "deck") { show("vDeck"); if (!queue.length) loadDeck(); else renderDeck(); }
+    if (tab === "likes") { show("vLikes"); loadLikes(); }
+    if (tab === "matches") { show("vMatches"); renderMatches(); }
+    if (tab === "profile") openForm(true);
+  }
+
+  // ── Join / profile form ─────────────────────────────────────────────────
+  function fillOpts(boxId, map) { var box = $(boxId); box.innerHTML = ""; Object.keys(map).forEach(function (k) { var b = el("button", "opt", map[k]); b.type = "button"; b.dataset.v = k; box.appendChild(b); }); }
+  fillOpts("segLooking", LOOK); fillOpts("segMusic", MUSIC); fillOpts("segHobbies", HOBBY); fillOpts("segSmoking", SMOKE); fillOpts("segDrinking", DRINK); fillOpts("segPets", PETS);
+  var zs = $("fZodiac"); zs.appendChild(new Option("—", "")); Object.keys(Z).forEach(function (k) { zs.appendChild(new Option(Z[k], k)); });
+  document.querySelectorAll("[data-one]").forEach(function (box) {
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest(".opt"); if (!b) return;
+      var was = b.classList.contains("on");
+      box.querySelectorAll(".opt").forEach(function (o) { o.classList.remove("on"); });
+      if (!was || box.dataset.one === "gender" || box.dataset.one === "interestedIn") b.classList.add("on");
+    });
+  });
+  document.querySelectorAll("[data-many]").forEach(function (box) {
+    box.addEventListener("click", function (e) {
+      var b = e.target.closest(".opt"); if (!b) return;
+      if (!b.classList.contains("on") && box.querySelectorAll(".opt.on").length >= Number(box.dataset.max)) { toast("მაქსიმუმ " + box.dataset.max); return; }
+      b.classList.toggle("on");
+    });
+  });
+  $("fAbout").addEventListener("input", function () { $("aboutN").textContent = $("fAbout").value.length; });
+  function setOne(key, v) { var box = document.querySelector('[data-one="' + key + '"]'); box.querySelectorAll(".opt").forEach(function (o) { o.classList.toggle("on", o.dataset.v === v); }); }
+  function getOne(key) { var on = document.querySelector('[data-one="' + key + '"] .opt.on'); return on ? on.dataset.v : ""; }
+  function setMany(key, arr) { var box = document.querySelector('[data-many="' + key + '"]'); box.querySelectorAll(".opt").forEach(function (o) { o.classList.toggle("on", (arr || []).indexOf(o.dataset.v) >= 0); }); }
+  function getMany(key) { return Array.prototype.map.call(document.querySelectorAll('[data-many="' + key + '"] .opt.on'), function (o) { return o.dataset.v; }); }
+
+  function openForm(editing) {
+    var p = (state && state.profile) || {}, pre = (state && state.prefill) || {};
+    $("formIntro").hidden = editing;
+    $("fPhoto").src = "/" + ((state && state.avatar) || "avatar1.png");
+    $("fName").value = p.name || "";
+    $("fAge").value = p.age || pre.age || "";
+    $("fHeight").value = p.height || "";
+    setOne("gender", p.gender || pre.gender || ""); setOne("interestedIn", p.interestedIn || "");
+    $("fCity").value = p.city || pre.city || ""; $("fJob").value = p.job || pre.job || ""; $("fUni").value = p.university || pre.university || "";
+    $("fZodiac").value = p.zodiac || ""; setOne("lookingFor", p.lookingFor || "");
+    $("fAbout").value = p.about || ""; $("aboutN").textContent = $("fAbout").value.length;
+    setMany("music", p.music); setMany("hobbies", p.hobbies);
+    setOne("smoking", p.smoking || ""); setOne("drinking", p.drinking || ""); setOne("pets", p.pets || "");
+    $("fAdult").checked = !!editing; $("ageConfirmRow").hidden = !!editing;
+    $("fSubmit").textContent = editing ? "შენახვა" : "Trinder-ზე შესვლა";
+    $("fLeave").hidden = !editing; $("fErr").textContent = "";
+    show("vForm");
+    if (editing) document.querySelectorAll("#tabs button").forEach(function (b) { b.classList.toggle("on", b.dataset.tab === "profile"); });
+    window.scrollTo(0, 0);
+  }
+  $("tForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var err = $("fErr"); err.textContent = "";
+    var age = Number($("fAge").value);
+    if ($("fName").value.trim().length < 2) { err.textContent = "შეიყვანე სახელი"; return; }
+    if (!age) { err.textContent = "შეიყვანე ასაკი"; return; }
+    if (age < 18) { err.textContent = "Trinder მხოლოდ 18+ მომხმარებლებისთვისაა"; return; }
+    if (!getOne("gender")) { err.textContent = "აირჩიე სქესი"; return; }
+    if (!getOne("interestedIn")) { err.textContent = "აირჩიე, ვინ გაინტერესებს"; return; }
+    if (!$("fAdult").checked) { err.textContent = "დაადასტურე, რომ 18 წლის ან მეტის ხარ"; return; }
+    var profile = { name: $("fName").value.trim(), age: age, height: Number($("fHeight").value) || null, gender: getOne("gender"), interestedIn: getOne("interestedIn"),
+      city: $("fCity").value.trim(), job: $("fJob").value.trim(), university: $("fUni").value.trim(), zodiac: $("fZodiac").value, lookingFor: getOne("lookingFor"),
+      about: $("fAbout").value.trim(), music: getMany("music"), hobbies: getMany("hobbies"), smoking: getOne("smoking"), drinking: getOne("drinking"), pets: getOne("pets") };
+    var wasJoined = state && state.joined;
+    $("fSubmit").disabled = true;
+    call("trinder:join", { profile: profile }).then(function (st) {
+      $("fSubmit").disabled = false;
+      if (!st || st.error) { err.textContent = (st && st.error) || "ვერ შეინახა"; return; }
+      applyState(st);
+      if (wasJoined) toast("✅ პროფილი შენახულია");
+      queue = []; deckDry = false;
+      openTab("deck");
+    });
+  });
+  $("fLeave").addEventListener("click", function () {
+    if (!confirm("Trinder-იდან გასვლა? შენს პროფილს სხვები აღარ დაინახავენ. მატჩები მეგობრებად დაგრჩება.")) return;
+    call("trinder:leave").then(function (st) { applyState(st); queue = []; openForm(false); toast("Trinder-იდან გახვედი"); });
+  });
+
+  // ── Deck ────────────────────────────────────────────────────────────────
+  function loadDeck() {
+    if (deckLoading) return;
+    deckLoading = true;
+    call("trinder:deck").then(function (r) {
+      deckLoading = false;
+      if (r && r.error === "not-joined") { openForm(false); return; }
+      var added = 0;
+      ((r && r.cards) || []).forEach(function (c) {
+        if (!swiped.has(c.username) && !queue.some(function (q) { return q.username === c.username; })) { queue.push(c); added++; }
+      });
+      deckDry = added === 0;
+      renderDeck();
+    });
+  }
+  function cardEl(c, back) {
+    var card = el("div", "card" + (back ? " back" : ""));
+    var ph = el("div", "card-photo"); ph.style.backgroundImage = "url('/" + encodeURI(c.avatar) + "')"; card.appendChild(ph);
+    card.appendChild(el("div", "card-shade"));
+    card.appendChild(el("div", "stamp like", "მომწონს")); card.appendChild(el("div", "stamp nope", "არა"));
+    var info = el("div", "card-info");
+    var nm = el("div", "card-name", c.name); var ag = el("span", "age", String(c.age)); nm.appendChild(ag);
+    if (c.online) { var dot = el("span", "card-online"); dot.title = "ონლაინ"; nm.appendChild(dot); }
+    info.appendChild(nm);
+    var lines = [];
+    if (c.city) lines.push("📍 " + c.city);
+    if (c.zodiac && Z[c.zodiac]) lines.push(Z[c.zodiac]);
+    if (c.job) lines.push("💼 " + c.job);
+    if (c.university) lines.push("🎓 " + c.university);
+    lines.forEach(function (l) { info.appendChild(el("div", "card-sub", l)); });
+    card.appendChild(info);
+    return card;
+  }
+  function renderDetails(c) {
+    var d = $("details");
+    if (!c) { d.hidden = true; return; }
+    d.hidden = false; d.innerHTML = "";
+    if (c.about) { d.appendChild(el("h3", null, "ჩემ შესახებ")); d.appendChild(el("p", null, c.about)); }
+    var basics = [];
+    if (c.lookingFor && LOOK[c.lookingFor]) basics.push(LOOK[c.lookingFor]);
+    if (c.height) basics.push("📏 " + c.height + " სმ");
+    if (c.smoking && SMOKE[c.smoking]) basics.push(SMOKE[c.smoking]);
+    if (c.drinking && DRINK[c.drinking]) basics.push("🍷 " + DRINK[c.drinking]);
+    if (c.pets && PETS[c.pets]) basics.push(PETS[c.pets]);
+    var group = function (title, items) { if (!items.length) return; d.appendChild(el("h3", null, title)); var w = el("div", "chips"); items.forEach(function (t) { w.appendChild(el("span", "chip", t)); }); d.appendChild(w); };
+    group("მთავარი", basics);
+    group("მუსიკა", (c.music || []).map(function (k) { return "🎵 " + (MUSIC[k] || k); }));
+    group("ინტერესები", (c.hobbies || []).map(function (k) { return HOBBY[k] || k; }));
+    if (!d.children.length) d.hidden = true;
+  }
+  function renderDeck() {
+    var deck = $("deck"); deck.innerHTML = "";
+    var empty = !queue.length;
+    $("deckEmpty").hidden = !empty || deckLoading; $("deckActions").hidden = empty; deck.hidden = empty;
+    if (empty) { renderDetails(null); if (!deckLoading && !deckDry) loadDeck(); return; }
+    if (queue[1]) deck.appendChild(cardEl(queue[1], true));
+    var top = cardEl(queue[0], false); deck.appendChild(top);
+    renderDetails(queue[0]);
+    attachDrag(top);
+    if (queue.length < 4 && !deckDry) loadDeck();
+  }
+  function attachDrag(card) {
+    var sx = 0, sy = 0, dx = 0, dy = 0, t0 = 0, dragging = false;
+    var like = card.querySelector(".stamp.like"), nope = card.querySelector(".stamp.nope");
+    card.addEventListener("pointerdown", function (e) { if (busy) return; dragging = true; sx = e.clientX; sy = e.clientY; t0 = performance.now(); card.setPointerCapture(e.pointerId); card.style.transition = "none"; });
+    card.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      dx = e.clientX - sx; dy = e.clientY - sy;
+      card.style.transform = "translate(" + dx + "px," + dy * .4 + "px) rotate(" + dx / 16 + "deg)";
+      like.style.opacity = Math.max(0, Math.min(1, dx / 90)); nope.style.opacity = Math.max(0, Math.min(1, -dx / 90));
+    });
+    var end = function () {
+      if (!dragging) return; dragging = false;
+      var v = Math.abs(dx) / Math.max(1, performance.now() - t0);
+      if (Math.abs(dx) > 110 || (Math.abs(dx) > 40 && v > .6)) { decide(dx > 0 ? "like" : "pass", card); }
+      else { card.style.transition = "transform .25s cubic-bezier(.2,.8,.2,1)"; card.style.transform = ""; like.style.opacity = 0; nope.style.opacity = 0; }
+      dx = dy = 0;
+    };
+    card.addEventListener("pointerup", end); card.addEventListener("pointercancel", end);
+  }
+  function decide(action, card) {
+    if (busy || !queue.length) return;
+    busy = true;
+    var c = queue[0];
+    card = card || $("deck").lastElementChild;
+    var dir = action === "like" ? 1 : -1;
+    if (card) {
+      card.querySelector(action === "like" ? ".stamp.like" : ".stamp.nope").style.opacity = 1;
+      card.style.transition = REDUCE ? "none" : "transform .32s ease-in, opacity .32s ease-in";
+      card.style.transform = "translate(" + dir * (window.innerWidth + 200) + "px, 30px) rotate(" + dir * 28 + "deg)";
+      card.style.opacity = "0";
+    }
+    swiped.add(c.username);
+    call("trinder:swipe", { target: c.username, action: action }).then(function (r) {
+      if (r && r.error) toast(r.error);
+      if (r && r.match) { setLikes(r.likesCount || 0); addMatch(r.match); celebrate(r.match); }
+    });
+    setTimeout(function () { queue.shift(); busy = false; renderDeck(); }, REDUCE ? 0 : 300);
+  }
+  $("btnLike").addEventListener("click", function () { decide("like"); });
+  $("btnPass").addEventListener("click", function () { decide("pass"); });
+  $("btnReset").addEventListener("click", function () { call("trinder:resetPasses").then(function () { swiped.clear(); queue = []; deckDry = false; loadDeck(); }); });
+  document.addEventListener("keydown", function (e) {
+    if ($("vDeck").hidden || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "") || !$("matchOv").hidden) return;
+    if (e.key === "ArrowRight") decide("like");
+    if (e.key === "ArrowLeft") decide("pass");
+  });
+
+  // ── Likes you ───────────────────────────────────────────────────────────
+  function loadLikes() {
+    call("trinder:likes").then(function (r) {
+      var body = $("likesBody"); body.innerHTML = "";
+      setLikes(r.count || 0);
+      if (!r.count) { body.appendChild(Object.assign(el("div", "empty"), { innerHTML: "<b>ჯერ მოწონებები არ არის</b>განაგრძე აღმოჩენა — როცა ვინმეს მოეწონები, აქ გამოჩნდება." })); return; }
+      var head = el("div", "likes-head"); head.appendChild(el("b", null, r.count + " ადამიანს მოსწონხარ 💗"));
+      head.appendChild(el("small", null, r.revealed ? "VIP წევრი ხარ — ხედავ, ვინ არიან. მოიწონე და ეგრევე დაემატჩები."
+        : "ვინ არიან? განაგრძე აღმოჩენა — შეიძლება შემდეგი სწორედ ისინი იყვნენ. VIP წევრები მათ პირდაპირ ხედავენ."));
+      body.appendChild(head);
+      var grid = el("div", "grid");
+      r.items.forEach(function (it) {
+        var tile = el("div", "tile" + (r.revealed ? "" : " blur"));
+        var ph = el("div", "ph"); ph.style.backgroundImage = "url('/" + encodeURI(it.avatar) + "')"; tile.appendChild(ph);
+        if (!r.revealed) tile.appendChild(el("div", "heart", "💗"));
+        else {
+          tile.appendChild(el("div", "nm", it.name + ", " + it.age));
+          var row = el("div", "row"), y = el("button", "mini y", "❤"), n = el("button", "mini n", "✕");
+          y.setAttribute("aria-label", "მეც მომწონს"); n.setAttribute("aria-label", "გამოტოვება");
+          y.onclick = function () { call("trinder:swipe", { target: it.username, action: "like" }).then(function (x) { if (x && x.match) { addMatch(x.match); celebrate(x.match); } loadLikes(); }); };
+          n.onclick = function () { call("trinder:swipe", { target: it.username, action: "pass" }).then(loadLikes); };
+          row.appendChild(y); row.appendChild(n); tile.appendChild(row);
+        }
+        grid.appendChild(tile);
+      });
+      body.appendChild(grid);
+    });
+  }
+
+  // ── Matches ─────────────────────────────────────────────────────────────
+  function renderMatches() {
+    var body = $("matchesBody"); body.innerHTML = "";
+    if (!state || !state.matches.length) { body.appendChild(Object.assign(el("div", "empty"), { innerHTML: "<b>ჯერ მატჩები არ გაქვს</b>როცა ვინმეს მოიწონებ და მასაც მოეწონები, აქ გამოჩნდება — და შეძლებთ ერთმანეთს მიწეროთ." })); return; }
+    body.appendChild(el("div", "likes-head")).appendChild(el("b", null, "შენი მატჩები"));
+    state.matches.forEach(function (m) {
+      var row = el("div", "match-row");
+      var img = el("img"); img.src = "/" + m.avatar; img.alt = ""; row.appendChild(img);
+      var who = el("div", "who", m.name || m.username); who.appendChild(el("small", null, m.online ? "🟢 ონლაინ" : "@" + m.username)); row.appendChild(who);
+      var a = el("a", "btn primary", "💬 მიწერა"); a.href = "/friend-chat.html?friend=" + encodeURIComponent(m.username); row.appendChild(a);
+      body.appendChild(row);
+    });
+  }
+
+  // ── It's a match ────────────────────────────────────────────────────────
+  function celebrate(m) {
+    $("mMe").src = "/" + ((state && state.avatar) || "avatar1.png");
+    $("mThem").src = "/" + m.avatar;
+    $("mText").textContent = "შენ და " + (m.name || m.username) + " ერთმანეთს მოეწონეთ — ახლა მეგობრები ხართ და შეგიძლიათ პირადად მიწეროთ.";
+    $("mChat").href = "/friend-chat.html?friend=" + encodeURIComponent(m.username);
+    var ov = $("matchOv"); ov.hidden = false;
+    ov.querySelectorAll(".a, .b, .h").forEach(function (x) { x.style.animation = "none"; void x.offsetWidth; x.style.animation = ""; });
+    $("mClose").focus();
+  }
+  $("mClose").addEventListener("click", function () { $("matchOv").hidden = true; });
+})();
+</script>
+</body>
+</html>

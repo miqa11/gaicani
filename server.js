@@ -4740,6 +4740,80 @@ function recordCheckersWin(winnerLc) {
 // least one live socket connected (i.e. actually online right now), excluding
 // the given username. Used to populate the "who's online" list in the
 // dashboard so registered users can find and add each other as friends.
+// ── Trinder (dating) ──────────────────────────────────────────────────────
+// Registered users only, 18+ only. Profile choices are stored as fixed keys
+// (the page shows the Georgian labels), so nobody can inject arbitrary text
+// through them. A mutual like is a match: both become friends automatically.
+const TRINDER_OPTS = {
+  gender: ["male", "female"],
+  interestedIn: ["men", "women", "everyone"],
+  zodiac: ["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"],
+  lookingFor: ["relationship", "friendship", "fun", "unsure"],
+  music: ["pop", "rock", "hiphop", "rap", "electronic", "jazz", "classical", "georgian", "rnb", "metal", "indie", "kpop", "latin", "lofi"],
+  hobbies: ["sport", "football", "travel", "movies", "books", "gaming", "cooking", "photography", "dance", "hiking", "art", "tech", "fashion", "animals", "fitness", "music"],
+  smoking: ["no", "sometimes", "yes"], drinking: ["no", "social", "yes"], pets: ["dog", "cat", "other", "none"],
+};
+function sanitizeTrinderProfile(src) {
+  src = (src && typeof src === "object") ? src : {};
+  const text = (v, max) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, max) : "");
+  const one = (v, list) => (list.includes(v) ? v : "");
+  const many = (v, list, max) => (Array.isArray(v) ? [...new Set(v.filter(x => list.includes(x)))].slice(0, max) : []);
+  const p = {};
+  p.name = text(src.name, 20);
+  if (p.name.length < 2) return { error: "შეიყვანე სახელი (2–20 სიმბოლო)" };
+  if (!/^[A-Za-z\u10D0-\u10FF\s'-]+$/.test(p.name)) return { error: "სახელში მხოლოდ ასოები შეიძლება" };
+  const age = Number(src.age);
+  if (!Number.isInteger(age)) return { error: "შეიყვანე ასაკი" };
+  if (age < 18) return { error: "Trinder მხოლოდ 18+ მომხმარებლებისთვისაა" };
+  if (age > 99) return { error: "ასაკი: 18–99" };
+  p.age = age;
+  p.gender = one(src.gender, TRINDER_OPTS.gender);
+  if (!p.gender) return { error: "აირჩიე სქესი" };
+  p.interestedIn = one(src.interestedIn, TRINDER_OPTS.interestedIn);
+  if (!p.interestedIn) return { error: "აირჩიე, ვინ გაინტერესებს" };
+  p.city = text(src.city, 40); p.job = text(src.job, 40); p.university = text(src.university, 60); p.about = text(src.about, 300);
+  const h = Number(src.height); p.height = Number.isInteger(h) && h >= 140 && h <= 220 ? h : null;
+  for (const k of ["zodiac", "lookingFor", "smoking", "drinking", "pets"]) p[k] = one(src[k], TRINDER_OPTS[k]);
+  p.music = many(src.music, TRINDER_OPTS.music, 6);
+  p.hobbies = many(src.hobbies, TRINDER_OPTS.hobbies, 8);
+  for (const k of ["name", "city", "job", "university", "about"]) if (p[k] && findBannedWord(p[k])) return { error: ABUSE_WORD_MESSAGE };
+  return { profile: p };
+}
+function trinderOf(u) {
+  if (!u.trinder) u.trinder = { active: false, profile: null, likes: [], passes: [], matches: [] };
+  for (const k of ["likes", "passes", "matches"]) if (!Array.isArray(u.trinder[k])) u.trinder[k] = [];
+  return u.trinder;
+}
+function trinderBlocked(a, aLc, b, bLc) {
+  return (a.blockedUsers || []).includes(bLc) || (b.blockedUsers || []).includes(aLc);
+}
+function trinderCard(lc, u) {
+  const p = u.trinder.profile || {};
+  return { username: u.username, avatar: u.avatar || DEFAULT_AVATAR, isPro: !!u.isPro, online: isVisiblyOnline(lc), ...p };
+}
+// People who liked me and are still waiting for my answer
+function trinderPendingLikers(meLc, me) {
+  const mt = trinderOf(me), out = [];
+  for (const [lc, u] of registeredUsers) {
+    if (lc === meLc || u.isGuest || u.nameBlocked || !u.trinder || !u.trinder.active) continue;
+    if (!(u.trinder.likes || []).includes(meLc)) continue;
+    if (mt.likes.includes(lc) || mt.passes.includes(lc) || mt.matches.includes(lc)) continue;
+    if (trinderBlocked(me, meLc, u, lc)) continue;
+    out.push([lc, u]);
+  }
+  return out;
+}
+function trinderWants(pref, gender) { return pref === "everyone" || (pref === "men" && gender === "male") || (pref === "women" && gender === "female"); }
+function trinderState(meLc, me) {
+  const t = trinderOf(me);
+  const matches = t.matches.map(lc => [lc, registeredUsers.get(lc)]).filter(([, u]) => u && !u.isGuest)
+    .map(([lc, u]) => ({ username: u.username, name: (u.trinder && u.trinder.profile && u.trinder.profile.name) || u.username, avatar: u.avatar || DEFAULT_AVATAR, online: isVisiblyOnline(lc) }));
+  const pr = me.profile || {};
+  return { joined: !!t.active, profile: t.profile, avatar: me.avatar || DEFAULT_AVATAR, isPro: !!me.isPro,
+    likesCount: trinderPendingLikers(meLc, me).length, matches,
+    prefill: { age: pr.age || null, gender: pr.gender || "", city: pr.city || "", job: pr.work || "", university: pr.study || "" } };
+}
+
 // ── Ghost connections after a phone app-switch ────────────────────────────
 // When a phone freezes a page, the server can't tell for ~2 minutes that the
 // old connection is dead. The page reconnects in seconds and tells us which
@@ -4792,6 +4866,7 @@ function renameAccount(oldLc, newName) {
   if (onlineRegSockets.has(oldLc)) { onlineRegSockets.set(newLc, onlineRegSockets.get(oldLc)); onlineRegSockets.delete(oldLc); }
   // everyone else's friends / pending requests / blocks
   for (const [, u] of registeredUsers) for (const k of ["friends", "pendingRequests", "blockedUsers"]) if (Array.isArray(u[k])) u[k] = u[k].map(swap);
+  for (const [, u] of registeredUsers) if (u.trinder) for (const k of ["likes", "passes", "matches"]) if (Array.isArray(u.trinder[k])) u.trinder[k] = u.trinder[k].map(swap);
   // private chats and streaks — their IDs are built from both names
   for (const [id, room] of [...privateRooms]) {
     const parts = id.split("::"); if (!parts.includes(oldLc)) continue;
@@ -9914,6 +9989,108 @@ io.on("connection", (socket) => {
     io.to(`user:${fromLc}`).emit("friend:acceptedByOther", {
       byUsername: socket._regUser.username
     });
+  });
+
+  // ── Trinder ─────────────────────────────────────────────────────────────
+  // Request/response over socket acks. Registered users only.
+  const trMe = () => {
+    if (!socket._regUser || socket._regUser.isGuest) return null;
+    const u = registeredUsers.get(socket._regUser.usernameLower);
+    return u && !u.isGuest ? u : null;
+  };
+  const trLc = () => socket._regUser.usernameLower;
+  socket.on("trinder:state", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = trMe(); if (!me) return ack({ error: "registered-only" });
+    ack(trinderState(trLc(), me));
+  });
+  socket.on("trinder:join", (data, ack) => {
+    if (typeof ack !== "function") return;
+    const me = trMe(); if (!me) return ack({ error: "registered-only" });
+    if (mediaRateLimited(socket, "trinderJoin", 10, 60_000)) return ack({ error: "ცოტა მოიცადე და სცადე თავიდან" });
+    const r = sanitizeTrinderProfile(data && data.profile);
+    if (r.error) return ack({ error: r.error });
+    const t = trinderOf(me);
+    t.profile = r.profile; t.active = true; if (!t.joinedAt) t.joinedAt = Date.now();
+    saveAuthUsers();
+    ack(trinderState(trLc(), me));
+  });
+  socket.on("trinder:leave", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = trMe(); if (!me) return ack({ error: "registered-only" });
+    trinderOf(me).active = false; saveAuthUsers();
+    ack(trinderState(trLc(), me));
+  });
+  socket.on("trinder:deck", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = trMe(); if (!me) return ack({ error: "registered-only" });
+    const meLc = trLc(), t = trinderOf(me);
+    if (!t.active || !t.profile) return ack({ error: "not-joined" });
+    const mine = t.profile, seen = new Set([...t.likes, ...t.passes, ...t.matches]);
+    const pool = [];
+    for (const [lc, u] of registeredUsers) {
+      if (lc === meLc || u.isGuest || u.nameBlocked || !u.trinder || !u.trinder.active || !u.trinder.profile || seen.has(lc)) continue;
+      if (trinderBlocked(me, meLc, u, lc)) continue;
+      const p = u.trinder.profile;
+      if (!trinderWants(mine.interestedIn, p.gender) || !trinderWants(p.interestedIn, mine.gender)) continue;
+      // same city first, then people online, then the rest — shuffled within each group
+      const score = (mine.city && p.city && mine.city.toLowerCase() === p.city.toLowerCase() ? 2 : 0) + (isVisiblyOnline(lc) ? 1 : 0) + Math.random();
+      pool.push([score, lc, u]);
+    }
+    pool.sort((a, b) => b[0] - a[0]);
+    ack({ cards: pool.slice(0, 15).map(([, lc, u]) => trinderCard(lc, u)) });
+  });
+  socket.on("trinder:swipe", (data, ack) => {
+    if (typeof ack !== "function") return;
+    const me = trMe(); if (!me) return ack({ error: "registered-only" });
+    if (mediaRateLimited(socket, "trinderSwipe", 60, 60_000)) return ack({ error: "ძალიან სწრაფად — ცოტა შეისვენე" });
+    const meLc = trLc(), t = trinderOf(me);
+    if (!t.active) return ack({ error: "not-joined" });
+    const tLc = String((data && data.target) || "").toLowerCase().trim();
+    const them = registeredUsers.get(tLc);
+    if (!them || tLc === meLc || them.isGuest || !them.trinder || !them.trinder.active) return ack({ error: "ეს პროფილი აღარ არსებობს" });
+    const action = data && data.action === "like" ? "like" : "pass";
+    t.likes = t.likes.filter(x => x !== tLc); t.passes = t.passes.filter(x => x !== tLc);
+    if (action === "pass" || trinderBlocked(me, meLc, them, tLc)) {
+      t.passes.push(tLc); if (t.passes.length > 5000) t.passes.splice(0, t.passes.length - 5000);
+      saveAuthUsers(); return ack({ ok: true });
+    }
+    t.likes.push(tLc);
+    const tt = trinderOf(them);
+    if (tt.likes.includes(meLc)) {
+      // It's a match: remember it on both sides and make them friends.
+      if (!t.matches.includes(tLc)) t.matches.push(tLc);
+      if (!tt.matches.includes(meLc)) tt.matches.push(meLc);
+      me.friends = me.friends || []; them.friends = them.friends || [];
+      if (!me.friends.includes(tLc)) me.friends.push(tLc);
+      if (!them.friends.includes(meLc)) them.friends.push(meLc);
+      me.pendingRequests = (me.pendingRequests || []).filter(x => x !== tLc);
+      them.pendingRequests = (them.pendingRequests || []).filter(x => x !== meLc);
+      saveAuthUsers();
+      const cardMe = { username: me.username, name: t.profile.name, avatar: me.avatar || DEFAULT_AVATAR };
+      const cardThem = { username: them.username, name: tt.profile ? tt.profile.name : them.username, avatar: them.avatar || DEFAULT_AVATAR };
+      io.to(`user:${tLc}`).emit("trinder:match", { with: cardMe, friends: them.friends, likesCount: trinderPendingLikers(tLc, them).length });
+      socket.to(`user:${meLc}`).emit("trinder:match", { with: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
+      return ack({ ok: true, match: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
+    }
+    saveAuthUsers();
+    // Tell them someone likes them — but not who.
+    io.to(`user:${tLc}`).emit("trinder:liked", { likesCount: trinderPendingLikers(tLc, them).length });
+    ack({ ok: true });
+  });
+  // Who liked me. VIP members see who; everyone else only gets blurred pictures
+  // (no names are ever sent, so the blur can't be peeked behind).
+  socket.on("trinder:likes", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = trMe(); if (!me) return ack({ error: "registered-only" });
+    const likers = trinderPendingLikers(trLc(), me);
+    ack({ count: likers.length, revealed: !!me.isPro,
+      items: likers.slice(0, 60).map(([lc, u]) => me.isPro ? trinderCard(lc, u) : { avatar: u.avatar || DEFAULT_AVATAR }) });
+  });
+  socket.on("trinder:resetPasses", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = trMe(); if (!me) return ack({ error: "registered-only" });
+    trinderOf(me).passes = []; saveAuthUsers(); ack({ ok: true });
   });
 
   // ── Decline friend request ───────────────────────────────────────────────
