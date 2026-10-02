@@ -21,6 +21,41 @@ const dataDirUsable = fs.existsSync(DATA_DIR) && (() => {
 })();
 const DATA_PATH = dataDirUsable ? DATA_DIR : __dirname;
 console.log(`[DATA] Persistent files will be stored in: ${DATA_PATH}`);
+
+// ── Crash-safe data files ───────────────────────────────────────────────────
+// Every data file is saved by writing a temporary copy and renaming it over
+// the real one. A rename is atomic, so a crash, an out-of-memory kill or a
+// deploy that stops the process mid-save leaves either the old file or the
+// new one — never a half-written one. That matters: a half-written
+// registered_users.json fails to parse on the next start, which looked
+// exactly like a first run — the server came up with no accounts, and the
+// next save overwrote the only copy.
+function writeFileAtomic(file, data) {
+  const tmp = file + ".tmp";
+  fs.writeFileSync(tmp, data, "utf8");
+  fs.renameSync(tmp, file);
+}
+
+// Reads and parses a JSON data file. A missing file is a first run (null).
+// A file that exists but won't parse is copied aside as <name>.corrupt-<time>
+// before anything can overwrite it, and the .tmp left by an interrupted save
+// is used instead when it's intact.
+function readJsonFile(file) {
+  let raw;
+  try { raw = fs.readFileSync(file, "utf8"); }
+  catch (e) { if (e.code === "ENOENT") return null; throw e; }
+  try { return JSON.parse(raw); }
+  catch (e) {
+    const aside = `${file}.corrupt-${Date.now()}`;
+    try { fs.copyFileSync(file, aside); } catch { /* best effort */ }
+    console.error(`[DATA] ${path.basename(file)} is damaged (${e.message}) — a copy was kept at ${aside}`);
+    try {
+      const recovered = JSON.parse(fs.readFileSync(file + ".tmp", "utf8"));
+      console.error(`[DATA] Recovered ${path.basename(file)} from its .tmp copy`);
+      return recovered;
+    } catch { return null; }
+  }
+}
 const crypto     = require("crypto");
 // sharp is OPTIONAL. It ships a native library; if it isn't installed on
 // the host, or its binary fails to load there, a plain require() would
@@ -270,7 +305,7 @@ function isIPBanned(ip) {
 
 function loadBannedIPs() {
   try {
-    const arr = JSON.parse(fs.readFileSync(BANNED_IPS_FILE, "utf8"));
+    const arr = readJsonFile(BANNED_IPS_FILE);
     if (Array.isArray(arr)) {
       arr.forEach(ip => bannedIPs.add(ip));
       rebuildBannedRanges();
@@ -281,7 +316,7 @@ function loadBannedIPs() {
 
 function saveBannedIPs() {
   try {
-    fs.writeFileSync(BANNED_IPS_FILE, JSON.stringify([...bannedIPs], null, 2), "utf8");
+    writeFileAtomic(BANNED_IPS_FILE, JSON.stringify([...bannedIPs], null, 2));
   } catch (e) {
     console.error("[BAN] Failed to save banned_ips.json:", e.message);
   }
@@ -301,7 +336,7 @@ function normalizeUA(ua) {
 
 function loadBannedUserAgents() {
   try {
-    const arr = JSON.parse(fs.readFileSync(BANNED_UA_FILE, "utf8"));
+    const arr = readJsonFile(BANNED_UA_FILE);
     if (Array.isArray(arr)) {
       arr.forEach(ua => bannedUserAgents.add(ua));
       console.log(`[UA-BAN] Loaded ${arr.length} persistent user-agent ban(s) from disk`);
@@ -311,7 +346,7 @@ function loadBannedUserAgents() {
 
 function saveBannedUserAgents() {
   try {
-    fs.writeFileSync(BANNED_UA_FILE, JSON.stringify([...bannedUserAgents], null, 2), "utf8");
+    writeFileAtomic(BANNED_UA_FILE, JSON.stringify([...bannedUserAgents], null, 2));
   } catch (e) {
     console.error("[UA-BAN] Failed to save banned_user_agents.json:", e.message);
   }
@@ -892,7 +927,7 @@ function _saveStatsToDisk() {
     extendedSince: stats.extendedSince || null,
   };
   try {
-    fs.writeFileSync(STATS_FILE, JSON.stringify(out), "utf8");
+    writeFileAtomic(STATS_FILE, JSON.stringify(out));
     statsDirty = false;
   } catch (e) {
     console.error("[STATS] save failed:", e.message);
@@ -902,7 +937,7 @@ function _saveStatsToDisk() {
 
 function loadStats() {
   try {
-    const obj = JSON.parse(fs.readFileSync(STATS_FILE, "utf8"));
+    const obj = readJsonFile(STATS_FILE);
     for (const [key, d] of Object.entries(obj.days || {})) {
       stats.days.set(key, {
         ips: new Set(d.ips || []),
@@ -1626,6 +1661,7 @@ const PUBLIC_FILE_DENY = [
   /^vt-checker\.js$/i,
   /^package(-lock)?\.json$/i,
   /\.jsonl?$/i,                  // every data file (+ the .jsonl flood log)
+  /\.jsonl?\.[\w-]+$/i,          // ...and their .tmp / .corrupt-<time> copies
 ];
 app.use((req, res, next) => {
   let p;
@@ -1648,7 +1684,16 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname)));
+// Images (avatars, game icons, logos) almost never change, so browsers may
+// keep them for a day instead of re-asking on every page view — the
+// dashboard alone shows dozens. HTML/JS/CSS keep revalidating every time so
+// site updates show up immediately.
+const LONG_CACHE_EXT = /\.(png|jpe?g|gif|webp|svg|ico)$/i;
+app.use(express.static(path.join(__dirname), {
+  setHeaders(res, filePath) {
+    if (LONG_CACHE_EXT.test(filePath)) res.setHeader("Cache-Control", "public, max-age=86400");
+  },
+}));
 // Uploaded private-chat photos live outside __dirname (see PRIVATE_PHOTOS_DIR
 // above), so they need their own explicit static route to be reachable.
 app.use("/private-photos", express.static(PRIVATE_PHOTOS_DIR, { maxAge: "7d" }));
@@ -2025,7 +2070,7 @@ app.post(ROUTE.nameBlock, ownerOnly, (req, res) => {
       const sk = io.sockets.sockets.get(sid);
       if (sk) { sk.emit("account:nameBlocked", { username: user.username }); setTimeout(() => sk.disconnect(true), 400); kicked++; }
     }
-    io.emit("users:onlineChanged");
+    announceOnlineChanged();
   }
   console.log(`[ADMIN] ${block ? "Name-blocked" : "Lifted the name block on"} "${user.username}"`);
   res.json({ success: true, username: user.username, nameBlocked: block, kickedSockets: kicked });
@@ -5111,6 +5156,16 @@ function isVisiblyOnline(lc) {
   return !!onlineRegSockets.get(lc)?.size;
 }
 
+// Every open dashboard / game lobby answers "users:onlineChanged" by asking
+// for the whole online list again, so a burst of logins used to cost one
+// full round of list requests per login. Bursts are coalesced into at most
+// one broadcast a second — lists still refresh within a second.
+let onlineChangedTimer = null;
+function announceOnlineChanged() {
+  if (onlineChangedTimer) return;
+  onlineChangedTimer = setTimeout(() => { onlineChangedTimer = null; io.emit("users:onlineChanged"); }, 1000);
+}
+
 function getOnlineRegisteredUsers(excludeLc) {
   const list = [];
   for (const [lc, sockets] of onlineRegSockets) {
@@ -5542,7 +5597,7 @@ function _saveAuthUsersToDisk() {
     obj[k] = out;
   }
   try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(obj), "utf8");
+    writeFileAtomic(USERS_FILE, JSON.stringify(obj));
     authUsersDirty = false;
   } catch (e) {
     console.error("[AUTH] save failed:", e.message);
@@ -5554,7 +5609,7 @@ function _saveChatRoomsToDisk() {
   const obj = {};
   for (const [id, r] of chatRooms) obj[id] = r;
   try {
-    fs.writeFileSync(ROOMS_FILE, JSON.stringify(obj), "utf8");
+    writeFileAtomic(ROOMS_FILE, JSON.stringify(obj));
     roomsDirty = false;
   } catch (e) {
     console.error("[ROOMS] save failed:", e.message);
@@ -5566,7 +5621,7 @@ function _saveForumToDisk() {
   const obj = {};
   for (const [id, p] of forumPosts) obj[id] = p;
   try {
-    fs.writeFileSync(FORUM_FILE, JSON.stringify(obj), "utf8");
+    writeFileAtomic(FORUM_FILE, JSON.stringify(obj));
     forumDirty = false;
   } catch (e) {
     console.error("[FORUM] save failed:", e.message);
@@ -5582,7 +5637,7 @@ function _saveNotificationsToDisk() {
     if (box.items.length) obj[lc] = box;
   }
   try {
-    fs.writeFileSync(NOTIF_FILE, JSON.stringify(obj), "utf8");
+    writeFileAtomic(NOTIF_FILE, JSON.stringify(obj));
     notifDirty = false;
   } catch (e) {
     console.error("[NOTIF] save failed:", e.message);
@@ -5594,7 +5649,7 @@ function _savePrivateMsgsToDisk() {
   const obj = {};
   for (const [id, r] of privateRooms) obj[id] = r;
   try {
-    fs.writeFileSync(PRIV_MSGS_FILE, JSON.stringify(obj), "utf8");
+    writeFileAtomic(PRIV_MSGS_FILE, JSON.stringify(obj));
     privMsgsDirty = false;
   } catch (e) {
     console.error("[PRIV] save failed:", e.message);
@@ -5606,7 +5661,7 @@ function _saveStreaksToDisk() {
   const obj = {};
   for (const [id, s] of friendStreaks) obj[id] = s;
   try {
-    fs.writeFileSync(STREAKS_FILE, JSON.stringify(obj), "utf8");
+    writeFileAtomic(STREAKS_FILE, JSON.stringify(obj));
     streaksDirty = false;
   } catch (e) {
     console.error("[STREAKS] save failed:", e.message);
@@ -5617,7 +5672,7 @@ function _saveStreaksToDisk() {
 
 function loadAuthUsers() {
   try {
-    const obj = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
+    const obj = readJsonFile(USERS_FILE);
     for (const u of Object.values(obj)) {
       if (!u.avatar || !AVAILABLE_AVATARS.includes(u.avatar)) u.avatar = DEFAULT_AVATAR;
       registeredUsers.set(u.username.toLowerCase(), u);
@@ -5632,7 +5687,7 @@ function saveAuthUsers() {
 }
 function loadPrivateMsgs() {
   try {
-    const obj = JSON.parse(fs.readFileSync(PRIV_MSGS_FILE, "utf8"));
+    const obj = readJsonFile(PRIV_MSGS_FILE);
     const now = Date.now();
     for (const [id, room] of Object.entries(obj)) {
       if (room.expiresAt && now < room.expiresAt) privateRooms.set(id, room);
@@ -5646,7 +5701,7 @@ function savePrivateMsgs() {
 }
 function loadStreaks() {
   try {
-    const obj = JSON.parse(fs.readFileSync(STREAKS_FILE, "utf8"));
+    const obj = readJsonFile(STREAKS_FILE);
     for (const [id, s] of Object.entries(obj)) friendStreaks.set(id, s);
     console.log(`[STREAKS] Loaded ${friendStreaks.size} friend streak(s)`);
   } catch { /* first run */ }
@@ -5657,7 +5712,7 @@ function saveStreaks() {
 }
 function loadChatRooms() {
   try {
-    const obj = JSON.parse(fs.readFileSync(ROOMS_FILE, "utf8"));
+    const obj = readJsonFile(ROOMS_FILE);
     for (const [id, r] of Object.entries(obj)) {
       r.members      = Array.isArray(r.members) ? r.members : [];
       r.bannedUsers   = Array.isArray(r.bannedUsers) ? r.bannedUsers : [];
@@ -5674,7 +5729,7 @@ function saveChatRooms() {
 
 function loadForum() {
   try {
-    const obj = JSON.parse(fs.readFileSync(FORUM_FILE, "utf8"));
+    const obj = readJsonFile(FORUM_FILE);
     for (const [id, p] of Object.entries(obj)) {
       p.votes    = p.votes && typeof p.votes === "object" ? p.votes : {};
       p.comments = Array.isArray(p.comments) ? p.comments : [];
@@ -5691,7 +5746,7 @@ function saveForum() {
 
 function loadNotifications() {
   try {
-    const obj = JSON.parse(fs.readFileSync(NOTIF_FILE, "utf8"));
+    const obj = readJsonFile(NOTIF_FILE);
     const now = Date.now();
     for (const [lc, box] of Object.entries(obj)) {
       if (!registeredUsers.has(lc) || !box || !Array.isArray(box.items)) continue;
@@ -5959,7 +6014,7 @@ app.post("/api/auth/rename-required", authLimiter, express.json({ limit: "1kb" }
   const { oldName } = renameAccount(entry.usernameLower, v.clean);
   user.nameBlocked = false; delete user.nameBlockedAt; saveAuthUsers();
   console.log(`[AUTH] "${oldName}" renamed to "${v.clean}" after a name block`);
-  io.emit("users:onlineChanged");
+  announceOnlineChanged();
   res.json({ success: true, username: v.clean });
 });
 
@@ -9914,7 +9969,7 @@ io.on("connection", (socket) => {
     socket.join(`user:${entry.usernameLower}`);
     socket.emit("auth:authenticated", { username: user.username, friends: user.friends || [], pendingRequests: user.pendingRequests || [], avatar: user.avatar || DEFAULT_AVATAR, bio: user.bio || "", streaks: getStreaksForFriends(entry.usernameLower, user.friends || []), isAdmin: !!user.isAdmin, isPro: !!user.isPro, adFreeUntil: user.adFreeUntil || 0, appearOffline: !!user.appearOffline, blockedUsers: user.blockedUsers || [] });
     console.log(`[AUTH] ${user.username} logged in`);
-    io.emit("users:onlineChanged"); // let dashboards know the online list may have changed
+    announceOnlineChanged(); // let dashboards know the online list may have changed
   });
 
   // ── settings:update — dashboard privacy switch ─────────────────────────────
@@ -9936,12 +9991,13 @@ io.on("connection", (socket) => {
     if (changed) saveAuthUsers();
     // Every open tab of this account shows the same switch positions.
     io.to(`user:${lc}`).emit("settings:state", { appearOffline: !!user.appearOffline });
-    if (presenceChanged) io.emit("users:onlineChanged");
+    if (presenceChanged) announceOnlineChanged();
   });
 
   // ── users:listOnline — who's online right now, for the dashboard ──────────
   socket.on("users:listOnline", () => {
     if (!socket._regUser) return;
+    if (mediaRateLimited(socket, "listOnline", 20, 10_000)) return;
     socket.emit("users:onlineList", {
       users: getOnlineRegisteredUsers(socket._regUser.usernameLower),
     });
@@ -9999,7 +10055,7 @@ io.on("connection", (socket) => {
     socket.join(`user:${entry.usernameLower}`);
     socket.emit("auth:authenticated", { username: user.username, friends: user.friends || [], pendingRequests: user.pendingRequests || [], avatar: user.avatar || DEFAULT_AVATAR, bio: user.bio || "", streaks: getStreaksForFriends(entry.usernameLower, user.friends || []), isAdmin: !!user.isAdmin, isPro: !!user.isPro, adFreeUntil: user.adFreeUntil || 0, appearOffline: !!user.appearOffline, blockedUsers: user.blockedUsers || [] });
     console.log(`[AUTH] ${user.username} logged in via auth:token`);
-    io.emit("users:onlineChanged"); // let dashboards know the online list may have changed
+    announceOnlineChanged(); // let dashboards know the online list may have changed
   });
 
   // ── auth:guest — a temporary, throwaway identity for someone who hasn't
@@ -10084,7 +10140,7 @@ io.on("connection", (socket) => {
       streaks: {}, isAdmin: false, isPro: false, isGuest: true, guestToken
     });
     console.log(`[AUTH] ${username} started a guest session`);
-    io.emit("users:onlineChanged");
+    announceOnlineChanged();
   });
 
   // ── auth:guest:rename — DISABLED. Guests can no longer choose a name at
@@ -10177,17 +10233,24 @@ io.on("connection", (socket) => {
   });
 
   // ── Accept friend request ────────────────────────────────────────────────
-  socket.on("friend:accept", ({ fromUsername }) => {
-    if (!socket._regUser) return;
+  socket.on("friend:accept", ({ fromUsername } = {}) => {
+    if (!socket._regUser || socket._regUser.isGuest) return;
     const fromLc = String(fromUsername).toLowerCase().trim();
     const myUser = registeredUsers.get(socket._regUser.usernameLower);
     const fromUser = registeredUsers.get(fromLc);
 
-    if (!myUser || !fromUser) return;
+    if (!myUser || !fromUser || fromUser.isGuest) return;
     if (!myUser.friends) myUser.friends = [];
     if (!fromUser.friends) fromUser.friends = [];
     if (!myUser.pendingRequests) myUser.pendingRequests = [];
+    // Only an actual request from them can be accepted. Without this check
+    // anyone could send "accept" with any username and instantly become that
+    // person's friend — never having asked, and without them ever agreeing.
     const wasPending = myUser.pendingRequests.includes(fromLc);
+    if (!wasPending) {
+      if (!myUser.friends.includes(fromLc)) socket.emit("friend:error", { msg: "მეგობრობის მოთხოვნა აღარ არსებობს", targetUsername: fromUser.username });
+      return;
+    }
 
     if (!myUser.friends.includes(fromLc)) myUser.friends.push(fromLc);
     if (!fromUser.friends.includes(socket._regUser.usernameLower)) {
@@ -10196,17 +10259,15 @@ io.on("connection", (socket) => {
     myUser.pendingRequests = myUser.pendingRequests.filter(u => u !== fromLc);
 
     saveAuthUsers();
-    socket.emit("friend:accepted", { friends: myUser.friends });
+    socket.emit("friend:accepted", { username: fromUser.username, friends: myUser.friends });
     io.to(`user:${fromLc}`).emit("friend:acceptedByOther", {
       byUsername: socket._regUser.username
     });
     markNotificationsRead(socket._regUser.usernameLower, it => it.type === "friend_request" && it.fromLc === fromLc);
-    if (wasPending) {
-      pushNotification(fromLc, {
-        type: "friend_accept", from: socket._regUser.username, fromLc: socket._regUser.usernameLower,
-        link: `/friend-chat.html?friend=${encodeURIComponent(socket._regUser.username)}`,
-      });
-    }
+    pushNotification(fromLc, {
+      type: "friend_accept", from: socket._regUser.username, fromLc: socket._regUser.usernameLower,
+      link: `/friend-chat.html?friend=${encodeURIComponent(socket._regUser.username)}`,
+    });
   });
 
   // ── Trinder ─────────────────────────────────────────────────────────────
@@ -12902,7 +12963,7 @@ io.on("connection", (socket) => {
         sockets.delete(socket.id);
         if (sockets.size === 0) {
           onlineRegSockets.delete(socket._regUser.usernameLower);
-          io.emit("users:onlineChanged"); // they just went fully offline
+          announceOnlineChanged(); // they just went fully offline
         }
       }
     }
@@ -12971,7 +13032,7 @@ io.on("connection", (socket) => {
       const stillConnected = [...guestSocketMap.values()].includes(lc);
       if (!stillConnected) {
         registeredUsers.delete(lc);
-        io.emit("users:onlineChanged");
+        announceOnlineChanged();
       }
     }
   });
@@ -13004,6 +13065,7 @@ process.on('SIGTERM', () => {
   if (roomsDirty) _saveChatRoomsToDisk();
   if (forumDirty) _saveForumToDisk();
   if (notifDirty) _saveNotificationsToDisk();
+  if (streaksDirty) _saveStreaksToDisk();
   process.exit(0);
 });
 
@@ -13015,6 +13077,7 @@ process.on('SIGINT', () => {
   if (roomsDirty) _saveChatRoomsToDisk();
   if (forumDirty) _saveForumToDisk();
   if (notifDirty) _saveNotificationsToDisk();
+  if (streaksDirty) _saveStreaksToDisk();
   process.exit(0);
 });
 

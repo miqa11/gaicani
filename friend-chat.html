@@ -1590,6 +1590,9 @@ button, textarea, input { font-family: inherit; }
   function renderMessages() {
     elMessages.innerHTML = "";
     if (!messages.length) {
+      // Shown INSIDE the message area, not under it — as a sibling it took
+      // half the screen and the chat wallpaper stopped halfway down.
+      elMessages.appendChild(elEmpty);
       elEmpty.classList.add("visible");
       return;
     }
