@@ -1963,6 +1963,7 @@ app.post(ROUTE.deleteUser, ownerOnly, (req, res) => {
     }
   }
 
+  forgetNotificationsOf(lc);
   saveAuthUsers(); savePrivateMsgs(); saveStreaks(); saveChatRooms(); saveForum();
   console.log(`[ADMIN] Deleted account "${username}" — ${removedPosts} post(s), ${removedComments} comment(s), ${removedRoomMsgs} room message(s), ${kicked} socket(s) kicked, IP ${bannedIp || "not banned"}`);
 
@@ -4620,6 +4621,7 @@ const PRIV_MSGS_FILE    = path.join(DATA_PATH, "private_messages.json");
 const STREAKS_FILE      = path.join(DATA_PATH, "friend_streaks.json");
 const ROOMS_FILE        = path.join(DATA_PATH, "chat_rooms.json");
 const FORUM_FILE        = path.join(DATA_PATH, "forum_posts.json");
+const NOTIF_FILE        = path.join(DATA_PATH, "notifications.json");
 const PRIVATE_MSG_TTL   = 30 * 60 * 60 * 1000; // 30 h — auto-delete
 const AUTH_TOKEN_TTL    = 7  * 24 * 60 * 60 * 1000; // 7 days
 const ROOM_MSG_CAP      = 200; // per-room stored history — oldest trimmed past this
@@ -4656,6 +4658,130 @@ const chatRooms = new Map();
 //            comments: [{ id, body, authorLc, authorUsername, createdAt, votes: {} }] }
 // Moderated by the same isAdmin account that runs Rooms.
 const forumPosts = new Map();
+
+// ── Notifications (🔔 next to "გამოსვლა" on ჩემი გვერდი) ───────────────────
+// usernameLower → { seenAt, items: [{ id, type, key, from, fromLc, name,
+//                   game, kind, link, count, ts, read }] }   (newest first)
+// Registered accounts only — guests are never stored. Kept in its own file
+// instead of on the user object so a stream of message notifications doesn't
+// rewrite all of registered_users.json every few seconds.
+//
+// Two separate states, like Facebook:
+//   * "unseen" — arrived since the bell was last opened and not read yet.
+//     That's the red number on the bell; opening the panel clears it.
+//   * "read"   — this one item was clicked (or handled elsewhere, e.g. the
+//     chat it's about was opened). Unread items stay highlighted in the list.
+//
+// Message notifications deliberately carry NO message text: private messages
+// auto-delete after PRIVATE_MSG_TTL, and copying them into a 30-day history
+// would quietly keep them around much longer than that.
+const userNotifications = new Map();
+const NOTIF_CAP        = 60;                        // per user — oldest dropped past this
+const NOTIF_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days
+const NOTIF_GAME_PAGES = {
+  drawGuess: "/draw-guess.html", poker: "/poker.html", chess: "/chess.html",
+  checkers: "/checkers.html", joker: "/joker.html", imposter: "/imposter.html",
+  blackjack: "/blackjack.html",
+};
+// "<game>:join" / "<game>:declineInvite" → game key. Answering an invite from
+// anywhere (the dashboard invite bar, the game page itself) marks its
+// notification read — see the socket.onAny hook in the connection handler.
+const NOTIF_GAME_ANSWER_EVENTS = new Map();
+for (const g of Object.keys(NOTIF_GAME_PAGES)) {
+  NOTIF_GAME_ANSWER_EVENTS.set(`${g}:join`, g);
+  NOTIF_GAME_ANSWER_EVENTS.set(`${g}:declineInvite`, g);
+}
+
+function notifBox(lc) {
+  let box = userNotifications.get(lc);
+  if (!box) { box = { seenAt: 0, items: [] }; userNotifications.set(lc, box); }
+  return box;
+}
+function notifUnseen(box) {
+  if (!box) return 0;
+  let n = 0;
+  for (const it of box.items) if (!it.read && it.ts > box.seenAt) n++;
+  return n;
+}
+// What the client gets. The sender's avatar is looked up live rather than
+// stored, so it's always their current picture.
+function notifView(it) {
+  const from = it.fromLc ? registeredUsers.get(it.fromLc) : null;
+  return {
+    id: it.id, type: it.type, from: it.from || null, name: it.name || null,
+    game: it.game || null, kind: it.kind || null, link: it.link || null,
+    count: it.count || 1, ts: it.ts, read: !!it.read,
+    avatar: from ? (from.avatar || DEFAULT_AVATAR) : null,
+  };
+}
+function notifTrim(box, now = Date.now()) {
+  box.items = box.items.filter(it => now - it.ts < NOTIF_MAX_AGE_MS).slice(0, NOTIF_CAP);
+}
+function notifChanged(lc, box) {
+  notifDirty = true; scheduleSave();
+  io.to(`user:${lc}`).emit("notif:changed", { unseen: notifUnseen(box) });
+}
+
+// Add a notification for one registered user and push it to their open tabs.
+// With a mergeKey, a still-unread item with the same key is bumped to the top
+// (count + 1, or data.count when the caller knows the real total) instead of
+// stacking a new row per message / like.
+function pushNotification(toLc, data, mergeKey) {
+  const user = registeredUsers.get(toLc);
+  if (!user || user.isGuest) return;
+  const box = notifBox(toLc);
+  const now = Date.now();
+  let item = mergeKey ? box.items.find(i => !i.read && i.key === mergeKey) : null;
+  if (item) {
+    box.items.splice(box.items.indexOf(item), 1);
+    Object.assign(item, data, { count: data.count || (item.count || 1) + 1, ts: now });
+  } else {
+    item = { id: now.toString(36) + crypto.randomBytes(4).toString("hex"), ...data, count: data.count || 1, ts: now, read: false };
+    if (mergeKey) item.key = mergeKey;
+  }
+  box.items.unshift(item);
+  notifTrim(box, now);
+  notifDirty = true; scheduleSave();
+  io.to(`user:${toLc}`).emit("notif:new", { item: notifView(item), unseen: notifUnseen(box) });
+}
+
+// Mark every unread item matching pred as read (e.g. message notifications
+// from a friend once their chat is opened).
+function markNotificationsRead(lc, pred) {
+  const box = userNotifications.get(lc);
+  if (!box) return;
+  let changed = false;
+  for (const it of box.items) if (!it.read && pred(it)) { it.read = true; changed = true; }
+  if (changed) notifChanged(lc, box);
+}
+
+// Account deleted: drop their own history and anything they sent anyone.
+function forgetNotificationsOf(lc) {
+  userNotifications.delete(lc);
+  for (const [, box] of userNotifications) box.items = box.items.filter(it => it.fromLc !== lc);
+  notifDirty = true; scheduleSave();
+}
+
+// A private message / photo / GIF from fromLc to toLc. Skipped while the
+// recipient already has that exact chat open — they're looking at it.
+function notifyPrivateMessage(fromLc, fromName, toLc, kind) {
+  const roomId = privRoomId(fromLc, toLc);
+  for (const sid of onlineRegSockets.get(toLc) || []) {
+    if (io.sockets.sockets.get(sid)?._friendChatRoom === roomId) return;
+  }
+  pushNotification(toLc, {
+    type: "message", from: fromName, fromLc, kind,
+    link: `/friend-chat.html?friend=${encodeURIComponent(fromName)}`,
+  }, `msg:${fromLc}`);
+}
+
+function notifyGameInvite(toLc, game, roomId, fromName) {
+  const fromLc = String(fromName).toLowerCase();
+  pushNotification(toLc, {
+    type: "game_invite", game, from: fromName, fromLc,
+    link: `${NOTIF_GAME_PAGES[game]}?room=${encodeURIComponent(roomId)}`,
+  }, `game:${game}:${roomId}`);
+}
 
 // ── Flappy Bird ("მფრინავი ჩიტი") state ────────────────────────────────────
 const flappySessions   = new Map(); // sessionId → { usernameLower, socketId, startAt, submitted }
@@ -4899,6 +5025,15 @@ function renameAccount(oldLc, newName) {
   if (accountReportLog.has(oldLc)) { accountReportLog.set(newLc, accountReportLog.get(oldLc)); accountReportLog.delete(oldLc); }
   for (const [, arr] of accountReportLog) for (const e of arr || []) { if (e.reportedBy === oldLc) e.reportedBy = newLc; else if (e.reportedBy === oldName) e.reportedBy = newName; }
   if (flappyLastSubmit.has(oldLc)) { flappyLastSubmit.set(newLc, flappyLastSubmit.get(oldLc)); flappyLastSubmit.delete(oldLc); }
+  // notifications — their own history, and their name in everyone else's
+  if (userNotifications.has(oldLc)) { userNotifications.set(newLc, userNotifications.get(oldLc)); userNotifications.delete(oldLc); }
+  for (const [, box] of userNotifications) for (const it of box.items) {
+    if (it.fromLc !== oldLc) continue;
+    it.fromLc = newLc; it.from = newName;
+    if (it.key === `msg:${oldLc}`) it.key = `msg:${newLc}`;
+    if (it.type === "message" || it.type === "friend_accept") it.link = `/friend-chat.html?friend=${encodeURIComponent(newName)}`;
+  }
+  notifDirty = true;
   saveAuthUsers(); savePrivateMsgs(); saveStreaks(); saveChatRooms(); saveForum();
   return { oldName, newName };
 }
@@ -5362,6 +5497,7 @@ let privMsgsDirty = false;
 let streaksDirty = false;
 let roomsDirty = false;
 let forumDirty = false;
+let notifDirty = false;
 let saveTimer = null;
 
 function scheduleSave() {
@@ -5372,6 +5508,7 @@ function scheduleSave() {
     if (streaksDirty) _saveStreaksToDisk();
     if (roomsDirty) _saveChatRoomsToDisk();
     if (forumDirty) _saveForumToDisk();
+    if (notifDirty) _saveNotificationsToDisk();
     saveTimer = null;
   }, SAVE_DEBOUNCE_MS);
 }
@@ -5434,6 +5571,22 @@ function _saveForumToDisk() {
   } catch (e) {
     console.error("[FORUM] save failed:", e.message);
     forumDirty = true;
+  }
+}
+
+function _saveNotificationsToDisk() {
+  const obj = {};
+  const now = Date.now();
+  for (const [lc, box] of userNotifications) {
+    notifTrim(box, now);
+    if (box.items.length) obj[lc] = box;
+  }
+  try {
+    fs.writeFileSync(NOTIF_FILE, JSON.stringify(obj), "utf8");
+    notifDirty = false;
+  } catch (e) {
+    console.error("[NOTIF] save failed:", e.message);
+    notifDirty = true;
   }
 }
 
@@ -5536,6 +5689,20 @@ function saveForum() {
   scheduleSave();
 }
 
+function loadNotifications() {
+  try {
+    const obj = JSON.parse(fs.readFileSync(NOTIF_FILE, "utf8"));
+    const now = Date.now();
+    for (const [lc, box] of Object.entries(obj)) {
+      if (!registeredUsers.has(lc) || !box || !Array.isArray(box.items)) continue;
+      const clean = { seenAt: Number(box.seenAt) || 0, items: box.items };
+      notifTrim(clean, now);
+      if (clean.items.length) userNotifications.set(lc, clean);
+    }
+    console.log(`[NOTIF] Loaded notifications for ${userNotifications.size} user(s)`);
+  } catch { /* first run */ }
+}
+
 // ── Seed the fixed Rooms administrator account ─────────────────────────────
 // Runs once at startup. If the account already exists (e.g. loaded from disk
 // on a restart) its password is left untouched — only the isAdmin flag is
@@ -5600,6 +5767,7 @@ loadPrivateMsgs();
 loadStreaks();
 loadChatRooms();
 loadForum();
+loadNotifications();
 loadStats();
 // server.listen() below is deliberately deferred until this resolves — closes
 // a narrow race where someone could register the admin username themselves
@@ -5954,6 +6122,7 @@ app.post("/api/auth/delete-account", authLimiter, express.json({ limit: "2kb" })
   registeredUsers.delete(lc);
   authReservedNames.delete(lc);   // username becomes available again
   activeUsernames.delete(lc);
+  forgetNotificationsOf(lc);
 
   saveAuthUsers();
   savePrivateMsgs();
@@ -9704,6 +9873,16 @@ io.on("connection", (socket) => {
 
   console.log(`[SOCKET] Connected: ${socket.id} from ${socket.clientIP}`);
 
+  // Answering a game invite — joining or declining that room, from the
+  // dashboard's invite bar or the game page itself — marks its 🔔 read.
+  socket.onAny((event, payload) => {
+    const game = NOTIF_GAME_ANSWER_EVENTS.get(event);
+    if (!game || !socket._regUser || socket._regUser.isGuest) return;
+    const roomId = payload && payload.roomId;
+    if (typeof roomId !== "string") return;
+    markNotificationsRead(socket._regUser.usernameLower, it => it.key === `game:${game}:${roomId}`);
+  });
+
   // ── Login (registered user) ──────────────────────────────────────────────
   socket.on("auth:login", ({ token }) => {
     if (!token) return;
@@ -9766,6 +9945,33 @@ io.on("connection", (socket) => {
     socket.emit("users:onlineList", {
       users: getOnlineRegisteredUsers(socket._regUser.usernameLower),
     });
+  });
+
+  // ── Notifications (🔔) — registered accounts only ─────────────────────────
+  const notifLc = () => (socket._regUser && !socket._regUser.isGuest) ? socket._regUser.usernameLower : null;
+  socket.on("notif:list", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const lc = notifLc();
+    const box = lc ? userNotifications.get(lc) : null;
+    ack({ items: box ? box.items.map(notifView) : [], unseen: notifUnseen(box) });
+  });
+  // The panel was opened: the red number goes away. Items stay unread
+  // (highlighted) until they're clicked.
+  socket.on("notif:seen", () => {
+    const lc = notifLc(); if (!lc) return;
+    const box = userNotifications.get(lc);
+    if (!box || notifUnseen(box) === 0) return;
+    box.seenAt = Math.max(Date.now(), box.items[0]?.ts || 0);
+    notifChanged(lc, box);
+  });
+  socket.on("notif:read", (data) => {
+    const lc = notifLc(); if (!lc) return;
+    const id = data && typeof data.id === "string" ? data.id : null;
+    if (id) markNotificationsRead(lc, it => it.id === id);
+  });
+  socket.on("notif:readAll", () => {
+    const lc = notifLc(); if (!lc) return;
+    markNotificationsRead(lc, () => true);
   });
 
   // ── auth:token — alias kept for backwards compat ─────────────────────────
@@ -9959,6 +10165,10 @@ io.on("connection", (socket) => {
     if (!targetUser.pendingRequests.includes(myLc)) {
       targetUser.pendingRequests.push(myLc);
       saveAuthUsers();
+      pushNotification(targetLc, {
+        type: "friend_request", from: socket._regUser.username, fromLc: myLc,
+        link: "/dashboard.html#pendingSection",
+      }, `freq:${myLc}`);
     }
 
     io.to(`user:${targetLc}`).emit("friend:incomingRequest", {
@@ -9977,6 +10187,7 @@ io.on("connection", (socket) => {
     if (!myUser.friends) myUser.friends = [];
     if (!fromUser.friends) fromUser.friends = [];
     if (!myUser.pendingRequests) myUser.pendingRequests = [];
+    const wasPending = myUser.pendingRequests.includes(fromLc);
 
     if (!myUser.friends.includes(fromLc)) myUser.friends.push(fromLc);
     if (!fromUser.friends.includes(socket._regUser.usernameLower)) {
@@ -9989,6 +10200,13 @@ io.on("connection", (socket) => {
     io.to(`user:${fromLc}`).emit("friend:acceptedByOther", {
       byUsername: socket._regUser.username
     });
+    markNotificationsRead(socket._regUser.usernameLower, it => it.type === "friend_request" && it.fromLc === fromLc);
+    if (wasPending) {
+      pushNotification(fromLc, {
+        type: "friend_accept", from: socket._regUser.username, fromLc: socket._regUser.usernameLower,
+        link: `/friend-chat.html?friend=${encodeURIComponent(socket._regUser.username)}`,
+      });
+    }
   });
 
   // ── Trinder ─────────────────────────────────────────────────────────────
@@ -10050,6 +10268,7 @@ io.on("connection", (socket) => {
     const them = registeredUsers.get(tLc);
     if (!them || tLc === meLc || them.isGuest || !them.trinder || !them.trinder.active) return ack({ error: "ეს პროფილი აღარ არსებობს" });
     const action = data && data.action === "like" ? "like" : "pass";
+    const likedBefore = t.likes.includes(tLc);
     t.likes = t.likes.filter(x => x !== tLc); t.passes = t.passes.filter(x => x !== tLc);
     if (action === "pass" || trinderBlocked(me, meLc, them, tLc)) {
       t.passes.push(tLc); if (t.passes.length > 5000) t.passes.splice(0, t.passes.length - 5000);
@@ -10070,12 +10289,18 @@ io.on("connection", (socket) => {
       const cardMe = { username: me.username, name: t.profile.name, avatar: me.avatar || DEFAULT_AVATAR };
       const cardThem = { username: them.username, name: tt.profile ? tt.profile.name : them.username, avatar: them.avatar || DEFAULT_AVATAR };
       io.to(`user:${tLc}`).emit("trinder:match", { with: cardMe, friends: them.friends, likesCount: trinderPendingLikers(tLc, them).length });
+      pushNotification(tLc, { type: "trinder_match", from: me.username, fromLc: meLc, name: cardMe.name, link: "/trinder.html?tab=matches" });
       socket.to(`user:${meLc}`).emit("trinder:match", { with: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
       return ack({ ok: true, match: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
     }
     saveAuthUsers();
-    // Tell them someone likes them — but not who.
-    io.to(`user:${tLc}`).emit("trinder:liked", { likesCount: trinderPendingLikers(tLc, them).length });
+    // Tell them someone likes them — but not who (the notification doesn't
+    // record the liker either, so it can't be peeked at later).
+    const likesCount = trinderPendingLikers(tLc, them).length;
+    io.to(`user:${tLc}`).emit("trinder:liked", { likesCount });
+    // count = everyone currently waiting on them (same number as the Trinder
+    // button), so re-swiping the same person can't inflate it.
+    if (!likedBefore && likesCount > 0) pushNotification(tLc, { type: "trinder_like", count: likesCount, link: "/trinder.html?tab=likes" }, "trinder_like");
     ack({ ok: true });
   });
   // Who liked me. VIP members see who; everyone else only gets blurred pictures
@@ -10084,6 +10309,7 @@ io.on("connection", (socket) => {
     if (typeof ack !== "function") return;
     const me = trMe(); if (!me) return ack({ error: "registered-only" });
     const likers = trinderPendingLikers(trLc(), me);
+    markNotificationsRead(trLc(), it => it.type === "trinder_like");
     ack({ count: likers.length, revealed: !!me.isPro,
       items: likers.slice(0, 60).map(([lc, u]) => me.isPro ? trinderCard(lc, u) : { avatar: u.avatar || DEFAULT_AVATAR }) });
   });
@@ -10108,6 +10334,8 @@ io.on("connection", (socket) => {
     // That sender can't send ME another request for 24h — doesn't affect
     // requests they send to anyone else, or requests anyone else sends me.
     friendRequestDeclineCooldown.set(`${fromLc}|${myLc}`, Date.now() + FRIEND_REQUEST_DECLINE_COOLDOWN_MS);
+
+    markNotificationsRead(myLc, it => it.type === "friend_request" && it.fromLc === fromLc);
 
     socket.emit("friend:declined");
     io.to(`user:${fromLc}`).emit("friend:declinedByOther", {
@@ -10396,6 +10624,7 @@ io.on("connection", (socket) => {
     });
 
     socket.emit("privateMsg:sent", { success: true, messageId: msg.id });
+    notifyPrivateMessage(socket._regUser.usernameLower, socket._regUser.username, toLc, "text");
 
     // ── Streak: this counts as today's message for both sides ─────────────
     const streak = recordFriendMessage(socket._regUser.usernameLower, toLc);
@@ -10551,6 +10780,7 @@ io.on("connection", (socket) => {
       messageId: msg.id,
     });
     socket.emit("privateMsg:photoSent", { success: true, messageId: msg.id, photoUrl });
+    notifyPrivateMessage(myLc, socket._regUser.username, toLc, "photo");
 
     const streak = recordFriendMessage(myLc, toLc);
     io.to(`user:${toLc}`).emit("streak:update", { friendUsername: socket._regUser.username, count: streak.count, atRisk: streak.atRisk });
@@ -10569,6 +10799,7 @@ io.on("connection", (socket) => {
     const roomId = privRoomId(socket._regUser.usernameLower, friendLc);
     socket.join(`friendchat:${roomId}`);
     socket._friendChatRoom = roomId;
+    markNotificationsRead(socket._regUser.usernameLower, it => it.fromLc === friendLc && (it.type === "message" || it.type === "friend_accept"));
 
     // Tell the joining client the pair's current streak (covers page load —
     // new messages push their own streak:update separately).
@@ -10600,6 +10831,7 @@ io.on("connection", (socket) => {
       url:          url,
       timestamp:    new Date().toISOString()
     });
+    notifyPrivateMessage(socket._regUser.usernameLower, socket._regUser.username, toLc, "gif");
 
     const streak = recordFriendMessage(socket._regUser.usernameLower, toLc);
     const toUser = registeredUsers.get(toLc);
@@ -10763,6 +10995,7 @@ io.on("connection", (socket) => {
       room.pendingInvites.set(lc, { timeoutHandle });
 
       io.to(`user:${lc}`).emit("drawGuess:invited", { roomId: room.id, fromUsername: hostUser.username });
+      notifyGameInvite(lc, "drawGuess", room.id, hostUser.username);
       invited.push(targetUser.username);
     }
 
@@ -11048,6 +11281,7 @@ io.on("connection", (socket) => {
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), POKER_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
       io.to(`user:${lc}`).emit("poker:invited", { roomId: room.id, fromUsername: hostUser.username });
+      notifyGameInvite(lc, "poker", room.id, hostUser.username);
       invited.push(targetUser.username);
     }
 
@@ -11255,6 +11489,7 @@ io.on("connection", (socket) => {
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), CHESS_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
       io.to(`user:${lc}`).emit("chess:invited", { roomId: room.id, fromUsername: hostUser.username });
+      notifyGameInvite(lc, "chess", room.id, hostUser.username);
       invited.push(targetUser.username);
     }
 
@@ -11471,6 +11706,7 @@ io.on("connection", (socket) => {
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), CHECKERS_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
       io.to(`user:${lc}`).emit("checkers:invited", { roomId: room.id, fromUsername: hostUser.username });
+      notifyGameInvite(lc, "checkers", room.id, hostUser.username);
       invited.push(targetUser.username);
     }
 
@@ -11697,6 +11933,7 @@ io.on("connection", (socket) => {
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), JOKER_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
       io.to(`user:${lc}`).emit("joker:invited", { roomId: room.id, fromUsername: hostUser.username });
+      notifyGameInvite(lc, "joker", room.id, hostUser.username);
       invited.push(targetUser.username);
     }
 
@@ -11957,6 +12194,7 @@ io.on("connection", (socket) => {
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), IMPOSTER_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
       io.to(`user:${lc}`).emit("imposter:invited", { roomId: room.id, fromUsername: hostUser.username });
+      notifyGameInvite(lc, "imposter", room.id, hostUser.username);
       invited.push(targetUser.username);
     }
 
@@ -12164,6 +12402,7 @@ io.on("connection", (socket) => {
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), BJ_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
       io.to(`user:${lc}`).emit("blackjack:invited", { roomId: room.id, fromUsername: hostUser.username });
+      notifyGameInvite(lc, "blackjack", room.id, hostUser.username);
       invited.push(targetUser.username);
     }
 
@@ -12764,6 +13003,7 @@ process.on('SIGTERM', () => {
   if (statsDirty) _saveStatsToDisk();
   if (roomsDirty) _saveChatRoomsToDisk();
   if (forumDirty) _saveForumToDisk();
+  if (notifDirty) _saveNotificationsToDisk();
   process.exit(0);
 });
 
@@ -12774,6 +13014,7 @@ process.on('SIGINT', () => {
   if (statsDirty) _saveStatsToDisk();
   if (roomsDirty) _saveChatRoomsToDisk();
   if (forumDirty) _saveForumToDisk();
+  if (notifDirty) _saveNotificationsToDisk();
   process.exit(0);
 });
 

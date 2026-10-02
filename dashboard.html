@@ -92,6 +92,23 @@
       transition: background 0.15s, border-color 0.15s;
     }
     .btn-logout:hover { background: rgba(242,63,66,0.18); border-color: rgba(242,63,66,0.4); }
+    .notif-bell[hidden] { display: none; }
+    /* Phones: room for the 🔔 next to გამოსვლა without wrapping — the
+       username chip gives up width first and ends in "…". */
+    @media (max-width: 480px) {
+      .top-bar {
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
+        gap: 8px;
+      }
+      .top-bar-right { gap: 6px; min-width: 0; }
+      .btn-logout { white-space: nowrap; flex-shrink: 0; padding: 6px 11px; }
+      .top-bar-username {
+        display: block; min-width: 0; flex-shrink: 1;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .notif-bell { width: 34px; height: 34px; }
+    }
 
     /* ── PAGE ── */
     .page {
@@ -1090,6 +1107,12 @@ html, body {
     <div class="top-bar-right">
       <span class="top-bar-username" id="topUsername"></span>
       <button class="btn-logout" id="logoutBtn">გამოსვლა 🚪</button>
+      <!-- 🔔 Notifications — registered accounts only; shown and wired by
+           notifications.js once the account has authenticated. -->
+      <button class="notif-bell" id="notifBell" type="button" hidden aria-haspopup="dialog" aria-expanded="false" aria-label="შეტყობინებები">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 22.5a2.6 2.6 0 0 0 2.55-2.1h-5.1A2.6 2.6 0 0 0 12 22.5zm7.6-5.4-1.5-1.6v-4.6a6.1 6.1 0 0 0-4.6-5.9V4.2a1.5 1.5 0 0 0-3 0V5a6.1 6.1 0 0 0-4.6 5.9v4.6l-1.5 1.6a1 1 0 0 0 .7 1.7h13.8a1 1 0 0 0 .7-1.7z"/></svg>
+        <span class="notif-badge" id="notifBadge" hidden>0</span>
+      </button>
     </div>
   </div>
 
@@ -1460,6 +1483,7 @@ html, body {
   </div>
 
   <script src="/ban-notice.js"></script>
+  <script src="/notifications.js"></script>
 <script src="/socket.io/socket.io.js"></script>
   <script>
   (function () {
@@ -1899,6 +1923,7 @@ function profileChipsHTML(p) {
           const tb = document.getElementById("trinderBtn");
           if (tb) tb.style.display = "";
           refreshTrinder();
+          if (window.GaicaniNotif) window.GaicaniNotif.attach(socket);
         }
         if (authUser) {
           authUser.friends = friends || [];

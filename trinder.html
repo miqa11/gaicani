@@ -317,7 +317,9 @@ select.in { appearance:none; -webkit-appearance:none; }
       applyState(st);
       if (booted) return;            // a reconnect: keep whatever the person is doing
       booted = true;
-      if (!st.joined) openForm(false); else openTab("deck");
+      // ?tab=likes / ?tab=matches — where the 🔔 notifications link to
+      var want = new URLSearchParams(location.search).get("tab");
+      if (!st.joined) openForm(false); else openTab(want === "likes" || want === "matches" ? want : "deck");
     });
   });
   socket.on("trinder:liked", function (d) { setLikes(d.likesCount); toast("💗 ვიღაცას მოეწონე! ნახე „მოგწონს“"); });
