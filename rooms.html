@@ -302,6 +302,7 @@
       font-size: 0.88em; cursor: pointer; background: var(--accent); color: #fff;
     }
     .profile-card-msg-btn:hover { background: var(--accent-dk); }
+    .profile-card-msg-btn:disabled { opacity: .6; cursor: default; background: var(--accent); }
     .profile-card-report-btn {
       width: 100%; margin-top: 8px; border: none; border-radius: 8px; padding: 9px;
       font-weight: 600; font-size: 0.8em; cursor: pointer; background: none;
@@ -731,13 +732,31 @@
 
       const isMe = (d.username || "").toLowerCase() === myUsernameLower;
       if (!isMe) {
+        // Private chat is friends-only, so only friends get "💬 პირადი
+        // მიწერა"; anyone else gets "add friend" / "accept request" instead
+        // of a button that bounced them to the dashboard.
+        const rel = d.relation || "friend"; // older server without the field: old behaviour
         const msgBtn = document.createElement("button");
         msgBtn.className = "profile-card-msg-btn";
-        msgBtn.textContent = "💬 პირადი მიწერა";
-        msgBtn.addEventListener("click", () => {
-          window.location.href = "/friend-chat.html?friend=" + encodeURIComponent(d.username);
-        });
-        body.appendChild(msgBtn);
+        const toChat = () => {
+          msgBtn.disabled = false;
+          msgBtn.textContent = "💬 პირადი მიწერა";
+          msgBtn.onclick = () => { window.location.href = "/friend-chat.html?friend=" + encodeURIComponent(d.username); };
+        };
+        if (rel === "friend") toChat();
+        else if (rel === "none") {
+          msgBtn.textContent = "➕ მეგობრად დამატება";
+          msgBtn.onclick = () => {
+            socket.emit("friend:request", { toUsername: d.username });
+            msgBtn.disabled = true; msgBtn.textContent = "✅ მოთხოვნა გაგზავნილია";
+          };
+        } else if (rel === "sent") {
+          msgBtn.disabled = true; msgBtn.textContent = "✅ მოთხოვნა გაგზავნილია";
+        } else if (rel === "received") {
+          msgBtn.textContent = "🤝 მოთხოვნის მიღება";
+          msgBtn.onclick = () => { socket.emit("friend:accept", { fromUsername: d.username }); toChat(); };
+        }
+        if (msgBtn.textContent) body.appendChild(msgBtn); // nothing for guests
 
         // Guests aren't reportable — their names are temporary and get reused,
         // so a report could later point at an unrelated person. A guest also
@@ -900,6 +919,9 @@
         showScreen("list");
       }
     });
+
+    socket.on("friend:error", (e) => showToast("❌ " + ((e && (e.msg || e.message)) || "ვერ მოხერხდა")));
+    socket.on("friend:accepted", ({ username }) => { if (username) showToast("✅ " + username + " ახლა შენი მეგობარია!"); });
 
     socket.on("user:reportResult", ({ success, error }) => {
       $("rmReportSend").disabled = false;

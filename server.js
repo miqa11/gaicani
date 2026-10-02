@@ -5400,6 +5400,7 @@ function forumPostSummary(post, forLc) {
     myVote: forLc ? (post.votes[forLc] || 0) : 0,
     commentCount: post.comments.length,
     hasUnread: postUnreadFor(post, forUser, forLc),
+    mine: !!forLc && post.authorLc === forLc,
   };
 }
 
@@ -5411,6 +5412,7 @@ function forumCommentPublic(c, forLc) {
     createdAt: c.createdAt,
     score: forumScore(c.votes),
     myVote: forLc ? (c.votes[forLc] || 0) : 0,
+    mine: !!forLc && c.authorLc === forLc,
   };
 }
 
@@ -6261,6 +6263,19 @@ function requireRegAuth(req, res) {
 // avatar/bio pair is already visible to anyone browsing the online-users
 // list elsewhere, so this isn't exposing anything new, just making it
 // reachable by name from more places (a friends list, a chat header).
+// How the viewer stands with someone, for profile cards. Private chat is
+// friends-only (friend-chat.html and /api/priv/history refuse anyone else),
+// so a card should offer "message" to friends and "add friend" / "accept
+// request" to everyone else — not a message button that bounces them out.
+function friendRelation(meLc, me, themLc, them) {
+  if (meLc === themLc) return "self";
+  if (me.isGuest || them.isGuest) return "guest";
+  if ((me.friends || []).includes(themLc)) return "friend";
+  if ((them.pendingRequests || []).includes(meLc)) return "sent";
+  if ((me.pendingRequests || []).includes(themLc)) return "received";
+  return "none";
+}
+
 app.get("/api/users/profile", (req, res) => {
   const auth = requireRegAuth(req, res);
   if (!auth) return;
@@ -6278,6 +6293,7 @@ app.get("/api/users/profile", (req, res) => {
     isGuest: !!u.isGuest,
     isPro: !!u.isPro,
     profile: publicProfileOf(u),
+    relation: friendRelation(auth.usernameLower, auth.user, lc, u),
   });
 });
 
@@ -6386,8 +6402,12 @@ app.get("/api/forum/posts/:postId", (req, res) => {
   res.json({ post: forumPostFull(post, auth.usernameLower), isAdmin: !!auth.user.isAdmin });
 });
 
+// Same 10-a-minute ceiling the socket route has (friend requests are stored
+// on the target's account, so unlimited ones are a spam/harassment vector).
+const friendRestLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
+
 // POST /api/friends/request
-app.post("/api/friends/request", express.json({ limit: "2kb" }), (req, res) => {
+app.post("/api/friends/request", friendRestLimiter, express.json({ limit: "2kb" }), (req, res) => {
   const token = req.headers.authorization?.replace("Bearer ", "");
   const { toUsername } = req.body || {};
   if (!token || !toUsername) return res.status(400).json({ error: "Invalid request" });
@@ -6406,18 +6426,30 @@ app.post("/api/friends/request", express.json({ limit: "2kb" }), (req, res) => {
   if (fromUser.isGuest || toUser.isGuest) return res.status(403).json({ error: "სტუმრებს მეგობრობა არ შეუძლიათ" });
   if (toUser.blockedUsers?.includes(entry.usernameLower)) return res.status(403).json({ error: "ამ მომხმარებელს არ შეუძლია მოთხოვნის მიღება" });
   if (fromUser.blockedUsers?.includes(toLc)) return res.status(403).json({ error: "მოხსენით ბლოკი ჯერ, რომ მოთხოვნა გაგზავნოთ" });
+  // ...and the 24h wait after this person declined, which the socket route
+  // enforces but this one skipped.
+  const cooldownExpiry = friendRequestDeclineCooldown.get(`${entry.usernameLower}|${toLc}`);
+  if (cooldownExpiry && Date.now() < cooldownExpiry) {
+    const hoursLeft = Math.ceil((cooldownExpiry - Date.now()) / (60 * 60 * 1000));
+    return res.status(429).json({ error: `${toUser.username}-მა ახლახან უარყო თქვენი მოთხოვნა — სცადეთ ${hoursLeft} საათში` });
+  }
 
   if (!toUser.pendingRequests) toUser.pendingRequests = [];
   if (!toUser.pendingRequests.includes(entry.usernameLower)) {
     toUser.pendingRequests.push(entry.usernameLower);
     saveAuthUsers();
+    pushNotification(toLc, {
+      type: "friend_request", from: fromUser.username, fromLc: entry.usernameLower,
+      link: "/dashboard.html#pendingSection",
+    }, `freq:${entry.usernameLower}`);
+    io.to(`user:${toLc}`).emit("friend:incomingRequest", { fromUsername: fromUser.username });
   }
 
   res.json({ success: true });
 });
 
 // POST /api/friends/accept
-app.post("/api/friends/accept", express.json({ limit: "2kb" }), (req, res) => {
+app.post("/api/friends/accept", friendRestLimiter, express.json({ limit: "2kb" }), (req, res) => {
   const token = req.headers.authorization?.replace("Bearer ", "");
   const { fromUsername } = req.body || {};
   if (!token || !fromUsername) return res.status(400).json({ error: "Invalid request" });
@@ -6430,16 +6462,26 @@ app.post("/api/friends/accept", express.json({ limit: "2kb" }), (req, res) => {
   const fromUser = registeredUsers.get(fromLc);
 
   if (!toUser || !fromUser) return res.status(400).json({ error: "Invalid users" });
+  if (toUser.isGuest || fromUser.isGuest) return res.status(403).json({ error: "სტუმრებს მეგობრობა არ შეუძლიათ" });
 
   if (!toUser.friends) toUser.friends = [];
   if (!fromUser.friends) fromUser.friends = [];
   if (!toUser.pendingRequests) toUser.pendingRequests = [];
+  // Only a real request can be accepted — same rule as the socket route.
+  if (toUser.friends.includes(fromLc)) return res.json({ success: true, friends: toUser.friends });
+  if (!toUser.pendingRequests.includes(fromLc)) return res.status(400).json({ error: "მეგობრობის მოთხოვნა აღარ არსებობს" });
 
-  if (!toUser.friends.includes(fromLc)) toUser.friends.push(fromLc);
+  toUser.friends.push(fromLc);
   if (!fromUser.friends.includes(entry.usernameLower)) fromUser.friends.push(entry.usernameLower);
   toUser.pendingRequests = toUser.pendingRequests.filter(u => u !== fromLc);
 
   saveAuthUsers();
+  io.to(`user:${fromLc}`).emit("friend:acceptedByOther", { byUsername: toUser.username });
+  markNotificationsRead(entry.usernameLower, it => it.type === "friend_request" && it.fromLc === fromLc);
+  pushNotification(fromLc, {
+    type: "friend_accept", from: toUser.username, fromLc: entry.usernameLower,
+    link: `/friend-chat.html?friend=${encodeURIComponent(toUser.username)}`,
+  });
   res.json({ success: true, friends: toUser.friends });
 });
 
@@ -6457,8 +6499,12 @@ app.post("/api/friends/decline", express.json({ limit: "2kb" }), (req, res) => {
 
   if (!user.pendingRequests) user.pendingRequests = [];
   const fromLc = String(fromUsername).toLowerCase().trim();
+  const wasPending = user.pendingRequests.includes(fromLc);
   user.pendingRequests = user.pendingRequests.filter(u => u !== fromLc);
   saveAuthUsers();
+  // Same as the socket route: the decliner gets 24h of peace from this sender.
+  if (wasPending) friendRequestDeclineCooldown.set(`${fromLc}|${entry.usernameLower}`, Date.now() + FRIEND_REQUEST_DECLINE_COOLDOWN_MS);
+  markNotificationsRead(entry.usernameLower, it => it.type === "friend_request" && it.fromLc === fromLc);
 
   res.json({ success: true });
 });
@@ -12863,12 +12909,16 @@ io.on("connection", (socket) => {
     socket.emit("forum:postCreatedAck", { postId: post.id });
   });
 
-  socket.on("forum:deletePost", ({ postId }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("forum:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია პოსტის წაშლა" });
+  // The admin can delete anything; everyone else can delete what they wrote.
+  const forumCanDelete = (authorLc) => !!socket._regUser && (isRoomAdmin(socket._regUser.usernameLower) ||
+    (!socket._regUser.isGuest && authorLc === socket._regUser.usernameLower));
+  socket.on("forum:deletePost", ({ postId } = {}) => {
+    const target = forumPosts.get(postId);
+    if (!target) return;
+    if (!forumCanDelete(target.authorLc)) {
+      socket.emit("forum:error", { message: "მხოლოდ საკუთარი პოსტის წაშლა შეგიძლია" });
       return;
     }
-    if (!forumPosts.has(postId)) return;
     forumPosts.delete(postId);
     saveForum();
     io.emit("forum:postDeleted", { postId });
@@ -12904,13 +12954,15 @@ io.on("connection", (socket) => {
     io.emit("forum:commentAdded", { postId, comment: forumCommentPublic(comment, null) });
   });
 
-  socket.on("forum:deleteComment", ({ postId, commentId }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("forum:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია კომენტარის წაშლა" });
-      return;
-    }
+  socket.on("forum:deleteComment", ({ postId, commentId } = {}) => {
     const post = forumPosts.get(postId);
     if (!post) return;
+    const target = post.comments.find(c => c.id === commentId);
+    if (!target) return;
+    if (!forumCanDelete(target.authorLc)) {
+      socket.emit("forum:error", { message: "მხოლოდ საკუთარი კომენტარის წაშლა შეგიძლია" });
+      return;
+    }
     const before = post.comments.length;
     post.comments = post.comments.filter(c => c.id !== commentId);
     if (post.comments.length === before) return;

@@ -452,13 +452,20 @@
       .catch(() => showToast("პოსტის ჩატვირთვა ვერ მოხერხდა"));
   }
 
+  // Your own posts/comments can be deleted (the server checks this too); the
+  // admin can delete anything.
+  function canDelete(x) {
+    if (isAdminGlobal) return true;
+    return !isGuestMode && !!x && (x.mine || (x.authorUsername || "").toLowerCase() === myUsernameLower);
+  }
+
   function renderDetail() {
     const p = currentPost;
     $("detailHeaderTitle").textContent = p.title;
     $("detailTitle").textContent = p.title;
     $("detailMeta").textContent = `${p.authorUsername} · ${fmtTime(p.createdAt)}`;
     $("detailBodyText").textContent = p.body || "";
-    $("deletePostBtn").classList.toggle("hidden", !isAdminGlobal);
+    $("deletePostBtn").classList.toggle("hidden", !canDelete(p));
 
     const voteWrap = $("postVoteWidget");
     voteWrap.innerHTML = "";
@@ -494,7 +501,7 @@
       time.className = "fo-comment-time";
       time.textContent = fmtTime(c.createdAt);
       meta.appendChild(author); meta.appendChild(time);
-      if (isAdminGlobal) {
+      if (canDelete(c)) {
         const del = document.createElement("button");
         del.className = "fo-comment-del";
         del.textContent = "🗑";

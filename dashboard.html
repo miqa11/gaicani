@@ -792,6 +792,7 @@
       font-size: 0.88em; cursor: pointer; background: var(--accent); color: #fff;
     }
     .profile-card-msg-btn:hover { background: var(--accent-dk); }
+    .profile-card-msg-btn:disabled { opacity: .6; cursor: default; background: var(--accent); }
     .profile-card-block-btn {
       flex: 1; border: none; border-radius: var(--radius-sm); padding: 11px; font-weight: 700;
       font-size: 0.88em; cursor: pointer; background: #40444b; color: #f56769;
@@ -2142,6 +2143,10 @@ function profileChipsHTML(p) {
 
       socket.on("friend:accepted", ({ username, friends }) => {
         if (authUser) authUser.friends = friends || [];
+        if (authUser && username) {
+          authUser.pendingRequests = (authUser.pendingRequests || []).filter(u => u.toLowerCase() !== username.toLowerCase());
+          renderPendingRequests(authUser.pendingRequests);
+        }
         renderFriends(friends || []);
         renderOnlineUsers(lastOnlineUsers);
         showToast(`✅ ${esc(username)} ახლა შენი მეგობარია!`);
@@ -2507,6 +2512,39 @@ function profileChipsHTML(p) {
        A small "mini profile page" for a friend or online user — picture,
        name, whether they're online right now, and their bio if they've
        written one. */
+    // The card's main button depends on how you stand with them: friends get
+    // "💬 პირადი მიწერა" (private chat is friends-only), everyone else gets
+    // "➕ მეგობრად დამატება" or "🤝 მოთხოვნის მიღება" instead of a message
+    // button that just bounced them back here.
+    function mountFriendAction(slot, d) {
+      if (!slot) return;
+      const rel = d.relation || "friend"; // older server without the field: old behaviour
+      const lc = d.username.toLowerCase();
+      const btn = document.createElement("button");
+      btn.className = "profile-card-msg-btn";
+      const toChat = () => {
+        btn.disabled = false;
+        btn.textContent = "💬 პირადი მიწერა";
+        btn.onclick = () => { window.location.href = `/friend-chat.html?friend=${encodeURIComponent(d.username)}`; };
+      };
+      if (rel === "friend") toChat();
+      else if (rel === "none" && !sentRequestsTo.has(lc)) {
+        btn.textContent = "➕ მეგობრად დამატება";
+        btn.onclick = () => {
+          socket?.emit("friend:request", { toUsername: d.username });
+          sentRequestsTo.add(lc);
+          renderOnlineUsers(lastOnlineUsers);
+          btn.disabled = true; btn.textContent = "✅ მოთხოვნა გაგზავნილია";
+        };
+      } else if (rel === "sent" || rel === "none") {
+        btn.disabled = true; btn.textContent = "✅ მოთხოვნა გაგზავნილია";
+      } else if (rel === "received") {
+        btn.textContent = "🤝 მოთხოვნის მიღება";
+        btn.onclick = () => { socket?.emit("friend:accept", { fromUsername: d.username }); toChat(); };
+      } else return; // yourself, or a guest on either side
+      slot.replaceWith(btn);
+    }
+
     async function openProfileCard(username) {
       const backdrop = document.getElementById("profileCardBackdrop");
       const body = document.getElementById("profileCardBody");
@@ -2552,14 +2590,12 @@ function profileChipsHTML(p) {
           ${bioHtml}
           ${detailsHtml}
           <div class="profile-card-actions">
-            <button class="profile-card-msg-btn" id="profileCardMsgBtn">💬 პირადი მიწერა</button>
+            <span id="profileCardFriendSlot"></span>
             ${blockBtnHtml}
           </div>
           ${reportBtnHtml}`;
 
-        document.getElementById("profileCardMsgBtn").addEventListener("click", () => {
-          window.location.href = `/friend-chat.html?friend=${encodeURIComponent(d.username)}`;
-        });
+        mountFriendAction(document.getElementById("profileCardFriendSlot"), d);
 
         const reportBtn = document.getElementById("profileCardReportBtn");
         if (reportBtn) {
