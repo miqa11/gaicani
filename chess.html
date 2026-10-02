@@ -13,11 +13,11 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:        #17181d;
-      --surface:   #26272e;
-      --surface-2: #2f3037;
+      --bg:        #130f26;
+      --surface:   #1c1735;
+      --surface-2: #241e44;
       --border:    rgba(255,255,255,0.08);
-      --accent:    #5865f2;
+      --accent:    #6d5cff;
       --accent-dk: #4752c4;
       --accent-lt: #8b93ff;
       --text:      #e4e5ea;
@@ -25,11 +25,11 @@
       --good:      #3ba55d;
       --warn:      #faa61a;
       --danger:    #f23f42;
-      --gold:      #f2c94c;
+      --gold:      #f4d98f;
       --safe-bottom: env(safe-area-inset-bottom, 0px);
       --safe-top:    env(safe-area-inset-top, 0px);
-      --sq-light:  #ebe3d0;
-      --sq-dark:   #7c9473;
+      --sq-light:  #ece4f7;
+      --sq-dark:   #8a79c7;
     }
 
     html, body {
@@ -142,18 +142,19 @@
     .cs-board {
       display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
       width: min(100%, 100%); aspect-ratio: 1 / 1; max-height: 100%; max-width: 100%;
-      border-radius: 8px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,0.45); border: 3px solid #4a3a24;
+      border-radius: 14px; overflow: hidden; border: none;
+      box-shadow: 0 0 0 2px rgba(214,168,79,.7), 0 0 0 7px #1c1735, 0 0 0 8px rgba(214,168,79,.25), 0 26px 60px -24px rgba(0,0,0,.9);
     }
     .cs-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: min(7vw, 34px); user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
-    .cs-sq.light { background: var(--sq-light); }
-    .cs-sq.dark { background: var(--sq-dark); }
-    .cs-sq.selected { box-shadow: inset 0 0 0 3px var(--gold); }
-    .cs-sq.last-move { background: rgba(242,201,76,0.35) !important; }
-    .cs-sq.in-check { background: rgba(242,63,66,0.55) !important; }
-    .cs-sq .cs-legal-dot { position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(30,30,30,0.28); pointer-events: none; }
-    .cs-sq .cs-legal-ring { position: absolute; inset: 6%; border-radius: 50%; border: 3px solid rgba(30,30,30,0.3); pointer-events: none; }
-    .cs-piece-w { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.7), 0 0 1px #000; }
-    .cs-piece-b { color: #1a1a1a; text-shadow: 0 1px 1px rgba(255,255,255,0.15); }
+    .cs-sq.light { background: linear-gradient(135deg, #f5effc, var(--sq-light)); }
+    .cs-sq.dark { background: linear-gradient(135deg, #9888d2, var(--sq-dark)); }
+    .cs-sq.selected::before { content:""; position:absolute; inset:0; z-index:1; pointer-events:none; background:rgba(244,217,143,.38); box-shadow:inset 0 0 0 3px #d6a84f; }
+    .cs-sq.last-move::after { content:""; position:absolute; inset:0; z-index:1; pointer-events:none; background:rgba(244,217,143,.48); }
+    .cs-sq.in-check::before { content:""; position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(circle, rgba(255,70,95,.95) 0%, rgba(227,59,95,.6) 45%, transparent 76%); animation: csCheck 1.1s ease-in-out infinite; }
+    .cs-sq .cs-legal-dot { position: absolute; z-index:3; width: 30%; height: 30%; border-radius: 50%; background: rgba(43,35,71,.4); pointer-events: none; animation: csPop .16s ease-out; }
+    .cs-sq .cs-legal-ring { position: absolute; z-index:3; inset: 5%; border-radius: 50%; border: 4px solid rgba(43,35,71,.42); pointer-events: none; animation: csPop .16s ease-out; }
+    .cs-piece-w { color: #fffdf8; -webkit-text-stroke: 1.2px #2b2347; filter: drop-shadow(0 2px 2px rgba(20,12,40,.45)); }
+    .cs-piece-b { color: #231b3d; -webkit-text-stroke: 1px rgba(255,255,255,.55); filter: drop-shadow(0 2px 2px rgba(20,12,40,.4)); }
     .cs-sq.flipped-label { }
 
     .cs-coord-file, .cs-coord-rank { position: absolute; font-size: 0.55em; font-weight: 700; opacity: 0.55; pointer-events: none; }
@@ -274,7 +275,23 @@
         border: 1px solid rgba(255,255,255,0.06);
       }
     }
-  </style>
+  
+    /* ── Board pieces & motion ─────────────────────────────────────────── */
+    .cs-sq { overflow: visible; }
+    .cs-sq .cs-piece-w, .cs-sq .cs-piece-b { position: relative; z-index: 2; line-height: 1; font-size: 1.2em;
+      font-family: "Segoe UI Symbol", "Apple Symbols", "DejaVu Sans", "Noto Sans Symbols 2", serif; font-variant-emoji: text; will-change: transform; }
+    .cs-sq.selected .cs-piece-w, .cs-sq.selected .cs-piece-b { animation: csLift .16s ease-out forwards; }
+    .cs-sq .cs-ghost { position: absolute; z-index: 2; pointer-events: none; }
+    .cs-sq.light .cs-coord-file, .cs-sq.light .cs-coord-rank { color: #6d5fae; opacity: .9; z-index: 2; }
+    .cs-sq.dark .cs-coord-file, .cs-sq.dark .cs-coord-rank { color: #f1ebfb; opacity: .85; z-index: 2; }
+    .cs-board.cs-shake { animation: csShake .32s ease-in-out; }
+    .cs-promo-box { border: 1px solid rgba(214,168,79,.4); }
+    .cs-promo-choice:hover { border-color: #d6a84f; }
+    @keyframes csPop   { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes csLift  { to { transform: translateY(-3px) scale(1.1); } }
+    @keyframes csCheck { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+    @keyframes csShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+</style>
 </head>
 <body>
 <div id="app">
@@ -455,6 +472,15 @@
     K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙",
     k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟",
   };
+  // On the board both colours use the solid shapes (white ones are filled
+  // white with a dark outline). \uFE0E keeps the pawn from turning into an emoji.
+  const BOARD_GLYPHS = {
+    K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟\uFE0E",
+    k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟\uFE0E",
+  };
+  const REDUCE_MOTION = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  let prevBoard = null, lastAnimKey = null, pendingMove = null, pendingTimer = null;
+  let animUntil = 0, deferredRender = null;   // a confirmation of what's already on screen waits for the slide to finish
   const FILES = "abcdefgh";
   function squareName(s) { return FILES[s % 8] + (Math.floor(s / 8) + 1); }
   function nameToSquare(name) { return FILES.indexOf(name[0]) + (Number(name[1]) - 1) * 8; }
@@ -622,7 +648,7 @@
     return rank * 8 + file;
   }
 
-  function renderBoard(room) {
+  function renderBoard(room, anim) {
     const legalFrom = new Map(); // fromSquare -> [{to, promotion}]
     (room.legalMoves || []).forEach(m => {
       const from = nameToSquare(m.from);
@@ -657,7 +683,7 @@
       if (piece) {
         const glyph = document.createElement("span");
         glyph.className = piece === piece.toUpperCase() ? "cs-piece-w" : "cs-piece-b";
-        glyph.textContent = PIECE_GLYPHS[piece] || "";
+        glyph.textContent = BOARD_GLYPHS[piece] || "";
         el.appendChild(glyph);
       }
 
@@ -670,12 +696,89 @@
         }
       }
 
+      // coordinates along the bottom and left edges (they follow the board's orientation)
+      if (gridIdx >= 56) { const c = document.createElement("span"); c.className = "cs-coord-file"; c.textContent = "abcdefgh"[file]; el.appendChild(c); }
+      if (gridIdx % 8 === 0) { const c = document.createElement("span"); c.className = "cs-coord-rank"; c.textContent = String(rank + 1); el.appendChild(c); }
+
       el.onclick = () => onSquareClick(square, legalFrom);
     }
+    if (anim) animateMove(anim.prev, room.board, anim.from, anim.to);
+  }
+
+  // ── Move animation ──────────────────────────────────────────────────────
+  // The server sends the whole position after every move; we slide the piece
+  // that moved from its old square, fade out anything it captured, and bring
+  // the rook along when castling.
+  function squareEl(sq) {
+    const cells = $("board").children;
+    for (let g = 0; g < 64; g++) if (gridIndexToSquare(g) === sq) return cells[g];
+    return null;
+  }
+  function slidePiece(toSq, fromSq) {
+    const toEl = squareEl(toSq), fromEl = squareEl(fromSq);
+    const piece = toEl && toEl.querySelector(".cs-piece-w:not(.cs-ghost), .cs-piece-b:not(.cs-ghost)");
+    if (!piece || !fromEl || !piece.animate) return;
+    const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+    piece.style.zIndex = "20";
+    const run = piece.animate(
+      [{ transform: "translate(" + (a.left - b.left) + "px," + (a.top - b.top) + "px) scale(1.08)" }, { transform: "translate(0,0) scale(1)" }],
+      { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+    run.onfinish = run.oncancel = () => { piece.style.zIndex = ""; };
+  }
+  function fadeCaptured(sq, pieceChar) {
+    const el = squareEl(sq);
+    if (!el || !pieceChar) return;
+    const ghost = document.createElement("span");
+    ghost.className = (pieceChar === pieceChar.toUpperCase() ? "cs-piece-w" : "cs-piece-b") + " cs-ghost";
+    ghost.textContent = BOARD_GLYPHS[pieceChar] || "";
+    el.appendChild(ghost);
+    if (ghost.animate) ghost.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.5) rotate(-14deg)" }],
+      { duration: 300, delay: 110, easing: "ease-in", fill: "forwards" });
+    setTimeout(() => ghost.remove(), 480);
+  }
+  function animateMove(prev, next, fromSq, toSq) {
+    if (REDUCE_MOTION || !prev || !next) return;
+    const mover = next[toSq];
+    if (!mover) return;
+    animUntil = performance.now() + 440;   // longest effect: capture fade (110 ms delay + 300 ms)
+    const kind = mover.toLowerCase(), ff = fromSq % 8, tf = toSq % 8, fr = Math.floor(fromSq / 8);
+    if (prev[toSq]) fadeCaptured(toSq, prev[toSq]);                                    // ordinary capture
+    if (kind === "p" && ff !== tf && !prev[toSq] && prev[fr * 8 + tf]) fadeCaptured(fr * 8 + tf, prev[fr * 8 + tf]); // en passant
+    slidePiece(toSq, fromSq);
+    if (kind === "k" && Math.abs(tf - ff) === 2) {                                    // castling: the rook comes along
+      const r = Math.floor(toSq / 8) * 8;
+      slidePiece(r + (tf > ff ? 5 : 3), r + (tf > ff ? 7 : 0));
+    }
+  }
+  // The position after our own move, so we can show it before the server answers.
+  function applyLocalMove(board, from, to) {
+    const b = board.slice(), piece = b[from];
+    const empty = board.find(x => !x) ?? "";
+    const kind = piece.toLowerCase(), ff = from % 8, tf = to % 8, fr = Math.floor(from / 8);
+    if (kind === "p" && ff !== tf && !b[to]) b[fr * 8 + tf] = empty;                 // en passant
+    if (kind === "k" && Math.abs(tf - ff) === 2) {                                    // castling
+      const r = fr * 8, rf = r + (tf > ff ? 7 : 0), rt = r + (tf > ff ? 5 : 3);
+      b[rt] = b[rf]; b[rf] = empty;
+    }
+    b[to] = piece; b[from] = empty;
+    return b;
+  }
+  function boardKey(lastMove, board) { return lastMove ? lastMove.from + lastMove.to + "|" + board.join("") : null; }
+  function cancelPendingMove(shake) {
+    clearTimeout(pendingTimer); pendingTimer = null;
+    if (!pendingMove) return;
+    pendingMove = null;
+    clearTimeout(deferredRender); deferredRender = null;
+    if (latestRoom) {
+      prevBoard = latestRoom.board.slice(); lastAnimKey = boardKey(latestRoom.lastMove, latestRoom.board);
+      renderBoard(latestRoom);                                                         // snap back to the real position
+    }
+    if (shake) { const bd = $("board"); bd.classList.remove("cs-shake"); void bd.offsetWidth; bd.classList.add("cs-shake"); }
   }
 
   function onSquareClick(square, legalFrom) {
     if (!latestRoom || latestRoom.status !== "playing" || latestRoom.result) return;
+    if (pendingMove) return;   // our last move is still on its way to the server
     if (myColor !== latestRoom.turn) { showToast("მოწინააღმდეგის სვლის რიგია"); return; }
 
     if (selectedSquare !== null && legalFrom.has(selectedSquare)) {
@@ -685,7 +788,18 @@
           pendingPromotion = { from: squareName(selectedSquare), to: squareName(square) };
           openPromotionPicker();
         } else {
-          socket.emit("chess:move", { roomId: currentRoomId, from: squareName(selectedSquare), to: squareName(square) });
+          // Show the move right away; the server's answer confirms it (or, if it
+          // refuses or never answers, the board snaps back to the real position).
+          const fromSq = selectedSquare, toSq = square;
+          const local = applyLocalMove(latestRoom.board, fromSq, toSq);
+          const lm = { from: squareName(fromSq), to: squareName(toSq) };
+          selectedSquare = null;
+          renderBoard(Object.assign({}, latestRoom, { board: local, lastMove: lm, legalMoves: [], inCheck: false }), { prev: latestRoom.board, from: fromSq, to: toSq });
+          prevBoard = local; lastAnimKey = boardKey(lm, local);
+          pendingMove = lm;
+          clearTimeout(pendingTimer); pendingTimer = setTimeout(() => cancelPendingMove(true), 4000);
+          socket.emit("chess:move", { roomId: currentRoomId, from: lm.from, to: lm.to });
+          return;
         }
         selectedSquare = null;
         renderBoard(latestRoom);
@@ -765,7 +879,24 @@
       ? "თამაში დასრულდა"
       : (room.inCheck ? "შაჰი! " : "") + (room.turn === myColor ? "შენი სვლაა" : "მოწინააღმდეგის სვლაა");
 
-    renderBoard(room);
+    // Slide the newest move once. If it's our own move we already showed, the
+    // key matches and nothing animates twice.
+    const key = boardKey(room.lastMove, room.board);
+    const anim = (room.lastMove && key !== lastAnimKey && prevBoard)
+      ? { prev: prevBoard, from: nameToSquare(room.lastMove.from), to: nameToSquare(room.lastMove.to) } : null;
+    clearTimeout(pendingTimer); pendingTimer = null; pendingMove = null;
+    lastAnimKey = key;
+    const wait = animUntil - performance.now();
+    if (!anim && wait > 0) {
+      // Same position already on screen and still sliding (e.g. the server just
+      // confirmed our move): let the animation finish, then refresh the board.
+      clearTimeout(deferredRender);
+      deferredRender = setTimeout(() => { deferredRender = null; if (latestRoom) renderBoard(latestRoom); }, wait);
+    } else {
+      clearTimeout(deferredRender); deferredRender = null;
+      renderBoard(room, anim);
+    }
+    prevBoard = room.board.slice();
 
     clearTimerInterval();
     if (room.moveDeadline && !room.result) {
@@ -970,7 +1101,7 @@
       else { showScreen("game"); renderGame(room); }
     });
 
-    socket.on("chess:error", ({ message }) => showToast(message));
+    socket.on("chess:error", ({ message }) => { showToast(message); cancelPendingMove(true); });
 
     socket.on("chess:chatMessage", (msg) => {
       appendChatMessage(msg);
