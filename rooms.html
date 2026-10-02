@@ -644,7 +644,10 @@
     meta.appendChild(nameSpan);
     meta.appendChild(timeSpan);
 
-    if (isAdminGlobal) {
+    // Your own messages can be deleted too (the server checks it); the admin
+    // can delete anyone's.
+    const mine = !amGuest && (m.fromUsername || "").toLowerCase() === myUsernameLower;
+    if (isAdminGlobal || mine) {
       const delBtn = document.createElement("button");
       delBtn.className = "rm-msg-del";
       delBtn.textContent = "🗑";

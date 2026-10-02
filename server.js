@@ -10689,6 +10689,13 @@ io.on("connection", (socket) => {
       socket.emit("privateMsg:sent", { success: false, messageId: messageId || null });
       return;
     }
+    // Private chat is friends-only everywhere else (the chat page, history,
+    // photos, GIFs). Without this, anyone could drop messages on a stranger
+    // that the stranger can't even open — and each would ring their 🔔.
+    if (!(myUser?.friends || []).includes(toLc)) {
+      socket.emit("privateMsg:sent", { success: false, messageId: messageId || null });
+      return;
+    }
 
     const roomId = privRoomId(socket._regUser.usernameLower, toLc);
     let room = privateRooms.get(roomId);
@@ -12806,13 +12813,18 @@ io.on("connection", (socket) => {
     io.emit("rooms:updated");
   });
 
-  socket.on("rooms:deleteMessage", ({ roomId, messageId }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("rooms:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია შეტყობინების წაშლა" });
-      return;
-    }
+  // The admin can delete any message; everyone else can delete their own.
+  socket.on("rooms:deleteMessage", ({ roomId, messageId } = {}) => {
+    if (!socket._regUser) return;
     const room = chatRooms.get(roomId);
     if (!room) return;
+    const target = room.messages.find(m => m.id === messageId);
+    if (!target) return;
+    const me = socket._regUser.usernameLower;
+    if (!isRoomAdmin(me) && (socket._regUser.isGuest || target.fromLc !== me)) {
+      socket.emit("rooms:error", { message: "მხოლოდ საკუთარი შეტყობინების წაშლა შეგიძლია" });
+      return;
+    }
     const before = room.messages.length;
     room.messages = room.messages.filter(m => m.id !== messageId);
     if (room.messages.length === before) return; // nothing removed
