@@ -451,6 +451,7 @@
 <script src="/fit-board.js"></script>
 <script src="/lobby-kick.js"></script>
 <script src="/rematch.js"></script>
+<script src="/computer-play.js"></script>
 <script>
   (function () {
     function setAppHeight() {
@@ -1075,6 +1076,7 @@
   /* ── Boot ────────────────────────────────────────────────────── */
   function init() {
     socket = io(); attachTempBanGuard(socket);
+    window.GaicaniComputer?.mount({ socket, game: "chess", before: $("createGameBtn").nextElementSibling });
     window.GaicaniRematch?.mount({ socket, game: "chess", before: $("resultBackBtn").parentElement, roomId: () => currentRoomId, me: () => myUsernameLower });
     socket.on("connect", () => {
       if (token) socket.emit("auth:token", { token });

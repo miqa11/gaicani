@@ -8181,7 +8181,7 @@ function chessRoomState(room) {
     roomId: room.id,
     status: room.status,
     hostUsername: room.players.find(p => p.lc === room.hostLc)?.username || "",
-    players: room.players.map(p => ({ username: p.username, avatar: registeredUsers.get(p.lc)?.avatar || DEFAULT_AVATAR, color: p.color || null, connected: p.connected })),
+    players: room.players.map(p => ({ username: p.username, avatar: p.computer ? COMPUTER_AVATAR : registeredUsers.get(p.lc)?.avatar || DEFAULT_AVATAR, color: p.color || null, connected: p.connected, computer: !!p.computer })),
     board: started ? st.board : chessInitialBoard(),
     turn: started ? st.turn : CHESS_WHITE,
     legalMoves: started && !room.result ? chessLegalMoves(st).map(m => ({ from: chessSquareName(m.from), to: chessSquareName(m.to), promotion: m.promotion || null, castle: m.castle || null })) : [],
@@ -8249,12 +8249,42 @@ function chessFinishGame(room, result) {
   room.result = result;
   room.moveDeadline = null;
   room.status = "ended"; // frees both players up to start/join another game immediately
-  if (result.winner) {
+  if (result.winner && !room.players.some(p => p.computer)) { // wins against the computer don't go on the leaderboard
     const winnerPlayer = room.players.find(p => p.color === result.winner);
     if (winnerPlayer) recordChessWin(winnerPlayer.lc);
   }
   broadcastChessRoom(room);
   broadcastPublicChessRooms();
+}
+
+// A legal move is made: apply it, end the game or hand the turn over (and
+// let the computer reply if it's a game against the computer).
+function chessCommitMove(room, match) {
+  room.state = chessApplyMove(room.state, match);
+  room.lastMove = { from: chessSquareName(match.from), to: chessSquareName(match.to) };
+
+  const status = chessGameStatus(room.state);
+  if (status.status === "checkmate" || status.status === "stalemate" || status.status === "draw") {
+    chessFinishGame(room, status.status === "checkmate"
+      ? { status: "checkmate", winner: status.winner }
+      : { status: status.status, reason: status.reason || null });
+    return;
+  }
+
+  scheduleChessMoveTimer(room);
+  broadcastChessRoom(room);
+  chessMaybeComputerMove(room);
+}
+function chessMaybeComputerMove(room) {
+  if (room.status !== "playing" || room.result) return;
+  const bot = room.players.find(p => p.computer && p.color === room.state.turn);
+  if (!bot) return;
+  clearTimeout(room.computerTimer);
+  room.computerTimer = setTimeout(() => {
+    if (!chessRooms.has(room.id) || room.status !== "playing" || room.result || room.state.turn !== bot.color) return;
+    const move = BOTS.chessPickMove(room.state, bot.computer);
+    if (move) chessCommitMove(room, move);
+  }, computerThinkMs());
 }
 
 // A new game in this room. Colours are random the first time; a rematch
@@ -8274,12 +8304,14 @@ function chessStartGame(room, { swapColors = false } = {}) {
   scheduleChessMoveTimer(room);
   broadcastChessRoom(room);
   broadcastPublicChessRooms();
+  chessMaybeComputerMove(room); // the computer opens if it got white
 }
 
 function cleanupChessRoom(roomId) {
   const room = chessRooms.get(roomId);
   if (!room) return;
   clearChessMoveTimer(room);
+  clearTimeout(room.computerTimer);
   for (const [, invite] of room.pendingInvites || []) clearTimeout(invite.timeoutHandle);
   for (const p of room.players) chessRoomBySocket.delete(p.socketId);
   chessRooms.delete(roomId);
@@ -8306,7 +8338,7 @@ function cleanupChessForSocket(socketId) {
   }
 
   player.connected = false;
-  if (room.players.every(p => !p.connected)) { cleanupChessRoom(room.id); return; }
+  if (room.players.every(p => p.computer || !p.connected)) { cleanupChessRoom(room.id); return; }
   if (room.status === "ended") rematchNotify("chess", room);
   // No instant forfeit here — a brief disconnect shouldn't cost a long game.
   // If it becomes (or already is) their move and they don't reconnect and
@@ -8347,7 +8379,7 @@ function checkersRoomState(room) {
     roomId: room.id,
     status: room.status,
     hostUsername: room.players.find(p => p.lc === room.hostLc)?.username || "",
-    players: room.players.map(p => ({ username: p.username, avatar: registeredUsers.get(p.lc)?.avatar || DEFAULT_AVATAR, color: p.color || null, connected: p.connected })),
+    players: room.players.map(p => ({ username: p.username, avatar: p.computer ? COMPUTER_AVATAR : registeredUsers.get(p.lc)?.avatar || DEFAULT_AVATAR, color: p.color || null, connected: p.connected, computer: !!p.computer })),
     board: started ? st.board : checkersInitialBoard(),
     turn: started ? st.turn : CHECKERS_RED,
     mustContinueFrom: started ? st.mustContinueFrom : null,
@@ -8413,12 +8445,44 @@ function checkersFinishGame(room, result) {
   room.result = result;
   room.moveDeadline = null;
   room.status = "ended";
-  if (result.winner) {
+  if (result.winner && !room.players.some(p => p.computer)) { // wins against the computer don't go on the leaderboard
     const winnerPlayer = room.players.find(p => p.color === result.winner);
     if (winnerPlayer) recordCheckersWin(winnerPlayer.lc);
   }
   broadcastCheckersRoom(room);
   broadcastPublicCheckersRooms();
+}
+
+function checkersCommitMove(room, match) {
+  room.state = checkersApplyMove(room.state, match);
+  room.lastMove = checkersBuildLastMove([{ from: match.from, to: match.to, capture: match.capture }]);
+
+  const status = checkersGameStatus(room.state);
+  if (status.status === "over") {
+    checkersFinishGame(room, { status: "over", winner: status.winner, reason: status.reason });
+    return;
+  }
+
+  // Only reset the move timer when the turn actually changed hands — a
+  // multi-jump continuation keeps the same player acting, so the clock
+  // just keeps counting down through the whole chain rather than resetting
+  // to a fresh 90s for every individual jump in it.
+  if (room.state.mustContinueFrom === null) scheduleCheckersMoveTimer(room);
+  broadcastCheckersRoom(room);
+  checkersMaybeComputerMove(room);
+}
+function checkersMaybeComputerMove(room) {
+  if (room.status !== "playing" || room.result) return;
+  const bot = room.players.find(p => p.computer && p.color === room.state.turn);
+  if (!bot) return;
+  clearTimeout(room.computerTimer);
+  // The next jump of a chain comes quicker, like a person finishing a move.
+  const delay = room.state.mustContinueFrom !== null ? 450 : computerThinkMs();
+  room.computerTimer = setTimeout(() => {
+    if (!checkersRooms.has(room.id) || room.status !== "playing" || room.result || room.state.turn !== bot.color) return;
+    const move = BOTS.checkersPickMove(room.state, bot.computer);
+    if (move) checkersCommitMove(room, move);
+  }, delay);
 }
 
 // Same as chessStartGame: random colours, swapped on a rematch.
@@ -8437,12 +8501,14 @@ function checkersStartGame(room, { swapColors = false } = {}) {
   scheduleCheckersMoveTimer(room);
   broadcastCheckersRoom(room);
   broadcastPublicCheckersRooms();
+  checkersMaybeComputerMove(room); // the computer opens if it got red
 }
 
 function cleanupCheckersRoom(roomId) {
   const room = checkersRooms.get(roomId);
   if (!room) return;
   clearCheckersMoveTimer(room);
+  clearTimeout(room.computerTimer);
   for (const [, invite] of room.pendingInvites || []) clearTimeout(invite.timeoutHandle);
   for (const p of room.players) checkersRoomBySocket.delete(p.socketId);
   checkersRooms.delete(roomId);
@@ -8469,7 +8535,7 @@ function cleanupCheckersForSocket(socketId) {
   }
 
   player.connected = false;
-  if (room.players.every(p => !p.connected)) { cleanupCheckersRoom(room.id); return; }
+  if (room.players.every(p => p.computer || !p.connected)) { cleanupCheckersRoom(room.id); return; }
   if (room.status === "ended") rematchNotify("checkers", room);
   // Same policy as Chess: no instant forfeit on disconnect — the existing
   // move timer (if it's their turn) is what eventually costs them the game
@@ -8518,8 +8584,8 @@ function jokerRoomStateForViewer(room, viewerLc) {
     status: room.status,
     hostUsername: room.players.find(p => p.lc === room.hostLc)?.username || "",
     players: room.players.map(p => ({
-      username: p.username, avatar: registeredUsers.get(p.lc)?.avatar || DEFAULT_AVATAR,
-      seat: p.seat, connected: p.connected, isBot: !!p.isBot,
+      username: p.username, avatar: p.computer ? COMPUTER_AVATAR : registeredUsers.get(p.lc)?.avatar || DEFAULT_AVATAR,
+      seat: p.seat, connected: p.connected, isBot: !!p.isBot, computer: !!p.computer,
       handCount: started ? (room.hands[p.seat] ? room.hands[p.seat].length : 0) : 0,
     })),
     mySeat: viewerSeat,
@@ -8640,6 +8706,13 @@ function jokerBotAct(room, seat) {
   if (room.result || room.status !== "playing") return;
   if (jokerCurrentTurnSeat(room) !== seat) return; // stale timer, turn already moved on
   if (!jokerIsBotSeat(room, seat)) return; // the real player reconnected in the meantime
+
+  // 🤖 A computer player (added on purpose) plays properly — see server-bots.js.
+  if (room.players.find(pp => pp.seat === seat)?.computer) {
+    if (room.phase === "bidding") jokerApplyBid(room, seat, BOTS.jokerBid(room, seat));
+    else if (room.phase === "playing") { const pl = BOTS.jokerPlay(room, seat); jokerApplyPlay(room, seat, pl.card, pl.jokerChoice, pl.declaredSuit); }
+    return;
+  }
 
   if (room.phase === "bidding") {
     const isLast = room.bidTurnIdx === 3;
@@ -8881,6 +8954,7 @@ function cleanupJokerRoom(roomId) {
   const room = jokerRooms.get(roomId);
   if (!room) return;
   clearJokerActionTimer(room);
+  if (room.handEndTimeoutHandle) clearTimeout(room.handEndTimeoutHandle);
   clearJokerHandEndTimer(room);
   if (room.trickResolveTimeoutHandle) { clearTimeout(room.trickResolveTimeoutHandle); room.trickResolveTimeoutHandle = null; }
   for (const [, invite] of room.pendingInvites || []) clearTimeout(invite.timeoutHandle);
@@ -8901,15 +8975,16 @@ function cleanupJokerForSocket(socketId) {
 
   if (room.status === "lobby") {
     room.players = room.players.filter(p => p.socketId !== socketId);
-    if (room.players.length === 0) { cleanupJokerRoom(room.id); return; }
-    if (player.lc === room.hostLc) room.hostLc = room.players[0].lc;
+    // Only computers left → nobody to play with.
+    if (!room.players.some(p => !p.computer)) { cleanupJokerRoom(room.id); return; }
+    if (player.lc === room.hostLc) room.hostLc = room.players.find(p => !p.computer).lc;
     broadcastJokerRoom(room);
     broadcastPublicJokerRooms();
     return;
   }
 
   player.connected = false;
-  if (room.players.every(p => !p.connected)) { cleanupJokerRoom(room.id); return; }
+  if (room.players.every(p => p.computer || !p.connected)) { cleanupJokerRoom(room.id); return; }
   if (room.status === "ended") { rematchNotify("joker", room); broadcastJokerRoom(room); return; }
 
   // Bot takeover: immediately flag them as bot-controlled so the game
@@ -10190,10 +10265,104 @@ const LOBBY_GAMES = {
   poker:     { rooms: pokerRooms,    channel: "pokerroom",    cleanup: cleanupPokerForSocket },
   chess:     { rooms: chessRooms,    channel: "chessroom",    cleanup: cleanupChessForSocket },
   checkers:  { rooms: checkersRooms, channel: "checkersroom", cleanup: cleanupCheckersForSocket },
-  joker:     { rooms: jokerRooms,    channel: "jokerroom",    cleanup: cleanupJokerForSocket },
+  joker:     { rooms: jokerRooms,    channel: "jokerroom",    cleanup: cleanupJokerForSocket, broadcast: (r) => { broadcastJokerRoom(r); broadcastPublicJokerRooms(); } },
   imposter:  { rooms: imposterRooms, channel: "imposterroom", cleanup: cleanupImposterForSocket },
   blackjack: { rooms: bjRooms,       channel: "bjroom",       cleanup: cleanupBjForSocket },
 };
+// ── 🤖 Computer opponents ──────────────────────────────────────────────────
+// Chess and checkers: "play the computer" at three levels — a game starts at
+// once against a computer seat. Joker: the host can fill empty seats with
+// computer players, or start straight away with three. A computer seat has
+// no socket and is always "there"; its moves come from server-bots.js
+// through the same rules engines as everyone else's. Games against the
+// computer don't count toward the win tables.
+const BOTS = require("./server-bots")({
+  chessLegalMoves, chessPseudoMoves, chessApplyMove, chessInCheck, checkersLegalMoves, checkersApplyMove,
+  jokerIsJokerCard, jokerSuitOf, jokerValueOf, jokerIsBidLegal, jokerLegalCardsToPlay, jokerResolveTrick,
+});
+const COMPUTER_AVATAR = "bot-avatar.svg";
+const COMPUTER_LEVELS = { easy: "მარტივი", medium: "საშუალო", hard: "რთული" };
+const COMPUTER_JOKER_NAMES = ["🤖 გიორგი", "🤖 ნინო", "🤖 ლევანი", "🤖 მარიამი", "🤖 დათო", "🤖 ანა"];
+const computerThinkMs = () => 600 + Math.floor(Math.random() * 700);
+let computerSeq = 0;
+function makeComputerPlayer(level, username, extra) {
+  return { lc: `computer:${++computerSeq}`, username, socketId: null, connected: true, computer: level, ...extra };
+}
+function freeJokerComputerName(room) {
+  const used = new Set(room.players.map(p => p.username));
+  return COMPUTER_JOKER_NAMES.find(n => !used.has(n)) || "🤖 კომპიუტერი";
+}
+
+const COMPUTER_GAMES = {
+  chess: {
+    rooms: chessRooms, bySocket: chessRoomBySocket, findActive: findActiveChessRoomForUser, cleanup: cleanupChessForSocket,
+    make: (human, level) => ({
+      id: makeChessRoomId(), hostLc: human.lc, status: "lobby",
+      players: [{ ...human, color: null }, makeComputerPlayer(level, `🤖 კომპიუტერი · ${COMPUTER_LEVELS[level]}`, { color: null })],
+      pendingInvites: new Map(), state: chessNewGameState(), lastMove: null, result: null, moveDeadline: null,
+    }),
+    start: (room) => chessStartGame(room),
+  },
+  checkers: {
+    rooms: checkersRooms, bySocket: checkersRoomBySocket, findActive: findActiveCheckersRoomForUser, cleanup: cleanupCheckersForSocket,
+    make: (human, level) => ({
+      id: makeCheckersRoomId(), hostLc: human.lc, status: "lobby",
+      players: [{ ...human, color: null }, makeComputerPlayer(level, `🤖 კომპიუტერი · ${COMPUTER_LEVELS[level]}`, { color: null })],
+      pendingInvites: new Map(), state: checkersNewGameState(), lastMove: null, result: null, moveDeadline: null,
+    }),
+    start: (room) => checkersStartGame(room),
+  },
+  joker: {
+    rooms: jokerRooms, bySocket: jokerRoomBySocket, findActive: findActiveJokerRoomForUser, cleanup: cleanupJokerForSocket,
+    make: (human) => {
+      const room = {
+        id: makeJokerRoomId(), hostLc: human.lc, status: "lobby",
+        players: [{ ...human, seat: null, isBot: false }],
+        pendingInvites: new Map(),
+        dealerSeat: 0, handIndex: 0, handSize: 0, setIdx: 0,
+        trumpSuit: null, trumpCard: null, hands: [[], [], [], []],
+        phase: null, bidOrder: [], bids: [null, null, null, null], bidTurnIdx: 0,
+        currentTrick: [], ledSuit: null, trickLeader: null, tricksWon: [0, 0, 0, 0],
+        turnSeat: null, totals: [0, 0, 0, 0], setHandsPerPlayer: [[], [], [], []],
+        history: [], lastHandSummary: null, actionDeadline: null, finalResult: null,
+      };
+      while (room.players.length < JOKER_MIN_PLAYERS) room.players.push(makeComputerPlayer("medium", freeJokerComputerName(room), { seat: null, isBot: true }));
+      return room;
+    },
+    start: (room) => jokerStartGame(room),
+  },
+};
+function startComputerGame(socket, game, data) {
+  const g = COMPUTER_GAMES[game];
+  if (!g || !socket._regUser) return;
+  const lc = socket._regUser.usernameLower;
+  const user = registeredUsers.get(lc);
+  if (!user) return;
+  if (mediaRateLimited(socket, "computerGame", 10, 60_000)) return;
+  const active = g.findActive(lc);
+  if (active && active.status !== "lobby") {
+    socket.emit(`${game}:error`, { message: "ჯერ დაასრულე ან დატოვე მიმდინარე თამაში." });
+    return;
+  }
+  if (active) g.cleanup(socket.id); // leave the lobby you were waiting in
+  const level = COMPUTER_LEVELS[data && data.level] ? data.level : "medium";
+  const room = g.make({ lc, username: user.username, socketId: socket.id, connected: true }, level);
+  g.rooms.set(room.id, room);
+  g.bySocket.set(socket.id, room.id);
+  g.start(room);
+}
+// Joker lobby: the host puts a computer player in an empty seat.
+function addJokerComputer(socket, data) {
+  if (!socket._regUser || !data) return;
+  const room = jokerRooms.get(data.roomId);
+  if (!room || room.hostLc !== socket._regUser.usernameLower) return;
+  if (room.status !== "lobby" || room.players.length >= JOKER_MAX_PLAYERS) return;
+  if (mediaRateLimited(socket, "computerGame", 10, 60_000)) return;
+  room.players.push(makeComputerPlayer("medium", freeJokerComputerName(room), { seat: null, isBot: true }));
+  broadcastJokerRoom(room);
+  broadcastPublicJokerRooms();
+}
+
 // ── 🔁 Play again with the same people ─────────────────────────────────────
 // When a game ends, everyone still at the table can vote "ხელახლა"; once all
 // of them have, the same room starts a new game straight away — no lobby,
@@ -10201,25 +10370,25 @@ const LOBBY_GAMES = {
 const REMATCH_GAMES = {
   chess:     { rooms: chessRooms,    bySocket: chessRoomBySocket,    min: CHESS_MIN_PLAYERS,    start: (r) => chessStartGame(r, { swapColors: true }) },
   checkers:  { rooms: checkersRooms, bySocket: checkersRoomBySocket, min: CHECKERS_MIN_PLAYERS, start: (r) => checkersStartGame(r, { swapColors: true }) },
-  joker:     { rooms: jokerRooms,    bySocket: jokerRoomBySocket,    min: JOKER_MIN_PLAYERS,    start: (r) => { r.players.forEach(p => { p.isBot = false; }); jokerStartGame(r); } },
+  joker:     { rooms: jokerRooms,    bySocket: jokerRoomBySocket,    min: JOKER_MIN_PLAYERS,    start: (r) => { r.players.forEach(p => { p.isBot = !!p.computer; }); jokerStartGame(r); } },
   imposter:  { rooms: imposterRooms, bySocket: imposterRoomBySocket, min: IMPOSTER_MIN_PLAYERS, start: (r) => imposterStartGame(r) },
   drawGuess: { rooms: drawRooms,     bySocket: drawRoomBySocket,     min: DRAW_MIN_PLAYERS,     start: (r) => drawGuessStartGame(r) },
 };
 // Players still at this table: connected, and not gone off to another room.
 function rematchPresent(game, room) {
   const g = REMATCH_GAMES[game];
-  return room.players.filter(p => p.connected !== false && g.bySocket.get(p.socketId) === room.id);
+  return room.players.filter(p => p.computer || (p.connected !== false && g.bySocket.get(p.socketId) === room.id));
 }
 function rematchNotify(game, room) {
   const present = rematchPresent(game, room);
   const votes = room.rematchVotes || new Set();
   const payload = {
     roomId: room.id,
-    votes: present.filter(p => votes.has(p.lc)).map(p => p.username),
-    waiting: present.filter(p => !votes.has(p.lc)).map(p => p.username),
+    votes: present.filter(p => !p.computer && votes.has(p.lc)).map(p => p.username),
+    waiting: present.filter(p => !p.computer && !votes.has(p.lc)).map(p => p.username),
     possible: present.length >= REMATCH_GAMES[game].min,
   };
-  for (const p of present) io.sockets.sockets.get(p.socketId)?.emit(`${game}:rematchState`, payload);
+  for (const p of present) if (!p.computer) io.sockets.sockets.get(p.socketId)?.emit(`${game}:rematchState`, payload);
 }
 function requestRematch(socket, game, data) {
   const g = REMATCH_GAMES[game];
@@ -10232,14 +10401,14 @@ function requestRematch(socket, game, data) {
   room.rematchVotes = room.rematchVotes || new Set();
   room.rematchVotes.add(me.lc);
   const present = rematchPresent(game, room);
-  if (present.length < g.min || !present.every(p => room.rematchVotes.has(p.lc))) return rematchNotify(game, room);
+  if (present.length < g.min || !present.every(p => p.computer || room.rematchVotes.has(p.lc))) return rematchNotify(game, room);
 
   // Everyone's in — same room, new game.
   room.rematchVotes = null;
   for (const p of room.players) if (!present.includes(p)) g.bySocket.delete(p.socketId);
   room.players = present;
-  if (!present.some(p => p.lc === room.hostLc)) room.hostLc = present[0].lc;
-  for (const p of present) io.sockets.sockets.get(p.socketId)?.emit(`${game}:rematchState`, { roomId: room.id, started: true });
+  if (!present.some(p => p.lc === room.hostLc)) room.hostLc = (present.find(p => !p.computer) || present[0]).lc;
+  for (const p of present) if (!p.computer) io.sockets.sockets.get(p.socketId)?.emit(`${game}:rematchState`, { roomId: room.id, started: true });
   g.start(room);
 }
 
@@ -10252,9 +10421,15 @@ function kickFromLobby(socket, game, data) {
   if (room.hostLc !== me) { socket.emit(`${game}:error`, { message: "მოთამაშის გაგდება მხოლოდ მასპინძელს შეუძლია." }); return; }
   if (room.status !== "lobby") { socket.emit(`${game}:error`, { message: "თამაში უკვე დაიწყო — ახლა ვეღარავის გააგდებ." }); return; }
   const targetLc = data.username.toLowerCase().trim();
-  const target = targetLc !== me && room.players.find(p => p.lc === targetLc);
+  const target = targetLc !== me && room.players.find(p => p.lc === targetLc || (p.computer && p.username.toLowerCase() === targetLc));
   if (!target) return;
 
+  if (target.computer) { // a 🤖 seat — just take it away
+    room.players = room.players.filter(p => p !== target);
+    g.broadcast?.(room);
+    socket.emit(`${game}:kickDone`, { username: target.username });
+    return;
+  }
   (room.kicked ||= new Set()).add(targetLc);
   const targetSocket = io.sockets.sockets.get(target.socketId);
   g.cleanup(target.socketId); // removes them and updates everyone, exactly like leaving
@@ -10409,6 +10584,12 @@ io.on("connection", (socket) => {
   for (const game of Object.keys(LOBBY_GAMES)) {
     socket.on(`${game}:kick`, (data) => kickFromLobby(socket, game, data));
   }
+  // 🤖 Play against the computer — see startComputerGame.
+  for (const game of Object.keys(COMPUTER_GAMES)) {
+    socket.on(`${game}:playComputer`, (data) => startComputerGame(socket, game, data));
+  }
+  socket.on("joker:addComputer", (data) => addJokerComputer(socket, data));
+
   // "🔁 ხელახლა თამაში" after a game ends — see requestRematch.
   for (const game of Object.keys(REMATCH_GAMES)) {
     socket.on(`${game}:rematch`, (data) => requestRematch(socket, game, data));
@@ -12250,19 +12431,7 @@ io.on("connection", (socket) => {
     const match = legal.find(m => m.from === fromSq && m.to === toSq && (!m.promotion || m.promotion.toUpperCase() === String(promotion || "Q").toUpperCase()));
     if (!match) { socket.emit("chess:error", { message: "არალეგალური სვლა." }); return; }
 
-    room.state = chessApplyMove(room.state, match);
-    room.lastMove = { from, to };
-
-    const status = chessGameStatus(room.state);
-    if (status.status === "checkmate" || status.status === "stalemate" || status.status === "draw") {
-      chessFinishGame(room, status.status === "checkmate"
-        ? { status: "checkmate", winner: status.winner }
-        : { status: status.status, reason: status.reason || null });
-      return;
-    }
-
-    scheduleChessMoveTimer(room);
-    broadcastChessRoom(room);
+    chessCommitMove(room, match);
   });
 
   socket.on("chess:resign", ({ roomId }) => {
@@ -12456,26 +12625,11 @@ io.on("connection", (socket) => {
     const match = legal.find(m => m.from === fromSq && m.to === toSq);
     if (!match) { socket.emit("checkers:error", { message: "არალეგალური სვლა." }); return; }
 
-    room.state = checkersApplyMove(room.state, match);
-    const movesPlayed = [{ from: fromSq, to: toSq, capture: match.capture }];
-    room.lastMove = checkersBuildLastMove(movesPlayed);
-
     // Mandatory capture is still enforced above (checkersLegalMoves already
     // restricts you to captures only when one exists) — but the human
     // always taps every move themselves, including a forced one with only
     // a single option. Nothing auto-plays on their behalf.
-    const status = checkersGameStatus(room.state);
-    if (status.status === "over") {
-      checkersFinishGame(room, { status: "over", winner: status.winner, reason: status.reason });
-      return;
-    }
-
-    // Only reset the move timer when the turn actually changed hands — a
-    // multi-jump continuation keeps the same player acting, so the clock
-    // just keeps counting down through the whole chain rather than resetting
-    // to a fresh 90s for every individual jump in it.
-    if (room.state.mustContinueFrom === null) scheduleCheckersMoveTimer(room);
-    broadcastCheckersRoom(room);
+    checkersCommitMove(room, match);
   });
 
   socket.on("checkers:resign", ({ roomId }) => {

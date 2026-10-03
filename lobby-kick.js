@@ -25,6 +25,7 @@
   }
 
   window.GaicaniLobbyKick = {
+    ensureCss,
     // A "✕ გაგდება" button for one player's row; asks before kicking.
     button(username, onKick) {
       ensureCss();

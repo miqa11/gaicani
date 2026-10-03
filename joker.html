@@ -431,6 +431,9 @@
         width: 44px; height: 44px;
       }
     }
+    .jk-add-computer { margin-left: auto; padding: 6px 11px; border-radius: 999px; cursor: pointer; font: inherit;
+      font-size: .78em; font-weight: 800; color: #5ef2e1; background: rgba(25,179,166,.14); border: 1px solid rgba(25,179,166,.45); }
+    .jk-add-computer:disabled { opacity: .5; }
   </style>
 </head>
 <body>
@@ -610,6 +613,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="/lobby-kick.js"></script>
 <script src="/rematch.js"></script>
+<script src="/computer-play.js"></script>
 <script>
   (function () {
     function setAppHeight() {
@@ -779,7 +783,13 @@
         const tag = document.createElement("span"); tag.className = "jk-lobby-tag"; tag.textContent = "მასპინძელი"; row.appendChild(tag);
       }
       // Host can remove anyone else from the lobby before the game starts.
-      if (isHost && p.username.toLowerCase() !== myUsernameLower) {
+      if (isHost && p.computer) {
+        GaicaniLobbyKick.ensureCss();
+        const rm = document.createElement("button");
+        rm.type = "button"; rm.className = "lobby-kick-btn"; rm.textContent = "✕ მოშორება";
+        rm.addEventListener("click", () => socket.emit("joker:kick", { roomId: currentRoomId, username: p.username }));
+        row.appendChild(rm);
+      } else if (isHost && p.username.toLowerCase() !== myUsernameLower) {
         row.appendChild(GaicaniLobbyKick.button(p.username, () => socket.emit("joker:kick", { roomId: currentRoomId, username: p.username })));
       }
       list.appendChild(row);
@@ -788,6 +798,14 @@
       const slot = document.createElement("div");
       slot.className = "jk-lobby-slot-empty";
       slot.textContent = "თავისუფალი ადგილი...";
+      // The host can seat a 🤖 computer player instead of waiting.
+      if (isHost) {
+        const add = document.createElement("button");
+        add.type = "button"; add.className = "jk-add-computer";
+        add.textContent = "🤖 კომპიუტერის დამატება";
+        add.addEventListener("click", () => { add.disabled = true; socket.emit("joker:addComputer", { roomId: currentRoomId }); });
+        slot.appendChild(add);
+      }
       list.appendChild(slot);
     }
     $("startGameBtn").style.display = isHost ? "block" : "none";
@@ -829,7 +847,9 @@
     if (room.dealerSeat === player.seat) {
       const d = document.createElement("div"); d.className = "jk-dealer-chip"; d.textContent = "D"; avatarWrap.appendChild(d);
     }
-    if (player.isBot) {
+    // 🤖 chip + label only when a bot covers for someone who left — a
+    // computer player already looks like one.
+    if (player.isBot && !player.computer) {
       const bo = document.createElement("div"); bo.className = "jk-bot-chip"; bo.textContent = "🤖"; avatarWrap.appendChild(bo);
     }
     const cc = document.createElement("div");
@@ -843,7 +863,7 @@
     name.textContent = player.username;
     el.appendChild(name);
 
-    if (player.isBot) {
+    if (player.isBot && !player.computer) {
       const botLabel = document.createElement("div");
       botLabel.className = "jk-bot-label";
       botLabel.textContent = "ბოტი მოთამაშეობს";
@@ -1363,6 +1383,7 @@
   /* ── Boot ────────────────────────────────────────────────────── */
   function init() {
     socket = io(); attachTempBanGuard(socket);
+    window.GaicaniComputer?.mount({ socket, game: "joker", before: $("createGameBtn").nextElementSibling });
     window.GaicaniRematch?.mount({ socket, game: "joker", before: $("gameEndBackBtn").parentElement, roomId: () => currentRoomId, me: () => myUsernameLower });
     socket.on("connect", () => {
       if (token) socket.emit("auth:token", { token });
