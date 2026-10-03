@@ -450,6 +450,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="/fit-board.js"></script>
 <script src="/lobby-kick.js"></script>
+<script src="/rematch.js"></script>
 <script>
   (function () {
     function setAppHeight() {
@@ -1074,6 +1075,7 @@
   /* ── Boot ────────────────────────────────────────────────────── */
   function init() {
     socket = io(); attachTempBanGuard(socket);
+    window.GaicaniRematch?.mount({ socket, game: "chess", before: $("resultBackBtn").parentElement, roomId: () => currentRoomId, me: () => myUsernameLower });
     socket.on("connect", () => {
       if (token) socket.emit("auth:token", { token });
       else socket.emit("auth:guest", { preferredUsername: sessionStorage.getItem("gaicani_guest_username") || null });

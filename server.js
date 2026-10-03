@@ -7728,7 +7728,7 @@ const DRAW_ROUND_MS      = parseInt(process.env.DRAW_ROUND_MS, 10)  || 80_000;  
 const DRAW_REVEAL_MS     = parseInt(process.env.DRAW_REVEAL_MS, 10) || 5_000;   // pause on the reveal screen before the next round
 const DRAW_INVITE_TTL_MS = 60_000;  // unanswered invite quietly expires
 const DRAW_PICK_TTL_MS   = 12_000;  // drawer's time to choose a word before auto-pick
-const DRAW_ROOM_TTL_MS   = 30_000;  // grace period after a game ends before the room is dropped
+const DRAW_REMATCH_WINDOW_MS = 5 * 60_000; // an ended room waits this long for a rematch
 const DRAW_DECLINE_COOLDOWN_MS = 5 * 60_000; // after declining, that host can't re-invite you for 5 min
 
 const drawRooms       = new Map(); // roomId   → room
@@ -8257,6 +8257,25 @@ function chessFinishGame(room, result) {
   broadcastPublicChessRooms();
 }
 
+// A new game in this room. Colours are random the first time; a rematch
+// swaps them, so whoever had black now gets to open.
+function chessStartGame(room, { swapColors = false } = {}) {
+  if (swapColors && room.players.every(p => p.color)) {
+    for (const p of room.players) p.color = p.color === CHESS_WHITE ? CHESS_BLACK : CHESS_WHITE;
+  } else {
+    const shuffled = Math.random() < 0.5 ? [room.players[0], room.players[1]] : [room.players[1], room.players[0]];
+    shuffled[0].color = CHESS_WHITE;
+    shuffled[1].color = CHESS_BLACK;
+  }
+  room.status = "playing";
+  room.state = chessNewGameState();
+  room.lastMove = null;
+  room.result = null;
+  scheduleChessMoveTimer(room);
+  broadcastChessRoom(room);
+  broadcastPublicChessRooms();
+}
+
 function cleanupChessRoom(roomId) {
   const room = chessRooms.get(roomId);
   if (!room) return;
@@ -8288,6 +8307,7 @@ function cleanupChessForSocket(socketId) {
 
   player.connected = false;
   if (room.players.every(p => !p.connected)) { cleanupChessRoom(room.id); return; }
+  if (room.status === "ended") rematchNotify("chess", room);
   // No instant forfeit here — a brief disconnect shouldn't cost a long game.
   // If it becomes (or already is) their move and they don't reconnect and
   // move before the existing move timer runs out, they lose on time via
@@ -8401,6 +8421,24 @@ function checkersFinishGame(room, result) {
   broadcastPublicCheckersRooms();
 }
 
+// Same as chessStartGame: random colours, swapped on a rematch.
+function checkersStartGame(room, { swapColors = false } = {}) {
+  if (swapColors && room.players.every(p => p.color)) {
+    for (const p of room.players) p.color = p.color === CHECKERS_RED ? CHECKERS_BLACK : CHECKERS_RED;
+  } else {
+    const shuffled = Math.random() < 0.5 ? [room.players[0], room.players[1]] : [room.players[1], room.players[0]];
+    shuffled[0].color = CHECKERS_RED;
+    shuffled[1].color = CHECKERS_BLACK;
+  }
+  room.status = "playing";
+  room.state = checkersNewGameState();
+  room.lastMove = null;
+  room.result = null;
+  scheduleCheckersMoveTimer(room);
+  broadcastCheckersRoom(room);
+  broadcastPublicCheckersRooms();
+}
+
 function cleanupCheckersRoom(roomId) {
   const room = checkersRooms.get(roomId);
   if (!room) return;
@@ -8432,6 +8470,7 @@ function cleanupCheckersForSocket(socketId) {
 
   player.connected = false;
   if (room.players.every(p => !p.connected)) { cleanupCheckersRoom(room.id); return; }
+  if (room.status === "ended") rematchNotify("checkers", room);
   // Same policy as Chess: no instant forfeit on disconnect — the existing
   // move timer (if it's their turn) is what eventually costs them the game
   // if they never come back.
@@ -8799,6 +8838,45 @@ function jokerFinishGame(room) {
   broadcastPublicJokerRooms();
 }
 
+function jokerStartGame(room) {
+  // Random seat assignment (0-3), same fairness principle as Chess/Checkers' colour shuffle.
+  const shuffled = room.players.slice();
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  shuffled.forEach((p, i) => { p.seat = i; });
+
+  room.status = "playing";
+  room.dealerSeat = 0;
+  room.handIndex = 0;
+  room.handSize = JOKER_HAND_SIZES[0];
+  room.setIdx = 1;
+  room.setHandsPerPlayer = [[], [], [], []];
+  room.totals = [0, 0, 0, 0];
+  room.history = [];
+  room.lastHandSummary = null;
+  room.finalResult = null;
+
+  const { hands, trumpCard, trumpSuit } = jokerDealHand(room.handSize, room.dealerSeat);
+  room.hands = hands;
+  room.trumpCard = trumpCard;
+  room.trumpSuit = trumpSuit;
+  room.bidOrder = [1, 2, 3, 0].map(off => (room.dealerSeat + off) % 4);
+  room.bids = [null, null, null, null];
+  room.bidTurnIdx = 0;
+  room.turnSeat = room.bidOrder[0];
+  room.tricksWon = [0, 0, 0, 0];
+  room.currentTrick = [];
+  room.ledSuit = null;
+  room.trickLeader = null;
+  room.phase = "bidding";
+
+  jokerScheduleTurn(room);
+  broadcastJokerRoom(room);
+  broadcastPublicJokerRooms();
+}
+
 function cleanupJokerRoom(roomId) {
   const room = jokerRooms.get(roomId);
   if (!room) return;
@@ -8832,6 +8910,7 @@ function cleanupJokerForSocket(socketId) {
 
   player.connected = false;
   if (room.players.every(p => !p.connected)) { cleanupJokerRoom(room.id); return; }
+  if (room.status === "ended") { rematchNotify("joker", room); broadcastJokerRoom(room); return; }
 
   // Bot takeover: immediately flag them as bot-controlled so the game
   // doesn't just sit there waiting out the full human timer on every one
@@ -9432,6 +9511,7 @@ function cleanupImposterForSocket(socketId) {
 
   player.connected = false;
   if (room.players.every(p => !p.connected)) { cleanupImposterRoom(room.id); return; }
+  if (room.status === "ended") rematchNotify("imposter", room);
   // No forfeit on disconnect — the clue/vote/guess timers already auto-act
   // for whoever hasn't responded, which keeps the game moving on its own.
   broadcastImposterRoom(room);
@@ -9956,13 +10036,28 @@ function endDrawRound(room, reason) {
   }, DRAW_REVEAL_MS);
 }
 
+function drawGuessStartGame(room) {
+  if (room.endCleanupHandle) { clearTimeout(room.endCleanupHandle); room.endCleanupHandle = null; }
+  for (const p of room.players) { p.score = 0; p.hasDrawn = false; } // fresh scores on a rematch
+  room.round = null;
+  room.status = "playing";
+  room.roundNumber = 0;
+  for (const inv of room.pendingInvites.values()) clearTimeout(inv.timeoutHandle);
+  room.pendingInvites.clear();
+
+  startNextDrawRound(room);
+  broadcastPublicDrawRooms(); // now shows as "playing" (still joinable) instead of "lobby"
+}
+
 function endDrawGame(room) {
+  if (room.status === "ended") return;
   room.status = "ended";
   broadcastDrawRoom(room, "drawGuess:gameEnd", {
     scores: drawRoomScores(room).sort((a, b) => b.score - a.score),
   });
   broadcastPublicDrawRooms(); // ended room drops off the "active games" browser
-  setTimeout(() => cleanupDrawRoom(room.id), DRAW_ROOM_TTL_MS);
+  // Kept a few minutes for "🔁 ხელახლა თამაში"; then dropped.
+  room.endCleanupHandle = setTimeout(() => cleanupDrawRoom(room.id), DRAW_REMATCH_WINDOW_MS);
 }
 
 function cleanupDrawRoom(roomId) {
@@ -9998,6 +10093,7 @@ function cleanupDrawGuessForSocket(socketId) {
   player.connected = false;
   broadcastDrawRoom(room, "drawGuess:room", drawRoomPublicState(room));
   broadcastPublicDrawRooms();
+  if (room.status === "ended") { rematchNotify("drawGuess", room); return; }
 
   const connectedCount = room.players.filter(p => p.connected).length;
   if (connectedCount < DRAW_MIN_PLAYERS) { endDrawGame(room); return; }
@@ -10098,6 +10194,55 @@ const LOBBY_GAMES = {
   imposter:  { rooms: imposterRooms, channel: "imposterroom", cleanup: cleanupImposterForSocket },
   blackjack: { rooms: bjRooms,       channel: "bjroom",       cleanup: cleanupBjForSocket },
 };
+// ── 🔁 Play again with the same people ─────────────────────────────────────
+// When a game ends, everyone still at the table can vote "ხელახლა"; once all
+// of them have, the same room starts a new game straight away — no lobby,
+// no new invites. Whoever left is dropped; it needs enough players left.
+const REMATCH_GAMES = {
+  chess:     { rooms: chessRooms,    bySocket: chessRoomBySocket,    min: CHESS_MIN_PLAYERS,    start: (r) => chessStartGame(r, { swapColors: true }) },
+  checkers:  { rooms: checkersRooms, bySocket: checkersRoomBySocket, min: CHECKERS_MIN_PLAYERS, start: (r) => checkersStartGame(r, { swapColors: true }) },
+  joker:     { rooms: jokerRooms,    bySocket: jokerRoomBySocket,    min: JOKER_MIN_PLAYERS,    start: (r) => { r.players.forEach(p => { p.isBot = false; }); jokerStartGame(r); } },
+  imposter:  { rooms: imposterRooms, bySocket: imposterRoomBySocket, min: IMPOSTER_MIN_PLAYERS, start: (r) => imposterStartGame(r) },
+  drawGuess: { rooms: drawRooms,     bySocket: drawRoomBySocket,     min: DRAW_MIN_PLAYERS,     start: (r) => drawGuessStartGame(r) },
+};
+// Players still at this table: connected, and not gone off to another room.
+function rematchPresent(game, room) {
+  const g = REMATCH_GAMES[game];
+  return room.players.filter(p => p.connected !== false && g.bySocket.get(p.socketId) === room.id);
+}
+function rematchNotify(game, room) {
+  const present = rematchPresent(game, room);
+  const votes = room.rematchVotes || new Set();
+  const payload = {
+    roomId: room.id,
+    votes: present.filter(p => votes.has(p.lc)).map(p => p.username),
+    waiting: present.filter(p => !votes.has(p.lc)).map(p => p.username),
+    possible: present.length >= REMATCH_GAMES[game].min,
+  };
+  for (const p of present) io.sockets.sockets.get(p.socketId)?.emit(`${game}:rematchState`, payload);
+}
+function requestRematch(socket, game, data) {
+  const g = REMATCH_GAMES[game];
+  if (!g || !socket._regUser || !data) return;
+  const room = g.rooms.get(data.roomId);
+  if (!room || room.status !== "ended") return;
+  const me = room.players.find(p => p.socketId === socket.id && p.lc === socket._regUser.usernameLower);
+  if (!me) return;
+  if (mediaRateLimited(socket, "rematch", 10, 60_000)) return;
+  room.rematchVotes = room.rematchVotes || new Set();
+  room.rematchVotes.add(me.lc);
+  const present = rematchPresent(game, room);
+  if (present.length < g.min || !present.every(p => room.rematchVotes.has(p.lc))) return rematchNotify(game, room);
+
+  // Everyone's in — same room, new game.
+  room.rematchVotes = null;
+  for (const p of room.players) if (!present.includes(p)) g.bySocket.delete(p.socketId);
+  room.players = present;
+  if (!present.some(p => p.lc === room.hostLc)) room.hostLc = present[0].lc;
+  for (const p of present) io.sockets.sockets.get(p.socketId)?.emit(`${game}:rematchState`, { roomId: room.id, started: true });
+  g.start(room);
+}
+
 function kickFromLobby(socket, game, data) {
   const g = LOBBY_GAMES[game];
   if (!g || !socket._regUser || !data || typeof data.username !== "string") return;
@@ -10263,6 +10408,10 @@ io.on("connection", (socket) => {
   // Host removes someone from a game lobby before it starts — see kickFromLobby.
   for (const game of Object.keys(LOBBY_GAMES)) {
     socket.on(`${game}:kick`, (data) => kickFromLobby(socket, game, data));
+  }
+  // "🔁 ხელახლა თამაში" after a game ends — see requestRematch.
+  for (const game of Object.keys(REMATCH_GAMES)) {
+    socket.on(`${game}:rematch`, (data) => requestRematch(socket, game, data));
   }
 
   // Answering a game invite — joining or declining that room, from the
@@ -11597,13 +11746,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    room.status = "playing";
-    room.roundNumber = 0;
-    for (const inv of room.pendingInvites.values()) clearTimeout(inv.timeoutHandle);
-    room.pendingInvites.clear();
-
-    startNextDrawRound(room);
-    broadcastPublicDrawRooms(); // now shows as "playing" (still joinable) instead of "lobby"
+    drawGuessStartGame(room);
   });
 
   // Drawer picks one of the 3 offered words.
@@ -12087,18 +12230,7 @@ io.on("connection", (socket) => {
       socket.emit("chess:error", { message: "ჭადრაკის დასაწყებად საჭიროა ზუსტად 2 მოთამაშე." });
       return;
     }
-    // Random colour assignment.
-    const shuffled = Math.random() < 0.5 ? [room.players[0], room.players[1]] : [room.players[1], room.players[0]];
-    shuffled[0].color = CHESS_WHITE;
-    shuffled[1].color = CHESS_BLACK;
-
-    room.status = "playing";
-    room.state = chessNewGameState();
-    room.lastMove = null;
-    room.result = null;
-    scheduleChessMoveTimer(room);
-    broadcastChessRoom(room);
-    broadcastPublicChessRooms();
+    chessStartGame(room);
   });
 
   socket.on("chess:move", ({ roomId, from, to, promotion }) => {
@@ -12306,17 +12438,7 @@ io.on("connection", (socket) => {
       socket.emit("checkers:error", { message: `დასაწყებად საჭიროა ზუსტად ${CHECKERS_MIN_PLAYERS} მოთამაშე.` });
       return;
     }
-    const shuffled = Math.random() < 0.5 ? [room.players[0], room.players[1]] : [room.players[1], room.players[0]];
-    shuffled[0].color = CHECKERS_RED;
-    shuffled[1].color = CHECKERS_BLACK;
-
-    room.status = "playing";
-    room.state = checkersNewGameState();
-    room.lastMove = null;
-    room.result = null;
-    scheduleCheckersMoveTimer(room);
-    broadcastCheckersRoom(room);
-    broadcastPublicCheckersRooms();
+    checkersStartGame(room);
   });
 
   socket.on("checkers:move", ({ roomId, from, to }) => {
@@ -12544,42 +12666,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Random seat assignment (0-3), same fairness principle as Chess/Checkers' colour shuffle.
-    const shuffled = room.players.slice();
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    shuffled.forEach((p, i) => { p.seat = i; });
-
-    room.status = "playing";
-    room.dealerSeat = 0;
-    room.handIndex = 0;
-    room.handSize = JOKER_HAND_SIZES[0];
-    room.setIdx = 1;
-    room.setHandsPerPlayer = [[], [], [], []];
-    room.totals = [0, 0, 0, 0];
-    room.history = [];
-    room.lastHandSummary = null;
-    room.finalResult = null;
-
-    const { hands, trumpCard, trumpSuit } = jokerDealHand(room.handSize, room.dealerSeat);
-    room.hands = hands;
-    room.trumpCard = trumpCard;
-    room.trumpSuit = trumpSuit;
-    room.bidOrder = [1, 2, 3, 0].map(off => (room.dealerSeat + off) % 4);
-    room.bids = [null, null, null, null];
-    room.bidTurnIdx = 0;
-    room.turnSeat = room.bidOrder[0];
-    room.tricksWon = [0, 0, 0, 0];
-    room.currentTrick = [];
-    room.ledSuit = null;
-    room.trickLeader = null;
-    room.phase = "bidding";
-
-    jokerScheduleTurn(room);
-    broadcastJokerRoom(room);
-    broadcastPublicJokerRooms();
+    jokerStartGame(room);
   });
 
   socket.on("joker:bid", ({ roomId, bid }) => {
