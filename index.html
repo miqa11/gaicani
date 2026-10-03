@@ -294,6 +294,10 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 /* ── Quality floor ── */
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) :where(button, a, textarea, input, [role="button"]):focus-visible { outline: 2px solid var(--gold-lt); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .partner-found-card { animation: none; } }
+
+/* ── Sticker tab in the GIF panel (stickers.js) ── */
+#gifPicker .stk-tabs { padding: 10px 10px 6px; }
+#gifPicker .stk-grid { flex: 1; padding: 4px 10px 12px; align-content: start; }
   </style>
   <style id="profile-fields">
     .pf-chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:10px; }
@@ -532,7 +536,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
              rows="1" maxlength="2000" disabled></textarea>
       <span id="charCount" class="char-count"></span>
       <button id="questionBtn" class="question-btn" disabled title="Random question">?</button>
-      <button id="gifBtn" class="gif-btn" disabled title="Send a GIF">GIF</button>
+      <button id="gifBtn" class="gif-btn" disabled title="სტიკერები და GIF" aria-label="სტიკერები და GIF">GIF</button>
       <button id="sendBtn" disabled>SEND</button>
     </div>
   </div>
@@ -801,6 +805,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 
   <script src="/ban-notice.js"></script>
   <script src="/socket.io/socket.io.js"></script>
+<script src="/stickers.js"></script>
 <script src="script.js"></script>
   <script src="games.js"></script>
   <script src="music.js"></script>

@@ -3660,6 +3660,14 @@ io.on("connection", (socket) => {
     socket.partner.emit("gif", { url: data.url, preview: data.preview });
   });
 
+  // ── Sticker ──────────────────────────────────────────────────────────────
+  socket.on("sticker", (data) => {
+    if (!socket.partner || !data || !STICKER_IDS.has(data.id)) return;
+    if (socket.partner._isGhost) return; // partner mid-reconnect
+    if (mediaRateLimited(socket, "sticker", 8, 10_000)) return;
+    socket.partner.emit("sticker", { id: data.id });
+  });
+
   // ── Reactions ────────────────────────────────────────────────────────────
   socket.on("react", ({ messageId, emoji }) => {
     if (!socket.partner || !messageId || !emoji) return;
@@ -6606,6 +6614,7 @@ app.get("/api/priv/history", (req, res) => {
     text:      m.text,
     type:      m.type || "text",
     photoUrl:  m.photoUrl || null,
+    sticker:   m.sticker || null,
     ts:        m.ts,
     messageId: m.id || null,
     replyTo:   m.replyTo || null,
@@ -9987,6 +9996,10 @@ function cleanupDrawGuessForSocket(socketId) {
   if (room.round && room.round.drawerLc === player.lc) endDrawRound(room, "drawerLeft");
 }
 
+// ── Sticker pack (/stickers/<id>.svg; same ids as stickers.js) ─────────────
+const STICKER_IDS = new Set(["gamarjoba", "gaicani", "love", "haha", "kai", "sad", "dzili", "gaumarjos",
+  "alaverdi", "supra", "khachapuri", "khinkali", "churchkhela", "vaime", "genatsvale", "dzmao", "sakartvelo"]);
+
 // ── Friends extras: last seen, nicknames, pins, 24h text status ───────────
 // All stored on the account. Status and last-seen are shown to friends only;
 // someone who "appears offline" never shows a last-seen time.
@@ -11018,6 +11031,47 @@ io.on("connection", (socket) => {
     socket.emit("streak:update", { friendUsername: toUser?.username || toUsername, count: streak.count, atRisk: streak.atRisk });
   });
 
+  // ── privateMsg:sendSticker — a sticker from the pack, stored like a message
+  // (same rules as text: friends only, blocks respected, same rate limit).
+  socket.on("privateMsg:sendSticker", ({ toUsername, sticker, messageId } = {}) => {
+    if (!socket._regUser || socket._regUser.isGuest || !toUsername) return;
+    const fail = () => socket.emit("privateMsg:sent", { success: false, messageId: messageId || null });
+    if (!STICKER_IDS.has(sticker)) return fail();
+    if (mediaRateLimited(socket, "privateMsg", 15, 10_000)) return fail();
+    const myLc = socket._regUser.usernameLower;
+    const toLc = String(toUsername).toLowerCase().trim();
+    const myUser = registeredUsers.get(myLc), toUser = registeredUsers.get(toLc);
+    if (!toUser || (toUser.blockedUsers || []).includes(myLc) || (myUser?.blockedUsers || []).includes(toLc)) return fail();
+    if (!(myUser?.friends || []).includes(toLc)) return fail();
+
+    const roomId = privRoomId(myLc, toLc);
+    let room = privateRooms.get(roomId);
+    if (!room) {
+      room = { messages: [], createdAt: Date.now(), expiresAt: Date.now() + PRIVATE_MSG_TTL };
+      privateRooms.set(roomId, room);
+    }
+    const msg = {
+      id: String(messageId || "").slice(0, 100) || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      from: myLc, type: "sticker", sticker, text: "", ts: new Date().toISOString(),
+    };
+    room.messages.push(msg);
+    bumpStat("msgPrivate");
+    if (room.messages.length > 100) room.messages.shift();
+    room.expiresAt = Date.now() + PRIVATE_MSG_TTL;
+    savePrivateMsgs();
+
+    io.to(`user:${toLc}`).emit("privateMsg:received", {
+      fromUsername: socket._regUser.username, type: "sticker", sticker, message: "",
+      timestamp: msg.ts, messageId: msg.id,
+    });
+    socket.emit("privateMsg:sent", { success: true, messageId: msg.id });
+    notifyPrivateMessage(myLc, socket._regUser.username, toLc, "sticker");
+
+    const streak = recordFriendMessage(myLc, toLc);
+    io.to(`user:${toLc}`).emit("streak:update", { friendUsername: socket._regUser.username, count: streak.count, atRisk: streak.atRisk });
+    socket.emit("streak:update", { friendUsername: toUser.username, count: streak.count, atRisk: streak.atRisk });
+  });
+
   // ── privateMsg:sendPhoto — pro users only, private chat with an EXISTING
   // mutual friend only. Deliberately NOT available in random chat, rooms,
   // or forum — see the scoping note at the top of this feature. Checked
@@ -11208,6 +11262,9 @@ io.on("connection", (socket) => {
   // ── friendChat:gif — relay GIF URL to friend ─────────────────────────────
   socket.on("friendChat:gif", ({ toUsername, url }) => {
     if (!socket._regUser || !toUsername || !url) return;
+    // Only GIPHY links (what the GIF search returns) — any other URL would
+    // load in the friend's browser and could be used to track them.
+    if (typeof url !== "string" || url.length > 500 || !/^https:\/\/(?:[a-z0-9-]+\.)?giphy\.com\//i.test(url)) return;
     if (mediaRateLimited(socket, "friendGif", 8, 10_000)) return;
     const toLc   = String(toUsername).toLowerCase().trim();
     const myUser = registeredUsers.get(socket._regUser.usernameLower);

@@ -450,6 +450,10 @@
     .fc-extra-btn:hover  { background: rgba(255,255,255,0.16); }
     .fc-extra-btn:active { transform: scale(0.9); }
 
+    /* ── Sticker messages: just the sticker, no bubble ── */
+    .fc-bubble.fc-bubble-sticker { background: none !important; box-shadow: none !important; padding: 0; animation-name: fcStickerIn; }
+    @keyframes fcStickerIn { from { opacity: 0; transform: scale(.6) rotate(-8deg); } to { opacity: 1; transform: none; } }
+
     /* ── GIF messages ── */
     .fc-gif-img {
       max-width: 220px;
@@ -1039,7 +1043,7 @@ button, textarea, input { font-family: inherit; }
 
   <!-- INPUT BAR -->
   <div id="fc-input-bar" style="display:none">
-    <button class="fc-extra-btn" id="fc-gif-btn" title="GIF">GIF</button>
+    <button class="fc-extra-btn" id="fc-gif-btn" title="სტიკერები და GIF" aria-label="სტიკერები და GIF">GIF</button>
     <button class="fc-extra-btn" id="fc-question-btn" title="შემთხვევითი კითხვა">?</button>
     <!-- Pro-only. Stays hidden (display:none) until JS confirms isPro, so
          non-pro users — the vast majority — see no extra clutter in an
@@ -1077,6 +1081,7 @@ button, textarea, input { font-family: inherit; }
 
 <script src="/ban-notice.js"></script>
 <script src="/profile-themes.js"></script>
+<script src="/stickers.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
   // Keep --app-height in sync with the real visible viewport, so the
@@ -1446,7 +1451,7 @@ button, textarea, input { font-family: inherit; }
     // Anchor on friendName (URL param) — more reliable than comparing against
     // myUsername which may have case mismatches with server's stored lowercase.
     const isMe = !msg.from || msg.from.toLowerCase() !== friendName.toLowerCase();
-    const isMedia = msg.type === "gif" || msg.type === "photo";
+    const isMedia = msg.type === "gif" || msg.type === "photo" || msg.type === "sticker";
 
     const row = document.createElement("div");
     row.className = "fc-row" + (isMe ? " me" : "") + (consec ? " consec" : "");
@@ -1494,6 +1499,10 @@ button, textarea, input { font-family: inherit; }
       img.src = msg.url;
       img.className = "fc-gif-img";
       bubble.appendChild(img);
+    } else if (msg.type === "sticker") {
+      bubble.classList.add("fc-bubble-sticker");
+      const img = window.GaicaniStickers?.img(msg.sticker);
+      if (img) bubble.appendChild(img); else bubble.textContent = "🙂";
     } else if (msg.type === "photo") {
       const img = document.createElement("img");
       img.src = msg.photoUrl;
@@ -1564,6 +1573,7 @@ button, textarea, input { font-family: inherit; }
         e.stopPropagation();
         let previewText;
         if (msg.type === "gif")   previewText = "GIF";
+        else if (msg.type === "sticker") previewText = "სტიკერი " + (window.GaicaniStickers?.get(msg.sticker)?.label || "");
         else                       previewText = msg.text || "";
         setFCReplyTo({
           text:       previewText,
@@ -1916,6 +1926,7 @@ button, textarea, input { font-family: inherit; }
         text:      m.text,
         type:      m.type || "text",
         photoUrl:  m.photoUrl || null,
+        sticker:   m.sticker || null,
         ts:        m.ts,
         replyTo:   m.replyTo || null,
         reactions: m.reactions || null,
@@ -2031,7 +2042,7 @@ button, textarea, input { font-family: inherit; }
     });
 
     /* Incoming message for THIS friend conversation */
-    socket.on("privateMsg:received", ({ fromUsername, message, timestamp, type, url, photoUrl, messageId, replyTo }) => {
+    socket.on("privateMsg:received", ({ fromUsername, message, timestamp, type, url, photoUrl, sticker, messageId, replyTo }) => {
       /* Only process messages from our specific friend */
       if (fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
       hideTyping();
@@ -2039,6 +2050,9 @@ button, textarea, input { font-family: inherit; }
         appendMessage({ from: fromUsername, type: "gif", url, ts: timestamp });
       } else if (type === "photo") {
         appendMessage({ id: messageId, from: fromUsername, type: "photo", photoUrl, ts: timestamp });
+      } else if (type === "sticker") {
+        const newId = appendMessage({ id: messageId, from: fromUsername, type: "sticker", sticker, ts: timestamp });
+        if (!document.hidden) markFCSeen(newId);
       } else {
         const newId = appendMessage({ id: messageId, from: fromUsername, text: message, ts: timestamp, replyTo: replyTo || null });
         if (!document.hidden) markFCSeen(newId);
@@ -2379,11 +2393,21 @@ button, textarea, input { font-family: inherit; }
   let gifFetchController = null;
   let gifSearchTimer     = null;
 
+  // The panel has two tabs: 🥟 stickers and GIF (see stickers.js).
+  const openMediaTab = elGifPicker && window.GaicaniStickers
+    ? window.GaicaniStickers.attach(elGifPicker, {
+        gifEls: [elGifSearch, elGifResults],
+        onPick: sendFCSticker,
+        onGifs: () => { if (elGifSearch) { elGifSearch.value = ""; elGifSearch.focus(); } fetchGifs(""); },
+        onClose: () => closeGifPicker(),
+      })
+    : () => true;
   function openGifPicker() {
     if (!elGifPicker) return;
     elGifPicker.style.display = "flex";
     elGifPicker.getBoundingClientRect(); // force reflow before transition
     elGifPicker.classList.add("open");
+    if (!openMediaTab()) return; // sticker tab — nothing to load, no keyboard
     if (elGifSearch) { elGifSearch.value = ""; elGifSearch.focus(); }
     fetchGifs("");
   }
@@ -2445,6 +2469,14 @@ button, textarea, input { font-family: inherit; }
     elGifResults.appendChild(frag);
   }
 
+  function sendFCSticker(id) {
+    if (!socket?.connected) return;
+    const messageId = fcGenId();
+    socket.emit("privateMsg:sendSticker", { toUsername: friendName, sticker: id, messageId });
+    appendMessage({ id: messageId, from: myUsername, type: "sticker", sticker: id, ts: new Date().toISOString() });
+    closeGifPicker();
+  }
+
   function sendFCGif(url) {
     if (!socket?.connected) return;
     socket.emit("friendChat:gif", { toUsername: friendName, url });
@@ -2452,7 +2484,16 @@ button, textarea, input { font-family: inherit; }
     closeGifPicker();
   }
 
-  if (elGifBtn)    elGifBtn.addEventListener("click", openGifPicker);
+  // The button opens and closes the panel; a tap outside it or Escape closes it too.
+  const gifPickerOpen = () => !!elGifPicker && elGifPicker.classList.contains("open");
+  if (elGifBtn) elGifBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    gifPickerOpen() ? closeGifPicker() : openGifPicker();
+  });
+  document.addEventListener("click", (e) => {
+    if (gifPickerOpen() && !elGifPicker.contains(e.target)) closeGifPicker();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && gifPickerOpen()) closeGifPicker(); });
   if (elGifSearch) elGifSearch.addEventListener("input", () => {
     clearTimeout(gifSearchTimer);
     gifSearchTimer = setTimeout(() => fetchGifs(elGifSearch.value.trim()), 350);

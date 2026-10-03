@@ -890,6 +890,18 @@ function updateGifPickerPosition() {
   gifPicker.style.bottom = kbH + "px";
 }
 
+// The panel has two tabs: 🥟 stickers and GIF (see stickers.js). Its ✕ moves
+// into the tab row, so the GIF header is just the search box.
+const openMediaTab = window.GaicaniStickers
+  ? window.GaicaniStickers.attach(gifPicker, {
+      gifEls: [gifSearch.closest(".gif-picker-header"), gifResults],
+      onPick: sendSticker,
+      onGifs: () => { gifSearch.value = ""; gifSearch.focus(); fetchGifs(""); },
+      onClose: () => closeGifPickerPanel(),
+    })
+  : () => true;
+if (window.GaicaniStickers) gifPickerClose.style.display = "none";
+
 function openGifPicker() {
   const kbH = getKeyboardHeight();
   gifPicker.style.display = "flex";
@@ -897,6 +909,7 @@ function openGifPicker() {
   gifPicker.getBoundingClientRect();
   gifPicker.style.bottom = kbH + "px";
   gifPickerOpen = true;
+  if (!openMediaTab()) return; // sticker tab — nothing to load, no keyboard
   gifSearch.value = "";
   gifSearch.focus();
   fetchGifs("");
@@ -942,6 +955,27 @@ function sendGif(fullUrl, previewUrl) {
 }
 
 socket.on("gif", (data) => addGifMessage(data.url, false));
+
+function sendSticker(id) {
+  if (!partnerConnected) return;
+  socket.emit("sticker", { id });
+  addStickerMessage(id, true);
+  closeGifPickerPanel();
+}
+function addStickerMessage(id, isYou) {
+  const img = window.GaicaniStickers && window.GaicaniStickers.img(id);
+  if (!img) return;
+  const wrapper     = document.createElement("div");
+  wrapper.className = `message-wrapper gif-msg-wrapper sticker-msg-wrapper ${isYou ? "you" : "partner"}`;
+  const timestamp       = document.createElement("div");
+  timestamp.className   = "timestamp";
+  timestamp.textContent = formatTimestamp(new Date());
+  wrapper.appendChild(img);
+  wrapper.appendChild(timestamp);
+  chat.appendChild(wrapper);
+  scheduleScroll();
+}
+socket.on("sticker", (data) => addStickerMessage(data && data.id, false));
 
 // ── Report Reason Modal ──────────────────────────────────────────────────────
 // ── Custom confirm modal — replaces native confirm(). iOS Safari revokes
