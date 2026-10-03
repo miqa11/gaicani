@@ -57,6 +57,7 @@ button, a, [role="button"] { touch-action: manipulation; }
 }
 .top-bar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .site-name {
+  display: inline-block; padding: 8px 0; margin: -8px 0; /* 36px+ tall tap area */
   font-weight: 700; font-size: 1.05em;
   color: #fff; text-decoration: none; letter-spacing: 0.4px;
   flex-shrink: 0;
@@ -338,6 +339,34 @@ button, a, [role="button"] { touch-action: manipulation; }
   .fb-score-big { font-size: 2.6em; }
   .fb-hud-score { font-size: 2em; }
   .fb-podium-slot { min-height: 56px; padding: 8px 3px 6px; }
+}
+
+/* ── Sideways phones ─────────────────────────────────────────────────────────
+   Stacked, the game started ~257px down a 390px-tall screen (most of it off
+   the bottom) and its 400:640 picture was squashed into a wide, short box.
+   Here the title / leaderboard / hint sit on the left and the game takes the
+   full height on the right, in its true proportions. */
+@media (orientation: landscape) and (max-height: 500px) {
+  #fb-app.visible {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto 1fr;
+    column-gap: 18px; row-gap: 10px;
+    max-width: 760px;
+    min-height: 0;
+    padding-top: 10px; padding-bottom: calc(10px + var(--fb-safe-b));
+  }
+  .fb-header-row    { grid-column: 1; grid-row: 1; }
+  .fb-leaderboard   { grid-column: 1; grid-row: 2; }
+  .fb-controls-hint { grid-column: 1; grid-row: 3; align-self: start; }
+  .fb-game-wrap     { grid-column: 2; grid-row: 1 / span 3; min-height: 0; }
+  .fb-canvas-box {
+    width: auto;
+    height: calc(100vh - 52px - 22px);
+    height: calc(var(--app-height, 100dvh) - 52px - 22px - var(--fb-safe-b));
+    max-height: none;
+    aspect-ratio: 400 / 640;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

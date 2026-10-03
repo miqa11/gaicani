@@ -125,6 +125,11 @@
     .jk-opp-top   { top: 10px; left: 50%; transform: translateX(-50%); }
     .jk-opp-left  { left: 10px; top: 50%; transform: translateY(-50%); }
     .jk-opp-right { right: 10px; top: 50%; transform: translateY(-50%); }
+    /* Sideways phones: the table is short, so the left seat rose into the
+       score table in the corner — there's width to spare, move it clear. */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .jk-opp-left { left: 124px; }
+    }
 
     /* ── Small persistent scoreboard, top-left corner ───────────────── */
     .jk-scoreboard {
@@ -403,6 +408,12 @@
         box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.06);
       }
+    }
+
+    /* Sideways phones count as "wide" too, but are only ~390px tall — use the
+       whole screen instead of a framed card at 92% of the height. */
+    @media (min-width: 700px) and (max-height: 500px) {
+      #app { max-width: none; height: 100vh; height: 100dvh; border-radius: 0; border: none; box-shadow: none; }
     }
   
     /* ── Touch target size ────────────────────────────────────────────────

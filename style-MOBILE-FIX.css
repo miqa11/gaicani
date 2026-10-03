@@ -133,7 +133,9 @@ html, body {
   #onlineCount { font-size: 0.75em; color: #8b8fa8; }
 
   /* ── CHAT AREA ─────────────────────────────────────────────────────────── */
-  .message-wrapper { max-width: 82%; }
+  /* The timestamp and the 🙂/↩ buttons sit beside each bubble, so on a
+     phone 82% left the text itself only ~130px at 320px wide. */
+  .message-wrapper { max-width: 92%; }
   .message-wrapper.gif-msg-wrapper { max-width: 200px; }
 
   /* ── INPUT BAR ─────────────────────────────────────────────────────────── */
@@ -171,6 +173,26 @@ html, body {
   .next-button { padding: 0 12px !important; font-size: 0.85em; }
 }
 
+/* Phones: a long message gets the full width and its time / 🙂 / ↩ wrap onto
+   a line under it, instead of the bubble being squeezed beside them (that
+   left ~160px of text on a 320px screen). Short messages keep everything on
+   one line, exactly as before. Own messages are [↩][time][bubble], so their
+   lines stack in reverse to keep the bubble on top. */
+@media (max-width: 480px) {
+  .message-row { flex-wrap: wrap; row-gap: 3px; }
+  .message-wrapper.you .message-row { flex-wrap: wrap-reverse; justify-content: flex-end; }
+}
+
+/* Small phones (iPhone SE / 320–360px Androids): the top row is logo, online
+   count, partner, you and ⋮ — it needed ~335px, pushing ⋮ off the edge. */
+@media (max-width: 360px) {
+  .left-side { padding: 8px 10px 5px !important; gap: 6px !important; }
+  #onlineCount { font-size: 0.7em; white-space: nowrap; }
+  .user-name-display,
+  .partner-name-display { padding: 3px 8px !important; max-width: 84px !important; min-width: 0; }
+  .reg-menu-container { flex-shrink: 0; }
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
    LANDSCAPE PHONES
    ════════════════════════════════════════════════════════════════════════════ */
@@ -183,6 +205,22 @@ html, body {
 /* ════════════════════════════════════════════════════════════════════════════
    ACCESSIBILITY & PRINT
    ════════════════════════════════════════════════════════════════════════════ */
+
+/* Welcome / login / sign-up window: its main button stays visible at the
+   bottom of the window while the rest scrolls — on a small or sideways phone
+   it used to sit below the fold, under the logo. */
+.modal-content #saveNameBtn,
+.modal-content .auth-submit-btn {
+  position: -webkit-sticky;
+  position: sticky;
+  bottom: 10px;
+  z-index: 2;
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+/* Short screens (sideways phones): the logo alone filled the window. */
+@media (max-height: 560px) {
+  .modal-logo { width: auto !important; height: auto !important; max-width: 95%; max-height: 26vh; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * {

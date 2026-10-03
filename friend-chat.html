@@ -764,6 +764,11 @@
     @media (max-width: 600px) {
       #fc-input { font-size: 16px; }
     }
+    /* Same on iPads and other touch screens wider than 600px — Safari zooms the
+       page into any text field under 16px. */
+    @media (pointer: coarse) {
+      #fc-input { font-size: 16px; }
+    }
 
     /* ── Responsive: tablets / desktop — frame the chat instead of letting
        it stretch edge-to-edge and look sparse on wide screens ── */
@@ -797,6 +802,12 @@
         box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.06);
       }
+    }
+
+    /* Sideways phones count as "wide" too, but are only ~390px tall — use the
+       whole screen instead of a framed card at 92% of the height. */
+    @media (min-width: 700px) and (max-height: 500px) {
+      #app { max-width: none; height: 100vh; height: 100dvh; border-radius: 0; border: none; box-shadow: none; }
     }
 
     /* ── Tap-to-preview profile card — a small "mini profile page" for

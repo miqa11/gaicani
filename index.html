@@ -320,7 +320,8 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
     .signup-extra-opt { font-weight: 400; opacity: .6; font-size: .9em; }
     .signup-extra-body { padding: 0 12px 12px; margin: 0; }
     .signup-extra-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .signup-extra select.auth-input { appearance: none; -webkit-appearance: none; }
+    /* 16px: iPhone/iPad Safari zooms the whole page into any field smaller than that */
+    .signup-extra select.auth-input { appearance: none; -webkit-appearance: none; font-size: 16px; }
     .signup-extra-hint { font-size: .76em; opacity: .7; line-height: 1.45; margin-top: 2px; }
   </style>
 </head>

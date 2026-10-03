@@ -257,6 +257,37 @@
       border-radius: 20px; padding: 10px 16px; font-size: 0.95em; outline: none;
     }
     #guessInput:focus { border-color: var(--accent); }
+    /* iPhone/iPad Safari zooms the page into any text field under 16px. */
+    @media (pointer: coarse) { #guessInput { font-size: 16px; } }
+
+    /* ── Sideways phones: canvas on the left at full height, word / tools /
+       scores / chat / guess box on the right. Stacked, the canvas alone was
+       taller than the screen and pushed the tools and the guess box off the
+       bottom — guessing was impossible. ── */
+    @media (orientation: landscape) and (max-height: 500px) {
+      #playScreen.visible {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+      }
+      #playScreen > .dg-play-header { grid-column: 1 / -1; grid-row: 1; }
+      #playScreen > .dg-canvas-wrap {
+        grid-column: 1; grid-row: 2 / -1; align-self: start;
+        width: auto; max-width: none; padding: 6px 0 8px 10px;
+      }
+      #dgCanvas {
+        width: auto;
+        height: calc(100vh - 66px);
+        height: calc(var(--app-height, 100dvh) - 66px - var(--safe-bottom));
+      }
+      #playScreen .dg-overlay { inset: 6px 0 8px 10px; }
+      #playScreen > .dg-word-hint  { grid-column: 2; grid-row: 2; }
+      #playScreen > .dg-tools      { grid-column: 2; grid-row: 3; flex-wrap: wrap; }
+      #playScreen > .dg-scoreboard { grid-column: 2; grid-row: 4; }
+      #playScreen > .dg-chat       { grid-column: 2; grid-row: 5; }
+      #playScreen > .dg-guess-hint { grid-column: 2; grid-row: 6; }
+      #playScreen > .dg-guess-bar  { grid-column: 2; grid-row: 7; }
+    }
     #guessSend {
       background: var(--accent); color: #fff; border: none; border-radius: 20px;
       padding: 0 18px; font-weight: 700; cursor: pointer;

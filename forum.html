@@ -211,7 +211,15 @@
         font-size: 16px;
       }
     }
-  </style>
+  
+    /* Laptops / desktops: a centred column instead of stretching edge to edge
+       (posts and messages were 1400px wide, with 🗑 far from its message). */
+    @media (min-width: 900px) {
+      #app { max-width: 820px; margin: 0 auto; border-left: 1px solid var(--border); border-right: 1px solid var(--border); box-shadow: 0 0 60px rgba(0,0,0,.35); }
+      .fo-comment-bar { left: calc(50% - 410px); right: calc(50% - 410px); }
+      .fo-new-post-btn { right: calc(50% - 410px + 16px); }
+    }
+</style>
 </head>
 <body>
 <div id="app">

@@ -402,6 +402,10 @@
        Seats are positioned by percentage and the layout is flex-based
        throughout, so it naturally fills the wider frame correctly. ── */
     @media (min-width: 700px) {
+      /* The action bar belongs to the framed table, not the whole monitor —
+         pinned to the window it spanned all 1440px+ and covered the frame. */
+      #app { position: relative; }
+      .pk-action-bar { position: absolute; }
       body {
         display: flex; align-items: center; justify-content: center;
         background: #0e0f13;
@@ -413,6 +417,27 @@
         box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.06);
       }
+    }
+
+    /* ── Sideways phones: the action bar moves from the bottom to the right
+       edge, so the table gets the full height. At the bottom it left the
+       table ~110px tall and the opponent's seat sat on top of the cards. ── */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .pk-action-bar {
+        top: calc(54px + var(--safe-top)); left: auto; right: 0; width: 260px;
+        border-top: none; border-left: 1px solid var(--border);
+        box-shadow: -4px 0 20px rgba(0,0,0,0.35);
+        padding-right: max(10px, env(safe-area-inset-right));
+      }
+      .pk-action-btns { display: grid; grid-template-columns: 1fr 1fr; }
+      .pk-table-body { padding: 6px calc(270px + env(safe-area-inset-right)) 4px 10px; }
+      .pk-me-panel { padding-bottom: 2px; }
+    }
+
+    /* Sideways phones count as "wide" too, but are only ~390px tall — use the
+       whole screen instead of a framed card at 92% of the height. */
+    @media (min-width: 700px) and (max-height: 500px) {
+      #app { max-width: none; height: 100vh; height: 100dvh; border-radius: 0; border: none; box-shadow: none; }
     }
   </style>
 </head>

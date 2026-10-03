@@ -334,6 +334,22 @@
 
     /* ── Desktop / big screens — the table gets real room to breathe
        instead of a mobile-width layout stretched across a wide monitor. ── */
+
+    /* ── Sideways phones: board on the left at full height, players and
+       buttons beside it. Stacked, the board got ~130px of a 390px screen. ── */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .dm-game-body {
+        display: grid;
+        grid-template-columns: minmax(0, 60%) minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+        column-gap: 14px; row-gap: 4px;
+      }
+      .dm-board-wrap { grid-column: 1; grid-row: 1 / -1; height: 100%; overflow: hidden; }
+      .dm-game-body > :not(.dm-board-wrap):not(.dm-bubble-layer) { grid-column: 2; }
+      #meBar { align-self: start; }
+      .dm-controls-row { grid-row: -2; }
+    }
+
     @media (min-width: 700px) {
       body {
         display: flex; align-items: center; justify-content: center;
@@ -346,6 +362,12 @@
         box-shadow: 0 20px 60px rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.06);
       }
+    }
+
+    /* Sideways phones count as "wide" too, but are only ~390px tall — use the
+       whole screen instead of a framed card at 92% of the height. */
+    @media (min-width: 700px) and (max-height: 500px) {
+      #app { max-width: none; height: 100vh; height: 100dvh; border-radius: 0; border: none; box-shadow: none; }
     }
   </style>
 </head>
@@ -427,7 +449,7 @@
       </div>
 
       <div class="dm-turn-banner" id="turnBanner"></div>
-      <div class="dm-board-wrap"><div class="dm-board" id="board"></div></div>
+      <div class="dm-board-wrap" data-fit-board><div class="dm-board" id="board"></div></div>
 
       <div class="dm-player-bar" id="meBar">
         <div class="dm-player-avatar-wrap"><img id="meAvatar" class="dm-player-avatar" alt="" /></div>
@@ -478,6 +500,7 @@
 
 <script src="/ban-notice.js"></script>
 <script src="/socket.io/socket.io.js"></script>
+<script src="/fit-board.js"></script>
 <script src="/lobby-kick.js"></script>
 <script>
   (function () {
