@@ -86,13 +86,20 @@ try {
 // A deleted private room can still be referencing real files on disk — call
 // this BEFORE removing a room from privateRooms, on both the self-service
 // and admin delete paths, or those files just sit there forever.
+function deleteMessageFile(m) {
+  const url = m && (m.type === "photo" ? m.photoUrl : m.type === "voice" ? m.voiceUrl : null);
+  if (!url) return;
+  const filename = path.basename(url); // defence in depth against a malformed stored path
+  try { fs.unlinkSync(path.join(PRIVATE_PHOTOS_DIR, filename)); } catch { /* already gone, fine */ }
+}
 function deleteRoomPhotoFiles(room) {
   if (!room?.messages) return;
-  for (const m of room.messages) {
-    if (m.type !== "photo" || !m.photoUrl) continue;
-    const filename = path.basename(m.photoUrl); // defence in depth against a malformed stored path
-    try { fs.unlinkSync(path.join(PRIVATE_PHOTOS_DIR, filename)); } catch { /* already gone, fine */ }
-  }
+  for (const m of room.messages) deleteMessageFile(m); // photos and voice messages
+}
+// A room keeps its last 100 messages; the photo / voice file of one that
+// drops off the end is deleted with it instead of staying on disk forever.
+function trimRoomMessages(room) {
+  while (room.messages.length > 100) deleteMessageFile(room.messages.shift());
 }
 const compression   = require("compression");
 const rateLimit     = require("express-rate-limit");
@@ -137,11 +144,11 @@ app.use((req, res, next) => {
 
   // Turn off powerful browser APIs the site doesn't use, so injected code
   // can't reach for them either.
-  // NOTE: if voice rooms are ever added, "microphone" must come out of this
-  // list or getUserMedia will fail with a confusing, silent permissions error.
+  // The microphone is allowed for the site itself only — private chat's 🎤
+  // voice messages need it (getUserMedia fails silently without it).
   res.setHeader(
     "Permissions-Policy",
-    "geolocation=(), camera=(), microphone=(), payment=(), usb=(), magnetometer=()"
+    "geolocation=(), camera=(), microphone=(self), payment=(), usb=(), magnetometer=()"
   );
 
   // HSTS only makes sense (and is only honoured) over HTTPS. Guarded on the
@@ -6615,6 +6622,8 @@ app.get("/api/priv/history", (req, res) => {
     type:      m.type || "text",
     photoUrl:  m.photoUrl || null,
     sticker:   m.sticker || null,
+    voiceUrl:  m.voiceUrl || null,
+    duration:  m.duration || null,
     ts:        m.ts,
     messageId: m.id || null,
     replyTo:   m.replyTo || null,
@@ -9996,6 +10005,10 @@ function cleanupDrawGuessForSocket(socketId) {
   if (room.round && room.round.drawerLc === player.lc) endDrawRound(room, "drawerLeft");
 }
 
+// ── Voice messages in private chat ──────────────────────────────────────────
+const VOICE_MAX_SECONDS = 60;
+const VOICE_MAX_BYTES   = 3 * 1024 * 1024; // a minute of Safari's AAC is ~1MB; Opus far less
+
 // ── Sticker pack (/stickers/<id>.svg; same ids as stickers.js) ─────────────
 const STICKER_IDS = new Set(["gamarjoba", "gaicani", "love", "haha", "kai", "sad", "dzili", "gaumarjos",
   "alaverdi", "supra", "khachapuri", "khinkali", "churchkhela", "vaime", "genatsvale", "dzmao", "sakartvelo"]);
@@ -11009,7 +11022,7 @@ io.on("connection", (socket) => {
 
     room.messages.push(msg);
     bumpStat("msgPrivate");
-    if (room.messages.length > 100) room.messages.shift();
+    trimRoomMessages(room);
     room.expiresAt = Date.now() + PRIVATE_MSG_TTL;
 
     savePrivateMsgs();
@@ -11056,7 +11069,7 @@ io.on("connection", (socket) => {
     };
     room.messages.push(msg);
     bumpStat("msgPrivate");
-    if (room.messages.length > 100) room.messages.shift();
+    trimRoomMessages(room);
     room.expiresAt = Date.now() + PRIVATE_MSG_TTL;
     savePrivateMsgs();
 
@@ -11066,6 +11079,65 @@ io.on("connection", (socket) => {
     });
     socket.emit("privateMsg:sent", { success: true, messageId: msg.id });
     notifyPrivateMessage(myLc, socket._regUser.username, toLc, "sticker");
+
+    const streak = recordFriendMessage(myLc, toLc);
+    io.to(`user:${toLc}`).emit("streak:update", { friendUsername: socket._regUser.username, count: streak.count, atRisk: streak.atRisk });
+    socket.emit("streak:update", { friendUsername: toUser.username, count: streak.count, atRisk: streak.atRisk });
+  });
+
+  // ── privateMsg:sendVoice — 🎤 voice message (up to 60s) to a friend ─────
+  // Stored next to the photos (random name, deleted with the conversation).
+  // The format is read from the file's own first bytes, never the browser's
+  // label: WebM / Ogg (Chrome, Firefox — Opus) or MP4 (Safari — AAC).
+  socket.on("privateMsg:sendVoice", ({ toUsername, audioData, duration, messageId } = {}) => {
+    const reply = (x) => socket.emit("privateMsg:voiceSent", { messageId: messageId || null, ...x });
+    if (!socket._regUser || !toUsername || !audioData) return;
+    if (socket._regUser.isGuest) return reply({ success: false, error: "ხმოვანი შეტყობინება მხოლოდ რეგისტრირებულებს შეუძლიათ" });
+    if (mediaRateLimited(socket, "privateVoice", 10, 60_000)) return reply({ success: false, error: "ძალიან ხშირად აგზავნი — ცოტა დაელოდე" });
+    const myLc = socket._regUser.usernameLower;
+    const toLc = String(toUsername).toLowerCase().trim();
+    const myUser = registeredUsers.get(myLc), toUser = registeredUsers.get(toLc);
+    if (!toUser || !(myUser?.friends || []).includes(toLc)) return reply({ success: false, error: "მხოლოდ მეგობრებს შეგიძლია მისწერო" });
+    if ((toUser.blockedUsers || []).includes(myLc) || (myUser?.blockedUsers || []).includes(toLc)) return reply({ success: false });
+
+    let buf;
+    try { buf = Buffer.from(String(audioData), "base64"); } catch { buf = null; }
+    if (!buf || buf.length < 200) return reply({ success: false, error: "ჩანაწერი ცარიელია" });
+    if (buf.length > VOICE_MAX_BYTES) return reply({ success: false, error: "ჩანაწერი ზედმეტად დიდია" });
+    let ext = null;
+    if (buf[0] === 0x1A && buf[1] === 0x45 && buf[2] === 0xDF && buf[3] === 0xA3) ext = "webm";
+    else if (buf.slice(0, 4).toString("latin1") === "OggS") ext = "ogg";
+    else if (buf.slice(4, 8).toString("latin1") === "ftyp") ext = "m4a";
+    if (!ext) return reply({ success: false, error: "ჩანაწერის ფორმატი ვერ ამოვიცანი" });
+
+    const filename = crypto.randomBytes(20).toString("hex") + "." + ext;
+    try { fs.writeFileSync(path.join(PRIVATE_PHOTOS_DIR, filename), buf); }
+    catch (e) { console.error("[VOICE] Failed to save:", e.message); return reply({ success: false, error: "შენახვა ვერ მოხერხდა" }); }
+    const voiceUrl = "/private-photos/" + filename;
+    const secs = Math.max(1, Math.min(VOICE_MAX_SECONDS, Math.round(Number(duration) || 1)));
+
+    const roomId = privRoomId(myLc, toLc);
+    let room = privateRooms.get(roomId);
+    if (!room) {
+      room = { messages: [], createdAt: Date.now(), expiresAt: Date.now() + PRIVATE_MSG_TTL };
+      privateRooms.set(roomId, room);
+    }
+    const msg = {
+      id: String(messageId || "").slice(0, 100) || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      from: myLc, type: "voice", voiceUrl, duration: secs, text: "", ts: new Date().toISOString(),
+    };
+    room.messages.push(msg);
+    bumpStat("msgPrivate");
+    trimRoomMessages(room);
+    room.expiresAt = Date.now() + PRIVATE_MSG_TTL;
+    savePrivateMsgs();
+
+    io.to(`user:${toLc}`).emit("privateMsg:received", {
+      fromUsername: socket._regUser.username, type: "voice", voiceUrl, duration: secs, message: "",
+      timestamp: msg.ts, messageId: msg.id,
+    });
+    reply({ success: true, voiceUrl, duration: secs });
+    notifyPrivateMessage(myLc, socket._regUser.username, toLc, "voice");
 
     const streak = recordFriendMessage(myLc, toLc);
     io.to(`user:${toLc}`).emit("streak:update", { friendUsername: socket._regUser.username, count: streak.count, atRisk: streak.atRisk });
@@ -11208,7 +11280,7 @@ io.on("connection", (socket) => {
     };
     room.messages.push(msg);
     bumpStat("photoPrivate");
-    if (room.messages.length > 100) room.messages.shift();
+    trimRoomMessages(room);
     room.expiresAt = Date.now() + PRIVATE_MSG_TTL;
     savePrivateMsgs();
 

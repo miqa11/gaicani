@@ -243,7 +243,8 @@
       color: var(--muted);
       font-size: 1em;
       line-height: 1;
-      padding: 2px 3px;
+      padding: 5px 6px; margin: -3px -3px; /* bigger to tap, same look */
+      min-width: 26px; min-height: 24px;
       cursor: pointer;
       opacity: 0.55;
       transition: opacity 0.15s, color 0.15s;
@@ -450,8 +451,36 @@
     .fc-extra-btn:hover  { background: rgba(255,255,255,0.16); }
     .fc-extra-btn:active { transform: scale(0.9); }
 
+    /* ── 🎤 Voice messages ── */
+    #fc-input-bar { position: relative; }
+    .fc-rec {
+      position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px calc(8px + var(--safe-bottom)); background: #1f1a3c;
+    }
+    .fc-rec[hidden] { display: none; }
+    .fc-rec-cancel, .fc-rec-send {
+      flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer; font-size: 1.05em;
+    }
+    .fc-rec-cancel { background: rgba(227,59,95,.16); color: #ff8aa1; }
+    .fc-rec-send { background: linear-gradient(135deg,#5b77ff,#8b55ff); color: #fff; margin-left: auto; }
+    .fc-rec-dot { width: 11px; height: 11px; border-radius: 50%; background: #ff3b5c; animation: fcRecBlink 1s ease-in-out infinite; flex-shrink: 0; }
+    .fc-rec.stopped .fc-rec-dot { animation: none; background: var(--muted); }
+    @keyframes fcRecBlink { 50% { opacity: .25; } }
+    .fc-rec-time { font-weight: 800; font-variant-numeric: tabular-nums; }
+    .fc-rec-hint { color: var(--muted); font-size: .82em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fc-voice { display: flex; align-items: center; gap: 9px; min-width: 190px; white-space: normal; }
+    .fc-voice-play {
+      flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
+      background: rgba(255,255,255,.18); color: #fff; font-size: .95em; display: grid; place-items: center;
+    }
+    .fc-voice-wave { flex: 1; display: flex; align-items: center; gap: 2px; height: 28px; cursor: pointer; }
+    .fc-voice-wave span { flex: 1; min-width: 2px; border-radius: 2px; background: rgba(255,255,255,.35); }
+    .fc-voice-wave span.on { background: #fff; }
+    .fc-voice-time { flex-shrink: 0; font-size: .78em; font-variant-numeric: tabular-nums; opacity: .85; }
+    .fc-voice.pending { opacity: .6; }
+
     /* ── Sticker messages: just the sticker, no bubble ── */
-    .fc-bubble.fc-bubble-sticker { background: none !important; box-shadow: none !important; padding: 0; animation-name: fcStickerIn; }
+    .fc-bubble.fc-bubble-sticker { background: none !important; box-shadow: none !important; border: none !important; padding: 0; animation-name: fcStickerIn; }
     @keyframes fcStickerIn { from { opacity: 0; transform: scale(.6) rotate(-8deg); } to { opacity: 1; transform: none; } }
 
     /* ── GIF messages ── */
@@ -1050,6 +1079,15 @@ button, textarea, input { font-family: inherit; }
          already-tight row. -->
     <button class="fc-extra-btn" id="fc-photo-btn" title="ფოტოს გაგზავნა" style="display:none">📷</button>
     <input type="file" id="fc-photo-input" accept="image/*" style="display:none" />
+    <button class="fc-extra-btn" id="fc-voice-btn" title="ხმოვანი შეტყობინება" aria-label="ხმოვანი შეტყობინების ჩაწერა" style="display:none">🎤</button>
+    <!-- 🎤 recording: covers the input bar until you send or cancel -->
+    <div class="fc-rec" id="fc-rec" hidden>
+      <button type="button" class="fc-rec-cancel" id="fc-rec-cancel" aria-label="გაუქმება">🗑️</button>
+      <span class="fc-rec-dot" aria-hidden="true"></span>
+      <span class="fc-rec-time" id="fc-rec-time">0:00</span>
+      <span class="fc-rec-hint" id="fc-rec-hint">იწერება…</span>
+      <button type="button" class="fc-rec-send" id="fc-rec-send" aria-label="გაგზავნა">➤</button>
+    </div>
     <textarea id="fc-input" placeholder="შეტყობინება..." rows="1" maxlength="2000"></textarea>
     <span id="fc-char-count" class="fc-char-count"></span>
     <button class="fc-heart-send" id="fc-heart-send" title="გულის გაგზავნა — დააჭირე გასაგრძელებლად ემოჯის შესაცვლელად">🤍</button>
@@ -1451,7 +1489,7 @@ button, textarea, input { font-family: inherit; }
     // Anchor on friendName (URL param) — more reliable than comparing against
     // myUsername which may have case mismatches with server's stored lowercase.
     const isMe = !msg.from || msg.from.toLowerCase() !== friendName.toLowerCase();
-    const isMedia = msg.type === "gif" || msg.type === "photo" || msg.type === "sticker";
+    const isMedia = msg.type === "gif" || msg.type === "photo" || msg.type === "sticker" || msg.type === "voice";
 
     const row = document.createElement("div");
     row.className = "fc-row" + (isMe ? " me" : "") + (consec ? " consec" : "");
@@ -1499,6 +1537,8 @@ button, textarea, input { font-family: inherit; }
       img.src = msg.url;
       img.className = "fc-gif-img";
       bubble.appendChild(img);
+    } else if (msg.type === "voice") {
+      bubble.appendChild(buildVoicePlayer(msg));
     } else if (msg.type === "sticker") {
       bubble.classList.add("fc-bubble-sticker");
       const img = window.GaicaniStickers?.img(msg.sticker);
@@ -1574,6 +1614,7 @@ button, textarea, input { font-family: inherit; }
         let previewText;
         if (msg.type === "gif")   previewText = "GIF";
         else if (msg.type === "sticker") previewText = "სტიკერი " + (window.GaicaniStickers?.get(msg.sticker)?.label || "");
+        else if (msg.type === "voice") previewText = "🎤 ხმოვანი შეტყობინება";
         else                       previewText = msg.text || "";
         setFCReplyTo({
           text:       previewText,
@@ -1927,6 +1968,8 @@ button, textarea, input { font-family: inherit; }
         type:      m.type || "text",
         photoUrl:  m.photoUrl || null,
         sticker:   m.sticker || null,
+        voiceUrl:  m.voiceUrl || null,
+        duration:  m.duration || null,
         ts:        m.ts,
         replyTo:   m.replyTo || null,
         reactions: m.reactions || null,
@@ -2042,7 +2085,7 @@ button, textarea, input { font-family: inherit; }
     });
 
     /* Incoming message for THIS friend conversation */
-    socket.on("privateMsg:received", ({ fromUsername, message, timestamp, type, url, photoUrl, sticker, messageId, replyTo }) => {
+    socket.on("privateMsg:received", ({ fromUsername, message, timestamp, type, url, photoUrl, sticker, voiceUrl, duration, messageId, replyTo }) => {
       /* Only process messages from our specific friend */
       if (fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
       hideTyping();
@@ -2052,6 +2095,9 @@ button, textarea, input { font-family: inherit; }
         appendMessage({ id: messageId, from: fromUsername, type: "photo", photoUrl, ts: timestamp });
       } else if (type === "sticker") {
         const newId = appendMessage({ id: messageId, from: fromUsername, type: "sticker", sticker, ts: timestamp });
+        if (!document.hidden) markFCSeen(newId);
+      } else if (type === "voice") {
+        const newId = appendMessage({ id: messageId, from: fromUsername, type: "voice", voiceUrl, duration, ts: timestamp });
         if (!document.hidden) markFCSeen(newId);
       } else {
         const newId = appendMessage({ id: messageId, from: fromUsername, text: message, ts: timestamp, replyTo: replyTo || null });
@@ -2064,6 +2110,7 @@ button, textarea, input { font-family: inherit; }
     socket.on("privateMsg:photoSent", ({ success, error, messageId } = {}) => {
       if (success === false) showToast("⚠️ " + (error || "ფოტო ვერ გაიგზავნა"));
     });
+    socket.on("privateMsg:voiceSent", (r = {}) => voiceSentResult(r));
 
     /* Message sent confirmation — normally a no-op (already optimistically
        appended), but if it failed (e.g. a block on either side), let the
@@ -2385,6 +2432,150 @@ button, textarea, input { font-family: inherit; }
     });
   }
 
+
+  /* ── 🎤 Voice messages ─────────────────────────────────────────
+     Tap 🎤 → recording bar (🗑️ cancel · time · ➤ send), up to 60 s. Sent as
+     the recorder's own format; the server checks it and keeps the file with
+     the conversation. The bubble is a small player. */
+  const VOICE_MAX_S = 60;
+  const elVoiceBtn = $("fc-voice-btn"), elRec = $("fc-rec");
+  const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  if (elVoiceBtn && canRecord) elVoiceBtn.style.display = "";
+  let rec = null;
+  const fmtSecs = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+  function pickVoiceMime() {
+    // AAC in MP4 plays everywhere (Safari included), so it's first when the browser can record it.
+    for (const t of ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm"]) {
+      try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (_) {}
+    }
+    return "";
+  }
+  async function startVoice() {
+    if (rec || !socket?.connected) return;
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch (e) {
+      showToast(e && e.name === "NotAllowedError" ? "🎤 მიკროფონზე წვდომა არ არის — დაუშვი ბრაუზერის პარამეტრებში" : "🎤 მიკროფონი ვერ მოიძებნა", 4500);
+      return;
+    }
+    const mime = pickVoiceMime();
+    let mr;
+    try { mr = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 48000 } : undefined); }
+    catch (_) { mr = new MediaRecorder(stream); }
+    const r = rec = { mr, stream, chunks: [], start: Date.now(), endAt: 0 };
+    mr.ondataavailable = (e) => { if (e.data && e.data.size) r.chunks.push(e.data); };
+    r.stopped = new Promise((res) => { mr.onstop = res; });
+    mr.start(250);
+    elRec.classList.remove("stopped");
+    $("fc-rec-hint").textContent = "იწერება…";
+    $("fc-rec-time").textContent = "0:00";
+    elRec.hidden = false;
+    r.timer = setInterval(() => {
+      const sec = (Date.now() - r.start) / 1000;
+      $("fc-rec-time").textContent = fmtSecs(Math.min(sec, VOICE_MAX_S));
+      if (sec >= VOICE_MAX_S) stopRecording(r, "მაქსიმუმ 60 წამი — გაგზავნე ან წაშალე");
+    }, 250);
+  }
+  function stopRecording(r, hint) {
+    clearInterval(r.timer);
+    if (!r.endAt) r.endAt = Date.now();
+    if (r.mr.state !== "inactive") { try { r.mr.stop(); } catch (_) {} }
+    r.stream.getTracks().forEach((t) => t.stop());
+    elRec.classList.add("stopped");
+    if (hint) $("fc-rec-hint").textContent = hint;
+  }
+  async function finishVoice(send) {
+    const r = rec;
+    if (!r) return;
+    rec = null;
+    stopRecording(r);
+    elRec.hidden = true;
+    if (!send) return;
+    await r.stopped;
+    const dur = Math.min(VOICE_MAX_S, (r.endAt - r.start) / 1000);
+    if (dur < 1) { showToast("🎤 ძალიან მოკლეა — ხანგრძლივად ილაპარაკე"); return; }
+    const blob = new Blob(r.chunks, { type: r.mr.mimeType || "audio/webm" });
+    if (blob.size > 3 * 1024 * 1024) { showToast("⚠️ ჩანაწერი ზედმეტად დიდია"); return; }
+    if (!socket?.connected) { showToast("⚠️ კავშირი არ არის"); return; }
+    const messageId = fcGenId();
+    appendMessage({ id: messageId, from: myUsername, type: "voice", voiceUrl: URL.createObjectURL(blob), duration: Math.round(dur), pending: true, ts: new Date().toISOString() });
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = String(reader.result).split(",")[1] || "";
+      socket.emit("privateMsg:sendVoice", { toUsername: friendName, audioData: b64, duration: dur, messageId });
+    };
+    reader.readAsDataURL(blob);
+  }
+  function voiceSentResult({ success, error, messageId, voiceUrl }) {
+    const m = messages.find((x) => x.id === messageId);
+    const row = messageId && document.querySelector(`.fc-row[data-msgid="${CSS.escape(messageId)}"]`);
+    if (success) {
+      if (m) { m.pending = false; if (voiceUrl) m.voiceUrl = voiceUrl; }
+      row?.querySelector(".fc-voice")?.classList.remove("pending");
+    } else {
+      showToast("⚠️ " + (error || "ხმოვანი შეტყობინება ვერ გაიგზავნა"), 4500);
+      if (m) messages.splice(messages.indexOf(m), 1);
+      row?.remove();
+    }
+  }
+  elVoiceBtn?.addEventListener("click", startVoice);
+  $("fc-rec-cancel")?.addEventListener("click", () => finishVoice(false));
+  $("fc-rec-send")?.addEventListener("click", () => finishVoice(true));
+
+  // The player inside a voice bubble. One message plays at a time.
+  let playingVoice = null;
+  function buildVoicePlayer(msg) {
+    const box = document.createElement("div");
+    box.className = "fc-voice" + (msg.pending ? " pending" : "");
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "fc-voice-play"; btn.textContent = "▶"; btn.setAttribute("aria-label", "მოსმენა");
+    const wave = document.createElement("div");
+    wave.className = "fc-voice-wave";
+    let seed = 0;
+    for (const ch of String(msg.id || msg.voiceUrl || "v")) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const N = 26;
+    for (let i = 0; i < N; i++) {
+      seed = (seed * 1103515245 + 12345) >>> 0;
+      const bar = document.createElement("span");
+      bar.style.height = (25 + (seed % 75)) + "%";
+      wave.appendChild(bar);
+    }
+    const time = document.createElement("span");
+    time.className = "fc-voice-time";
+    const total = Number(msg.duration) || 0;
+    time.textContent = fmtSecs(total);
+    box.append(btn, wave, time);
+
+    let audio = null;
+    const paint = () => {
+      const d = (audio && isFinite(audio.duration) && audio.duration) || total || 1;
+      const p = audio ? audio.currentTime / d : 0;
+      wave.querySelectorAll("span").forEach((b, i) => b.classList.toggle("on", i / N < p));
+      time.textContent = fmtSecs(audio && !audio.paused ? audio.currentTime : total);
+    };
+    const stop = () => { if (audio) { audio.pause(); audio.currentTime = 0; } btn.textContent = "▶"; paint(); };
+    function toggle(e) {
+      e.stopPropagation();
+      if (!audio) {
+        audio = new Audio(msg.voiceUrl);
+        audio.preload = "auto";
+        audio.addEventListener("timeupdate", paint);
+        audio.addEventListener("ended", () => { playingVoice = null; stop(); });
+        audio.addEventListener("error", () => { playingVoice = null; btn.textContent = "▶"; showToast("⚠️ ამ ბრაუზერში ეს ჩანაწერი ვერ ირთვება", 4000); });
+      }
+      if (audio.paused) {
+        if (playingVoice && playingVoice !== stop) playingVoice();
+        playingVoice = stop;
+        audio.play().then(() => { btn.textContent = "⏸"; }).catch(() => {});
+      } else {
+        audio.pause(); btn.textContent = "▶"; playingVoice = null;
+      }
+    }
+    btn.addEventListener("click", toggle);
+    wave.addEventListener("click", toggle);
+    return box;
+  }
 
   const elGifBtn     = $("fc-gif-btn");
   const elGifPicker  = $("fc-gif-picker");

@@ -114,6 +114,7 @@
         if (n.kind === "photo") return who + "-მ გამოგიგზავნა ფოტო 📷";
         if (n.kind === "gif") return who + "-მ გამოგიგზავნა GIF";
         if (n.kind === "sticker") return who + "-მ გამოგიგზავნა სტიკერი 🥟";
+        if (n.kind === "voice") return who + "-მ გამოგიგზავნა ხმოვანი შეტყობინება 🎤";
         return who + "-მ მოგწერა";
       case "trinder_like":
         return count > 1 ? "<b>" + count + "</b> ადამიანს მოეწონე Trinder-ზე" : "ვიღაცას მოეწონე Trinder-ზე — ნახე ვინ";

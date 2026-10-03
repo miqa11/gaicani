@@ -498,11 +498,14 @@
       showToast(`ℹ️ ${esc(byUsername)}-მ მოთხოვნა უარყო`));
 
     // ── Private messages ──────────────────────────────────────────────
-    s.on("privateMsg:received", ({ fromUsername, message, timestamp }) => {
+    s.on("privateMsg:received", ({ fromUsername, message, timestamp, type }) => {
+      // Photos, stickers and voice messages carry no text — say what they are.
+      const text = type === "photo" ? "📷 ფოტო" : type === "sticker" ? "🥟 სტიკერი"
+        : type === "voice" ? "🎤 ხმოვანი შეტყობინება" : String(message || "");
       if (privChatPartner === fromUsername) {
-        appendPrivMsg(fromUsername, message, timestamp, false);
+        appendPrivMsg(fromUsername, text, timestamp, false);
       } else {
-        showToast(`💬 ${esc(fromUsername)}: ${esc(message.substring(0, 60))}`);
+        showToast(`💬 ${esc(fromUsername)}: ${esc(text.substring(0, 60))}`);
       }
     });
 
