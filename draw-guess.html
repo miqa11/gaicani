@@ -185,10 +185,9 @@
       margin: 0 auto; width: 100%; max-width: 520px; padding: 0 12px;
     }
     #dgCanvas {
-      /* As wide as the screen, but never so tall that the guess box below
-         gets pushed off (e.g. while the phone keyboard is open). */
-      width: min(100%, calc((var(--app-height, 100dvh) - 225px) * 4 / 3));
-      min-width: 120px; margin: 0 auto;
+      /* Upright phones: fitCanvas() below sets the exact size so the drawing
+         takes whatever space is left and the guess box stays on screen. */
+      width: 100%; margin: 0 auto;
       height: auto; aspect-ratio: 4 / 3;
       background: #f5f5f7; border-radius: 12px; display: block;
       touch-action: none; box-shadow: 0 4px 18px rgba(0,0,0,0.35);
@@ -274,32 +273,42 @@
        scores / chat / guess box on the right. Stacked, the canvas alone was
        taller than the screen and pushed the tools and the guess box off the
        bottom — guessing was impossible. ── */
-    /* min-aspect-ratio: a phone held upright with its keyboard open is also
-       "wider than tall and short" — it must keep the normal layout. */
-    @media (orientation: landscape) and (max-height: 500px) and (min-aspect-ratio: 3/2) {
-      #playScreen.visible {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
-      }
-      #playScreen > .dg-play-header { grid-column: 1 / -1; grid-row: 1; }
-      #playScreen > .dg-canvas-wrap {
-        grid-column: 1; grid-row: 2 / -1; align-self: start;
-        width: auto; max-width: none; padding: 6px 0 8px 10px;
-      }
-      #dgCanvas {
-        width: auto; min-width: 0;
-        height: calc(100vh - 66px);
-        height: calc(var(--app-height, 100dvh) - 66px - var(--safe-bottom));
-      }
-      #playScreen .dg-overlay { inset: 6px 0 auto 10px; }
-      #playScreen > .dg-word-hint  { grid-column: 2; grid-row: 2; }
-      #playScreen > .dg-tools      { grid-column: 2; grid-row: 3; flex-wrap: wrap; }
-      #playScreen > .dg-scoreboard { grid-column: 2; grid-row: 4; }
-      #playScreen > .dg-chat       { grid-column: 2; grid-row: 5; }
-      #playScreen > .dg-guess-hint { grid-column: 2; grid-row: 6; }
-      #playScreen > .dg-guess-bar  { grid-column: 2; grid-row: 7; }
+    /* Sideways phones (html.dg-sideways, set by updateLayout() from the
+       phone's real orientation — the page size alone can't tell, because an
+       upright phone with its keyboard open is short and wide too). */
+    html.dg-sideways #playScreen.visible {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
     }
+    html.dg-sideways #playScreen > .dg-play-header { grid-column: 1 / -1; grid-row: 1; }
+    html.dg-sideways #playScreen > .dg-canvas-wrap {
+      grid-column: 1; grid-row: 2 / -1; align-self: start;
+      width: auto; max-width: none; padding: 6px 0 8px 10px;
+    }
+    html.dg-sideways #dgCanvas {
+      width: auto;
+      height: calc(100vh - 66px);
+      height: calc(var(--app-height, 100dvh) - 66px - var(--safe-bottom));
+    }
+    html.dg-sideways #playScreen .dg-overlay { inset: 6px 0 auto 10px; }
+    html.dg-sideways #playScreen > .dg-word-hint  { grid-column: 2; grid-row: 2; }
+    html.dg-sideways #playScreen > .dg-tools      { grid-column: 2; grid-row: 3; flex-wrap: wrap; }
+    html.dg-sideways #playScreen > .dg-scoreboard { grid-column: 2; grid-row: 4; }
+    html.dg-sideways #playScreen > .dg-chat       { grid-column: 2; grid-row: 5; }
+    html.dg-sideways #playScreen > .dg-guess-hint { grid-column: 2; grid-row: 6; }
+    html.dg-sideways #playScreen > .dg-guess-bar  { grid-column: 2; grid-row: 7; }
+
+    /* Typing a guess on a phone (html.dg-kb): the keyboard takes most of the
+       screen, so keep only what matters — the drawing, the word and the
+       guess box right above the keyboard. */
+    html.dg-kb #playScreen .dg-play-header { height: 38px; }
+    html.dg-kb #playScreen .dg-word-hint { padding: 3px 8px 2px; font-size: 1.1em; min-height: 0; }
+    html.dg-kb #playScreen .dg-scoreboard,
+    html.dg-kb #playScreen .dg-guess-hint { display: none !important; }
+    html.dg-kb #playScreen .dg-guess-bar { padding-top: 6px; padding-bottom: 6px; }
+    html.dg-kb #playScreen .dg-canvas-wrap { padding-top: 2px; }
+    #app, .dg-screen { max-width: 100vw; overflow-x: hidden; }
     #guessSend {
       background: var(--accent); color: #fff; border: none; border-radius: 20px;
       padding: 0 18px; font-weight: 700; cursor: pointer;
@@ -464,6 +473,77 @@
 <script src="/lobby-kick.js"></script>
 <script src="/rematch.js"></script>
 <script>
+  // ── Phone layout ───────────────────────────────────────────────────────
+  // dg-sideways: the phone really is turned sideways (side-by-side layout).
+  // dg-kb: typing a guess on a touch screen (compact layout).
+  // fitCanvas(): upright, the drawing gets exactly the height that's left
+  // after everything else, so the guess box is never pushed off the screen.
+  (function () {
+    var root = document.documentElement;
+    var coarse = window.matchMedia && matchMedia("(pointer: coarse)").matches;
+    function deviceSideways() {
+      var t = screen.orientation && screen.orientation.type;
+      if (t) return t.indexOf("landscape") === 0;
+      if (typeof window.orientation === "number") return Math.abs(window.orientation) === 90;
+      return window.innerWidth > window.innerHeight;
+    }
+    function fitCanvas() {
+      var canvas = document.getElementById("dgCanvas"), play = document.getElementById("playScreen");
+      if (!canvas || !play) return;
+      if (root.classList.contains("dg-sideways") || !play.classList.contains("visible")) {
+        canvas.style.width = ""; canvas.style.height = ""; return;
+      }
+      var wrap = canvas.parentElement, used = 0;
+      for (var i = 0; i < play.children.length; i++) {
+        var el = play.children[i];
+        if (el === wrap || el.id === "dgChat" || getComputedStyle(el).display === "none") continue;
+        used += el.getBoundingClientRect().height;
+      }
+      var cs = getComputedStyle(wrap);
+      var padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      var availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      var chat = document.getElementById("dgChat"), ccs = chat ? getComputedStyle(chat) : null;
+      var chatPad = ccs && ccs.display !== "none" ? parseFloat(ccs.paddingTop) + parseFloat(ccs.paddingBottom) : 0;
+      var chatMin = root.classList.contains("dg-kb") ? 0 : 48; // room for a couple of chat lines
+      var availH = play.clientHeight - used - padY - chatPad - chatMin - 2;
+      var h = Math.max(60, Math.min(availW * 3 / 4, availH));
+      canvas.style.width = Math.floor(h * 4 / 3) + "px";
+      canvas.style.height = Math.floor(h) + "px";
+    }
+    var queued = false;
+    function updateLayout() {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () {
+        queued = false;
+        var sideways = deviceSideways() && window.innerHeight <= 500;
+        root.classList.toggle("dg-sideways", sideways);
+        var ae = document.activeElement;
+        root.classList.toggle("dg-kb", !sideways && coarse && !!ae && ae.id === "guessInput");
+        fitCanvas();
+      });
+    }
+    window.dgUpdateLayout = updateLayout;
+    window.addEventListener("resize", updateLayout);
+    window.addEventListener("orientationchange", function () { setTimeout(updateLayout, 250); });
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", updateLayout);
+    if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener("change", updateLayout);
+    document.addEventListener("focusin", updateLayout);
+    document.addEventListener("focusout", function () { setTimeout(updateLayout, 50); });
+    document.addEventListener("DOMContentLoaded", function () {
+      var play = document.getElementById("playScreen");
+      if (window.ResizeObserver && play) {
+        var ro = new ResizeObserver(updateLayout);
+        ro.observe(play);
+        for (var i = 0; i < play.children.length; i++) {
+          var el = play.children[i];
+          if (!el.classList.contains("dg-canvas-wrap") && el.id !== "dgChat") ro.observe(el);
+        }
+      }
+      updateLayout();
+    });
+  })();
+
   (function () {
     function setAppHeight() {
       var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -513,6 +593,7 @@
 
   function showScreen(name) {
     Object.entries(screens).forEach(([k, el]) => el.classList.toggle("visible", k === name));
+    window.dgUpdateLayout?.();
   }
 
   /* ── State ───────────────────────────────────────────────────── */
