@@ -597,6 +597,7 @@
 
 <script src="/ban-notice.js"></script>
 <script src="/socket.io/socket.io.js"></script>
+<script src="/lobby-kick.js"></script>
 <script>
   (function () {
     function setAppHeight() {
@@ -764,6 +765,10 @@
       row.appendChild(avatar); row.appendChild(name);
       if (p.username.toLowerCase() === room.hostUsername.toLowerCase()) {
         const tag = document.createElement("span"); tag.className = "jk-lobby-tag"; tag.textContent = "მასპინძელი"; row.appendChild(tag);
+      }
+      // Host can remove anyone else from the lobby before the game starts.
+      if (isHost && p.username.toLowerCase() !== myUsernameLower) {
+        row.appendChild(GaicaniLobbyKick.button(p.username, () => socket.emit("joker:kick", { roomId: currentRoomId, username: p.username })));
       }
       list.appendChild(row);
     });
@@ -1401,6 +1406,8 @@
     });
 
     socket.on("joker:error", ({ message }) => showToast(message));
+    socket.on("joker:kicked", () => { showToast("🚫 მასპინძელმა ლობიდან გაგაგდო"); backToSetup(); });
+    socket.on("joker:kickDone", ({ username }) => showToast(`${username} ლობიდან გააგდე`));
 
     socket.on("joker:chatMessage", (msg) => {
       appendChatMessage(msg);

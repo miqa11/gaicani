@@ -9928,6 +9928,43 @@ function cleanupDrawGuessForSocket(socketId) {
   if (room.round && room.round.drawerLc === player.lc) endDrawRound(room, "drawerLeft");
 }
 
+// ── Lobby kick ────────────────────────────────────────────────────────────────
+// Until a game starts, its host can remove anyone from the lobby — public
+// lobbies are open to everyone, so unwanted people do wander in. The kicked
+// player is taken out the same way as if they'd left (each game's own cleanup),
+// and can't walk straight back in: only a fresh invite from the host lifts it.
+const LOBBY_KICKED_MSG = "მასპინძელმა ამ ლობიდან გაგაგდო — ხელახლა შემოსვლა მხოლოდ მისი მოწვევით შეგიძლია.";
+const LOBBY_GAMES = {
+  drawGuess: { rooms: drawRooms,     channel: "drawroom",     cleanup: cleanupDrawGuessForSocket },
+  poker:     { rooms: pokerRooms,    channel: "pokerroom",    cleanup: cleanupPokerForSocket },
+  chess:     { rooms: chessRooms,    channel: "chessroom",    cleanup: cleanupChessForSocket },
+  checkers:  { rooms: checkersRooms, channel: "checkersroom", cleanup: cleanupCheckersForSocket },
+  joker:     { rooms: jokerRooms,    channel: "jokerroom",    cleanup: cleanupJokerForSocket },
+  imposter:  { rooms: imposterRooms, channel: "imposterroom", cleanup: cleanupImposterForSocket },
+  blackjack: { rooms: bjRooms,       channel: "bjroom",       cleanup: cleanupBjForSocket },
+};
+function kickFromLobby(socket, game, data) {
+  const g = LOBBY_GAMES[game];
+  if (!g || !socket._regUser || !data || typeof data.username !== "string") return;
+  const room = g.rooms.get(data.roomId);
+  if (!room) return;
+  const me = socket._regUser.usernameLower;
+  if (room.hostLc !== me) { socket.emit(`${game}:error`, { message: "მოთამაშის გაგდება მხოლოდ მასპინძელს შეუძლია." }); return; }
+  if (room.status !== "lobby") { socket.emit(`${game}:error`, { message: "თამაში უკვე დაიწყო — ახლა ვეღარავის გააგდებ." }); return; }
+  const targetLc = data.username.toLowerCase().trim();
+  const target = targetLc !== me && room.players.find(p => p.lc === targetLc);
+  if (!target) return;
+
+  (room.kicked ||= new Set()).add(targetLc);
+  const targetSocket = io.sockets.sockets.get(target.socketId);
+  g.cleanup(target.socketId); // removes them and updates everyone, exactly like leaving
+  if (targetSocket) {
+    targetSocket.leave(`${g.channel}:${room.id}`);
+    targetSocket.emit(`${game}:kicked`, { roomId: room.id, byUsername: socket._regUser.username });
+  }
+  socket.emit(`${game}:kickDone`, { username: target.username });
+}
+
 // ── Main connection handler ──────────────────────────────────────────────────
 io.on("connection", (socket) => {
   socket.clientIP = (
@@ -9973,6 +10010,11 @@ io.on("connection", (socket) => {
   }
 
   console.log(`[SOCKET] Connected: ${socket.id} from ${socket.clientIP}`);
+
+  // Host removes someone from a game lobby before it starts — see kickFromLobby.
+  for (const game of Object.keys(LOBBY_GAMES)) {
+    socket.on(`${game}:kick`, (data) => kickFromLobby(socket, game, data));
+  }
 
   // Answering a game invite — joining or declining that room, from the
   // dashboard's invite bar or the game page itself — marks its 🔔 read.
@@ -11107,6 +11149,7 @@ io.on("connection", (socket) => {
 
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), DRAW_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
+      room.kicked?.delete(lc); // the host asked them back in
 
       io.to(`user:${lc}`).emit("drawGuess:invited", { roomId: room.id, fromUsername: hostUser.username });
       notifyGameInvite(lc, "drawGuess", room.id, hostUser.username);
@@ -11143,6 +11186,7 @@ io.on("connection", (socket) => {
     if (!room) { socket.emit("drawGuess:error", { message: "ოთახი ვეღარ მოიძებნა — შეიძლება უკვე დასრულდა." }); return; }
     if (room.status === "ended") { socket.emit("drawGuess:error", { message: "ეს თამაში უკვე დასრულდა." }); return; }
 
+    if (room.kicked?.has(lc)) { socket.emit("drawGuess:error", { message: LOBBY_KICKED_MSG }); return; }
     const already = room.players.find(p => p.lc === lc);
     if (already) {
       // Reconnecting mid-game.
@@ -11394,6 +11438,7 @@ io.on("connection", (socket) => {
 
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), POKER_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
+      room.kicked?.delete(lc); // the host asked them back in
       io.to(`user:${lc}`).emit("poker:invited", { roomId: room.id, fromUsername: hostUser.username });
       notifyGameInvite(lc, "poker", room.id, hostUser.username);
       invited.push(targetUser.username);
@@ -11450,6 +11495,7 @@ io.on("connection", (socket) => {
     if (!room) { socket.emit("poker:error", { message: "მაგიდა ვეღარ მოიძებნა — შეიძლება უკვე დასრულდა." }); return; }
     if (room.status === "ended") { socket.emit("poker:error", { message: "ეს თამაში უკვე დასრულდა." }); return; }
 
+    if (room.kicked?.has(lc)) { socket.emit("poker:error", { message: LOBBY_KICKED_MSG }); return; }
     const already = room.players.find(p => p.lc === lc);
     if (already) {
       already.socketId = socket.id;
@@ -11602,6 +11648,7 @@ io.on("connection", (socket) => {
 
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), CHESS_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
+      room.kicked?.delete(lc); // the host asked them back in
       io.to(`user:${lc}`).emit("chess:invited", { roomId: room.id, fromUsername: hostUser.username });
       notifyGameInvite(lc, "chess", room.id, hostUser.username);
       invited.push(targetUser.username);
@@ -11644,6 +11691,7 @@ io.on("connection", (socket) => {
     if (!room) { socket.emit("chess:error", { message: "თამაში ვეღარ მოიძებნა — შეიძლება უკვე დასრულდა." }); return; }
     if (room.status === "ended") { socket.emit("chess:error", { message: "ეს თამაში უკვე დასრულდა." }); return; }
 
+    if (room.kicked?.has(lc)) { socket.emit("chess:error", { message: LOBBY_KICKED_MSG }); return; }
     const already = room.players.find(p => p.lc === lc);
     if (already) {
       already.socketId = socket.id;
@@ -11819,6 +11867,7 @@ io.on("connection", (socket) => {
 
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), CHECKERS_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
+      room.kicked?.delete(lc); // the host asked them back in
       io.to(`user:${lc}`).emit("checkers:invited", { roomId: room.id, fromUsername: hostUser.username });
       notifyGameInvite(lc, "checkers", room.id, hostUser.username);
       invited.push(targetUser.username);
@@ -11861,6 +11910,7 @@ io.on("connection", (socket) => {
     if (!room) { socket.emit("checkers:error", { message: "თამაში ვეღარ მოიძებნა — შეიძლება უკვე დასრულდა." }); return; }
     if (room.status === "ended") { socket.emit("checkers:error", { message: "ეს თამაში უკვე დასრულდა." }); return; }
 
+    if (room.kicked?.has(lc)) { socket.emit("checkers:error", { message: LOBBY_KICKED_MSG }); return; }
     const already = room.players.find(p => p.lc === lc);
     if (already) {
       already.socketId = socket.id;
@@ -12046,6 +12096,7 @@ io.on("connection", (socket) => {
 
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), JOKER_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
+      room.kicked?.delete(lc); // the host asked them back in
       io.to(`user:${lc}`).emit("joker:invited", { roomId: room.id, fromUsername: hostUser.username });
       notifyGameInvite(lc, "joker", room.id, hostUser.username);
       invited.push(targetUser.username);
@@ -12088,6 +12139,7 @@ io.on("connection", (socket) => {
     if (!room) { socket.emit("joker:error", { message: "მაგიდა ვეღარ მოიძებნა — შეიძლება უკვე დასრულდა." }); return; }
     if (room.status === "ended") { socket.emit("joker:error", { message: "ეს თამაში უკვე დასრულდა." }); return; }
 
+    if (room.kicked?.has(lc)) { socket.emit("joker:error", { message: LOBBY_KICKED_MSG }); return; }
     const already = room.players.find(p => p.lc === lc);
     if (already) {
       const wasBot = already.isBot;
@@ -12307,6 +12359,7 @@ io.on("connection", (socket) => {
 
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), IMPOSTER_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
+      room.kicked?.delete(lc); // the host asked them back in
       io.to(`user:${lc}`).emit("imposter:invited", { roomId: room.id, fromUsername: hostUser.username });
       notifyGameInvite(lc, "imposter", room.id, hostUser.username);
       invited.push(targetUser.username);
@@ -12349,6 +12402,7 @@ io.on("connection", (socket) => {
     if (!room) { socket.emit("imposter:error", { message: "თამაში ვეღარ მოიძებნა — შეიძლება უკვე დასრულდა." }); return; }
     if (room.status === "ended") { socket.emit("imposter:error", { message: "ეს თამაში უკვე დასრულდა." }); return; }
 
+    if (room.kicked?.has(lc)) { socket.emit("imposter:error", { message: LOBBY_KICKED_MSG }); return; }
     const already = room.players.find(p => p.lc === lc);
     if (already) {
       already.socketId = socket.id;
@@ -12515,6 +12569,7 @@ io.on("connection", (socket) => {
 
       const timeoutHandle = setTimeout(() => room.pendingInvites.delete(lc), BJ_INVITE_TTL_MS);
       room.pendingInvites.set(lc, { timeoutHandle });
+      room.kicked?.delete(lc); // the host asked them back in
       io.to(`user:${lc}`).emit("blackjack:invited", { roomId: room.id, fromUsername: hostUser.username });
       notifyGameInvite(lc, "blackjack", room.id, hostUser.username);
       invited.push(targetUser.username);
@@ -12557,6 +12612,7 @@ io.on("connection", (socket) => {
     if (!room) { socket.emit("blackjack:error", { message: "მაგიდა ვეღარ მოიძებნა — შეიძლება უკვე დასრულდა." }); return; }
     if (room.status === "ended") { socket.emit("blackjack:error", { message: "ეს თამაში უკვე დასრულდა." }); return; }
 
+    if (room.kicked?.has(lc)) { socket.emit("blackjack:error", { message: LOBBY_KICKED_MSG }); return; }
     const already = room.players.find(p => p.lc === lc);
     if (already) {
       already.socketId = socket.id;
