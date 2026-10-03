@@ -1346,6 +1346,33 @@ body.guest-mode .profile-actions { display: none; }
 }
 .pc-nick-edit button { border: none; border-radius: 12px; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; color: #fff; background: linear-gradient(135deg,#5b77ff,#8b55ff); }
 
+/* ── Profile style: your card follows the chosen ring / tint ─────────── */
+.user-card.pt-on {
+  background:
+    radial-gradient(120% 90% at 0% 0%, var(--pt-tint), transparent 55%) padding-box,
+    radial-gradient(90% 80% at 100% 100%, rgba(227,59,95,.14), transparent 60%) padding-box,
+    linear-gradient(160deg,#2b2454,#1a1533) padding-box,
+    var(--cloison) border-box;
+}
+.user-card.pt-on .user-avatar::before { background: var(--pt-ring); }
+.user-card.pt-glow .user-avatar { box-shadow: 0 0 0 3px #1f1a3c, 0 0 26px var(--pt-glow); }
+.pa-i-ruby     { background: linear-gradient(135deg,rgba(227,59,95,.38),rgba(227,59,95,.12)); }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 10px; padding: 8px 12px 14px; }
+.theme-opt {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px 8px;
+  border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.04);
+  cursor: pointer; font: inherit; color: var(--text-dim);
+}
+.theme-opt:hover { background: rgba(255,255,255,.08); }
+.theme-opt.selected { border-color: var(--gold-lt); background: rgba(214,168,79,.12); color: var(--text); }
+.theme-opt.locked { opacity: .62; }
+.theme-swatch { width: 50px; height: 50px; border-radius: 50%; padding: 4px; }
+.theme-swatch > span { display: block; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: #2b2454; box-shadow: 0 0 0 2px #1c1735; }
+.theme-swatch img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.theme-name { font-size: .72em; font-weight: 700; line-height: 1.2; text-align: center; }
+.theme-lock { position: absolute; top: 6px; right: 6px; font-size: .8em; }
+.theme-tag { font-size: .62em; font-weight: 800; color: var(--gold-lt); }
+
 @media (prefers-reduced-motion: reduce) {
   .dc-gift, .dc-week span.today { animation: none; }
   .cc-fill { transition: none; }
@@ -1457,6 +1484,22 @@ body.guest-mode .profile-actions { display: none; }
           <button class="pa-close" type="button" data-close="changeAvatarBtn">დახურვა ✕</button>
         </div>
         <div class="avatar-picker-grid" id="avatarPickerGrid"></div>
+      </div>
+
+      <button class="pa-row" id="changeThemeBtn" type="button" aria-expanded="false" aria-controls="themePickerSection">
+        <span class="pa-icon pa-i-ruby" aria-hidden="true">🎨</span>
+        <span class="pa-text">
+          <span class="pa-title">პროფილის სტილი</span>
+          <span class="pa-sub" id="themeRowSub">ჩარჩო სურათის გარშემო</span>
+        </span>
+        <span class="pa-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </button>
+      <div class="pa-panel" id="themePickerSection" hidden>
+        <div class="pa-panel-head">
+          <span>ყველა ხედავს — შენს ბარათზე და მეგობრების სიაში</span>
+          <button class="pa-close" type="button" data-close="changeThemeBtn">დახურვა ✕</button>
+        </div>
+        <div class="theme-grid" id="themePickerGrid"></div>
       </div>
 
       <button class="pa-row" id="changeBioBtn" type="button" aria-expanded="false" aria-controls="bioEditorSection">
@@ -1850,6 +1893,7 @@ body.guest-mode .profile-actions { display: none; }
 
   <script src="/ban-notice.js"></script>
   <script src="/notifications.js"></script>
+  <script src="/profile-themes.js"></script>
 <script src="/socket.io/socket.io.js"></script>
   <script>
   (function () {
@@ -1924,7 +1968,7 @@ body.guest-mode .profile-actions { display: none; }
     }
 
     /* ── Edit-your-profile rows: one editor unfolds at a time ──────── */
-    const PA_PANELS = { changeAvatarBtn: "avatarPickerSection", changeBioBtn: "bioEditorSection" };
+    const PA_PANELS = { changeAvatarBtn: "avatarPickerSection", changeThemeBtn: "themePickerSection", changeBioBtn: "bioEditorSection" };
     function paSetOpen(btnId, open) {
       const btn = document.getElementById(btnId), panel = document.getElementById(PA_PANELS[btnId]);
       if (!btn || !panel) return;
@@ -1970,6 +2014,54 @@ body.guest-mode .profile-actions { display: none; }
         if (r.ok) paintDetailsSummary((await r.json()).profile);
       } catch (_) {}
     }
+
+    /* ── 🎨 Profile style (ring around your picture) ─────────────────── */
+    let myTheme = "default";
+    function paintMyTheme(id) {
+      myTheme = id || "default";
+      window.GaicaniThemes?.apply(document.querySelector(".user-card"), myTheme);
+      const t = window.GaicaniThemes?.get(myTheme);
+      const sub = document.getElementById("themeRowSub");
+      if (sub && t) { sub.textContent = myTheme === "default" ? "ჩარჩო სურათის გარშემო" : t.label; sub.classList.toggle("has-value", myTheme !== "default"); }
+    }
+    function loadMyTheme() {
+      if (!socket || !authUser || authUser.isGuest) return;
+      socket.emit("profile:themes", null, (r) => { if (r && !r.error) paintMyTheme(r.current); });
+    }
+    function renderThemeGrid(state) {
+      const grid = document.getElementById("themePickerGrid");
+      const T = window.GaicaniThemes;
+      if (!grid || !T) return;
+      const unlocked = new Set(state.unlocked || []);
+      const pic = authUser?.avatar ? `<img src="${AVATAR_DIR}${esc(authUser.avatar)}" alt="" loading="lazy" />` : "";
+      grid.innerHTML = T.list.map(t => `
+        <button type="button" class="theme-opt${t.id === state.current ? " selected" : ""}${unlocked.has(t.id) ? "" : " locked"}" data-theme="${t.id}"
+          aria-pressed="${t.id === state.current}" aria-label="${esc(t.label)}${unlocked.has(t.id) ? "" : " — " + esc(T.lockHint(t))}">
+          <span class="theme-swatch" style="background:${t.ring}"><span>${pic}</span></span>
+          <span class="theme-name">${esc(t.label)}</span>
+          ${t.lock ? `<span class="theme-tag">${t.lock === "vip" ? "👑 VIP" : "🔥 7 დღე"}</span>` : ""}
+          ${unlocked.has(t.id) ? "" : '<span class="theme-lock" aria-hidden="true">🔒</span>'}
+        </button>`).join("");
+      grid.querySelectorAll(".theme-opt").forEach(b => b.addEventListener("click", () => {
+        const t = T.get(b.dataset.theme);
+        if (!unlocked.has(t.id)) {
+          showToast(t.lock === "vip" ? "👑 ეს სტილი მხოლოდ VIP-ისთვისაა" : `🔥 გაიხსნება, როცა 7 დღე ზედიზედ აიღებ დღის ბონუსს (შენი რეკორდი: ${state.bestStreak || 0})`, 4500);
+          return;
+        }
+        if (t.id === myTheme) return;
+        socket?.emit("profile:setTheme", { theme: t.id }, (r) => {
+          if (!r || r.error) { showToast(`⚠️ ${(r && r.error) || "ვერ შეინახა"}`); return; }
+          state.current = r.theme;
+          paintMyTheme(r.theme);
+          grid.querySelectorAll(".theme-opt").forEach(x => { const on = x.dataset.theme === r.theme; x.classList.toggle("selected", on); x.setAttribute("aria-pressed", String(on)); });
+          showToast(`🎨 სტილი: ${t.label}`);
+        });
+      }));
+    }
+    document.getElementById("changeThemeBtn")?.addEventListener("click", () => {
+      if (!paToggle("changeThemeBtn") || !socket) return;
+      socket.emit("profile:themes", null, (r) => { if (r && !r.error) renderThemeGrid(r); });
+    });
 
     document.getElementById("changeAvatarBtn")?.addEventListener("click", () => {
       if (!paToggle("changeAvatarBtn")) return;
@@ -2347,7 +2439,7 @@ function profileChipsHTML(p) {
           refreshTrinder();
           if (window.GaicaniNotif) window.GaicaniNotif.attach(socket);
           setTimeout(loadDetailsSummary, 0); // authUser is filled in just below
-          setTimeout(() => { loadFriendInfo(); loadDaily(); }, 0);
+          setTimeout(() => { loadFriendInfo(); loadDaily(); loadMyTheme(); }, 0);
         }
         if (authUser) {
           authUser.friends = friends || [];
@@ -2380,6 +2472,7 @@ function profileChipsHTML(p) {
       socket.on("auth:proStatusChanged", ({ isPro }) => {
         if (authUser) authUser.isPro = !!isPro;
         renderVipBadge(!!isPro);
+        loadMyTheme(); // a VIP style only shows while you're VIP
       });
 
       socket.on("guest:registerRequired", ({ feature }) => promptGuestToRegister(feature));
@@ -2719,7 +2812,7 @@ function profileChipsHTML(p) {
         return `
         <div class="friend-item${info && info.pinned ? " is-pinned" : ""}" data-friend="${esc(f)}">
           <div class="friend-avatar-wrap">
-            <div class="friend-avatar">${avatarHtml}</div>
+            <div class="friend-avatar${info && info.theme ? " pt-on" + (window.GaicaniThemes?.get(info.theme)?.glow ? " pt-glow" : "") : ""}" style="${info && info.theme ? (window.GaicaniThemes?.vars(info.theme) || "") : ""}">${avatarHtml}</div>
             ${info && info.online ? '<span class="online-dot" title="ონლაინ"></span>' : ""}
           </div>
           <div class="friend-main">
@@ -3140,6 +3233,7 @@ function profileChipsHTML(p) {
 
         body.innerHTML = `
           <div class="profile-card-avatar">${avatarHtml}</div>
+          ${window.GaicaniThemes?.badgeHtml(d.theme) || ""}
           <div class="profile-card-name">${esc(d.username)}${d.isPro ? ' <span class="pro-star" title="Pro">⭐</span>' : ""}</div>
           ${nickHtml}
           ${statusHtml}
@@ -3155,6 +3249,7 @@ function profileChipsHTML(p) {
 
         mountFriendAction(document.getElementById("profileCardFriendSlot"), d);
         if (fi) bindFriendTools(fi);
+        window.GaicaniThemes?.apply(body.querySelector(".profile-card-avatar"), d.theme);
 
         const reportBtn = document.getElementById("profileCardReportBtn");
         if (reportBtn) {

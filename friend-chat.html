@@ -1076,6 +1076,7 @@ button, textarea, input { font-family: inherit; }
 <div id="dgInviteBar" class="dg-invite-bar"></div>
 
 <script src="/ban-notice.js"></script>
+<script src="/profile-themes.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
   // Keep --app-height in sync with the real visible viewport, so the
@@ -1145,6 +1146,16 @@ button, textarea, input { font-family: inherit; }
 
   /* ── Tap-to-preview profile card — see who you're chatting with: their
      picture, name, whether they're online right now, and their bio. ── */
+  // "5 წუთის წინ" — for last seen.
+  function fcAgo(ts) {
+    const m = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+    if (m < 1) return "ახლახან";
+    if (m < 60) return `${m} წუთის წინ`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} საათის წინ`;
+    const d = Math.floor(h / 24);
+    return d < 30 ? `${d} დღის წინ` : new Date(ts).toLocaleDateString("ka-GE", { day: "numeric", month: "short" });
+  }
   async function openProfileCard(username) {
     const backdrop = $("profileCardBackdrop");
     const body = $("profileCardBody");
@@ -1163,16 +1174,19 @@ button, textarea, input { font-family: inherit; }
         : esc(d.username).charAt(0).toUpperCase();
       const statusHtml = d.isOnline
         ? '<div class="profile-card-status online"><span class="profile-card-status-dot"></span>ონლაინ</div>'
-        : '<div class="profile-card-status offline"><span class="profile-card-status-dot"></span>ოფლაინ</div>';
+        : `<div class="profile-card-status offline"><span class="profile-card-status-dot"></span>${d.lastSeenAt ? "ბოლოს ნანახი " + fcAgo(d.lastSeenAt) : "ოფლაინ"}</div>`;
       const bioHtml = d.bio
         ? `<div class="profile-card-bio">${esc(d.bio)}</div>`
         : '<div class="profile-card-bio empty">ბიოგრაფია ჯერ არ დაუწერია</div>';
 
       body.innerHTML = `
         <div class="profile-card-avatar">${avatarHtml}</div>
+        ${window.GaicaniThemes?.badgeHtml(d.theme) || ""}
         <div class="profile-card-name">${esc(d.username)}${d.isPro ? ' <span class="pro-star" title="Pro">⭐</span>' : ""}</div>
         ${statusHtml}
+        ${d.status ? `<div class="profile-card-bio">💬 ${esc(d.status)}</div>` : ""}
         ${bioHtml}${profileChipsHTML(d.profile)}`;
+      window.GaicaniThemes?.apply(body.querySelector(".profile-card-avatar"), d.theme);
     } catch (_) {
       body.innerHTML = '<div class="profile-card-loading">პროფილის ჩატვირთვა ვერ მოხერხდა</div>';
     }
@@ -1983,17 +1997,9 @@ button, textarea, input { font-family: inherit; }
 
     // Header: your nickname for them, and "ონლაინ" / "ბოლოს ნანახი 5 წუთის წინ".
     let fhTimer = null, fhInfo = null;
-    function fcAgo(ts) {
-      const m = Math.max(0, Math.floor((Date.now() - ts) / 60000));
-      if (m < 1) return "ახლახან";
-      if (m < 60) return `${m} წუთის წინ`;
-      const h = Math.floor(m / 60);
-      if (h < 24) return `${h} საათის წინ`;
-      const d = Math.floor(h / 24);
-      return d < 30 ? `${d} დღის წინ` : new Date(ts).toLocaleDateString("ka-GE", { day: "numeric", month: "short" });
-    }
     function paintFriendHeader() {
       const i = fhInfo; if (!i) return;
+      window.GaicaniThemes?.apply($("fcAvatar"), i.theme);
       $("fcName").textContent = i.nickname || i.username;
       $("fcName").title = i.nickname ? i.username : "";
       const sub = $("fcSub");

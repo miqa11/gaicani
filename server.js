@@ -6350,8 +6350,8 @@ app.get("/api/users/profile", (req, res) => {
     ...(((auth.user.friends || []).includes(lc) || lc === auth.usernameLower) ? {
       status: (activeStatus(u) || {}).text || "",
       lastSeenAt: isOnline || u.appearOffline ? null : (u.lastSeenAt || null),
-      theme: u.profileTheme || null,
-    } : { theme: u.profileTheme || null }),
+      theme: effectiveTheme(u),
+    } : { theme: effectiveTheme(u) }),
   });
 });
 
@@ -10011,9 +10011,30 @@ function friendDetails(me) {
       lc, username: u.username, avatar: u.avatar || DEFAULT_AVATAR, isPro: !!u.isPro,
       online, lastSeenAt: online || u.appearOffline ? null : (u.lastSeenAt || null),
       status: st ? st.text : "", statusAt: st ? st.at : null,
-      nickname: nick[lc] || "", pinned: pins.includes(lc), theme: u.profileTheme || null,
+      nickname: nick[lc] || "", pinned: pins.includes(lc), theme: effectiveTheme(u),
     };
   }).filter(Boolean);
+}
+
+// ── Profile styles (ring around your picture) ─────────────────────────────
+// Same ids as profile-themes.js. Rare ones are rewards: VIP, or a 7-day
+// daily-bonus streak (best streak ever, so missing a day later keeps it).
+const PROFILE_THEMES = {
+  default: null, cobalt: null, emerald: null, ruby: null, amethyst: null, sunset: null, ocean: null,
+  fire: "streak7", gold: "vip", diamond: "vip",
+};
+const isThemeId = (id) => Object.prototype.hasOwnProperty.call(PROFILE_THEMES, id);
+function themeUnlocked(u, id) {
+  if (!isThemeId(id)) return false;
+  const lock = PROFILE_THEMES[id];
+  if (lock === "vip") return !!u.isPro;
+  if (lock === "streak7") return ((u.daily && u.daily.best) || 0) >= 7;
+  return true;
+}
+// What others see: a VIP style stops showing if VIP ends.
+function effectiveTheme(u) {
+  const id = u && u.profileTheme;
+  return id && id !== "default" && themeUnlocked(u, id) ? id : null;
 }
 
 // ── Daily reward ───────────────────────────────────────────────────────────
@@ -10184,10 +10205,33 @@ io.on("connection", (socket) => {
     if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return ack({ error: "ჯერ დაასრულე მიმდინარე თამაში (პოკერი/ბლექჯეკი), მერე აიღე ბონუსი" });
     ensurePokerCoins(me); bjEnsureCoins(me);
     me.pokerCoins += st.reward; me.bjCoins += st.reward;
-    me.daily = { last: georgiaDay(), streak: st.streak + 1 };
+    me.daily = { last: georgiaDay(), streak: st.streak + 1, best: Math.max((me.daily && me.daily.best) || 0, st.streak + 1) };
     saveAuthUsers();
     // granted = what you just got; reward = tomorrow's (from dailyState)
     ack({ ...dailyState(me), ok: true, granted: st.reward, streak: me.daily.streak, pokerCoins: me.pokerCoins, bjCoins: me.bjCoins });
+  });
+
+  // ── Profile style ───────────────────────────────────────────────────────
+  socket.on("profile:themes", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = regMe(); if (!me) return ack({ error: "registered-only" });
+    ack({
+      current: effectiveTheme(me) || "default",
+      unlocked: Object.keys(PROFILE_THEMES).filter((id) => themeUnlocked(me, id)),
+      bestStreak: (me.daily && me.daily.best) || 0,
+    });
+  });
+  socket.on("profile:setTheme", (data, ack) => {
+    const me = regMe(); if (!me) return;
+    const reply = (x) => { if (typeof ack === "function") ack(x); };
+    if (mediaRateLimited(socket, "profileTheme", 20, 60_000)) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან" });
+    const id = String((data && data.theme) || "");
+    if (!isThemeId(id)) return reply({ error: "ასეთი სტილი არ არსებობს" });
+    if (!themeUnlocked(me, id)) return reply({ error: PROFILE_THEMES[id] === "vip" ? "ეს სტილი მხოლოდ VIP-ისთვისაა" : "ჯერ 7 დღე ზედიზედ აიღე დღის ბონუსი" });
+    me.profileTheme = id === "default" ? null : id;
+    saveAuthUsers();
+    for (const f of [socket._regUser.usernameLower, ...(me.friends || [])]) io.to(`user:${f}`).emit("friends:changed");
+    reply({ ok: true, theme: id });
   });
 
   // Host removes someone from a game lobby before it starts — see kickFromLobby.
