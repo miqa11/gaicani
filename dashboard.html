@@ -1213,6 +1213,29 @@ body.guest-mode .profile-actions { display: none; }
   background: rgba(240,185,58,.12); border: 1px solid rgba(240,185,58,.40);
 }
 .streak-chip[hidden] { display: none; }
+.streak-chip.tier-warm { color: #fff1c7; background: linear-gradient(135deg, rgba(255,152,0,.35), rgba(255,87,34,.25)); border-color: rgba(255,152,0,.7); }
+.streak-chip.tier-fire, .streak-chip.tier-blue {
+  color: #fff; border-color: transparent; text-shadow: 0 1px 2px rgba(0,0,0,.45);
+  background: linear-gradient(90deg, #d50000, #ff6d00, #ffb300, #ff6d00, #d50000); background-size: 300% 100%;
+  animation: streakBurn 2.4s linear infinite, streakGlow 1.3s ease-in-out infinite;
+}
+.streak-chip.tier-blue { background-image: linear-gradient(90deg, #2962ff, #00b0ff, #e1f5fe, #00b0ff, #2962ff); }
+@keyframes streakBurn { to { background-position: 300% 0; } }
+@keyframes streakGlow { 50% { box-shadow: 0 0 14px rgba(255,109,0,.8), 0 -2px 8px rgba(255,193,7,.6); } }
+.streak-chip.tier-blue { animation-name: streakBurn, streakGlowBlue; }
+@keyframes streakGlowBlue { 50% { box-shadow: 0 0 14px rgba(0,176,255,.85), 0 -2px 8px rgba(225,245,254,.6); } }
+/* 🔒 pictures you unlock with a daily streak */
+.avatar-picker-option { position: relative; }
+.avatar-picker-option.streak-pic { box-shadow: 0 0 0 2px rgba(255,109,0,.65); }
+.avatar-picker-option.locked img { filter: grayscale(.55) brightness(.62); }
+.ap-streak-head { grid-column: 1 / -1; margin: 8px 0 2px; padding: 8px 10px; border-radius: 12px; font-size: .78em; font-weight: 800;
+  color: #ffd9a8; background: linear-gradient(135deg, rgba(255,109,0,.18), rgba(213,0,0,.12)); border: 1px solid rgba(255,109,0,.4); }
+.ap-streak {
+  position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); white-space: nowrap;
+  padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 900; color: #fff;
+  background: linear-gradient(135deg, #ff6d00, #d50000); box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+.avatar-picker-option.locked .ap-streak { background: rgba(20,16,40,.9); border: 1px solid rgba(255,152,0,.7); color: #ffcc80; }
 .streak-chip.at-risk { color: #ff9fb3; background: rgba(227,59,95,.12); border-color: rgba(227,59,95,.45); }
 
 /* ── Daily bonus ───────────────────────────────────────────────────────── */
@@ -1331,14 +1354,23 @@ body.guest-mode .profile-actions { display: none; }
   background: rgba(79,108,255,.14); border: 1px solid rgba(79,108,255,.35); overflow-wrap: anywhere;
 }
 .pc-status small { display: block; margin-top: 3px; color: var(--muted); font-size: .82em; }
-.pc-tools { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+/* "Only for you" tools on a friend's card — set apart from the message /
+   block buttons below by space, a caption and their own colours. */
+.pc-tools-box { margin: 16px 0 18px; padding: 10px 10px 12px; border-radius: 16px;
+  background: rgba(25,179,166,.07); border: 1px dashed rgba(25,179,166,.45); }
+.pc-tools-cap { font-size: .7em; font-weight: 800; letter-spacing: .03em; color: #7fe3d8; margin-bottom: 8px; }
+.pc-tools { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .pc-tool {
-  border: 1px solid rgba(214,168,79,.30); background: rgba(255,255,255,.06); color: var(--text);
-  border-radius: 999px; padding: 7px 13px; font: inherit; font-size: .8em; font-weight: 700; cursor: pointer;
+  border-radius: 999px; padding: 8px 14px; font: inherit; font-size: .8em; font-weight: 800; cursor: pointer;
+  transition: filter .15s, transform .1s;
 }
-.pc-tool:hover { background: rgba(255,255,255,.12); }
-.pc-tool.on { background: rgba(214,168,79,.18); color: var(--gold-lt); }
+.pc-tool:active { transform: scale(.96); }
+.pc-tool:hover { filter: brightness(1.15); }
+.pc-tool-pin { color: #ffd77a; background: rgba(240,185,58,.14); border: 1px solid rgba(240,185,58,.55); }
+.pc-tool-pin.on { color: #2a1d05; background: linear-gradient(135deg,#ffe7a3,#f0b93a); border-color: transparent; }
+.pc-tool-nick { color: #7fe3d8; background: rgba(25,179,166,.14); border: 1px solid rgba(25,179,166,.55); }
 .pc-nick-edit { display: flex; gap: 6px; margin-top: 10px; }
+.pc-tools-box + .profile-card-actions { margin-top: 2px; }
 .pc-nick-edit[hidden] { display: none; }
 .pc-nick-edit input {
   flex: 1; min-width: 0; padding: 9px 11px; border-radius: 12px; border: 1px solid rgba(214,168,79,.25);
@@ -1374,6 +1406,7 @@ body.guest-mode .profile-actions { display: none; }
 .theme-tag { font-size: .62em; font-weight: 800; color: var(--gold-lt); }
 
 @media (prefers-reduced-motion: reduce) {
+  .streak-chip.tier-fire, .streak-chip.tier-blue { animation: none; }
   .dc-gift, .dc-week span.today { animation: none; }
   .cc-fill { transition: none; }
 }
@@ -1496,7 +1529,7 @@ body.guest-mode .profile-actions { display: none; }
       </button>
       <div class="pa-panel" id="themePickerSection" hidden>
         <div class="pa-panel-head">
-          <span>ყველა ხედავს — შენს ბარათზე და მეგობრების სიაში</span>
+          <span>ყველა ხედავს · 🔒 იშვიათები იხსნება, როცა ყოველდღე შემოდიხარ</span>
           <button class="pa-close" type="button" data-close="changeThemeBtn">დახურვა ✕</button>
         </div>
         <div class="theme-grid" id="themePickerGrid"></div>
@@ -1937,7 +1970,11 @@ body.guest-mode .profile-actions { display: none; }
       "avatar13.jpg", "avatar14.jpg", "avatar15.jpg", "avatar16.jpg",
       "avatar17.jpg", "avatar18.jpg", "avatar19.jpg", "avatar20.jpg",
       "avatar21.jpg", "avatar22.jpg", "avatar23.jpg", "avatar24.jpg",
+      "avatar25.jpg", "avatar26.jpg", "avatar27.jpg", "avatar28.jpg",
     ];
+    // 🔒 Pictures you unlock by coming back every day (best daily-bonus
+    // streak, in days) — same numbers as STREAK_AVATARS in server.js.
+    const STREAK_AVATARS = { "avatar25.jpg": 7, "avatar26.jpg": 10, "avatar27.jpg": 14, "avatar28.jpg": 21 };
     const AVATAR_DIR = "/";
 
     function paintUserAvatar() {
@@ -1953,12 +1990,27 @@ body.guest-mode .profile-actions { display: none; }
     function renderAvatarGrid(containerEl, selected, onPick) {
       if (!containerEl) return;
       containerEl.innerHTML = "";
+      const best = (dailySt && dailySt.best) || 0;
       AVAILABLE_AVATARS.forEach(file => {
+        const need = STREAK_AVATARS[file];
+        if (need && !containerEl.querySelector(".ap-streak-head")) {
+          const head = document.createElement("div");
+          head.className = "ap-streak-head";
+          head.textContent = `🔥 ყოველდღე შემოდი და გახსენი — შენი რეკორდი: ${best} დღე ზედიზედ`;
+          containerEl.appendChild(head);
+        }
+        const locked = need && best < need && file !== selected;
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "avatar-picker-option" + (file === selected ? " selected" : "");
-        btn.innerHTML = `<img src="${AVATAR_DIR}${file}" alt="avatar" loading="lazy" />`;
+        btn.className = "avatar-picker-option" + (file === selected ? " selected" : "") + (need ? " streak-pic" : "") + (locked ? " locked" : "");
+        btn.innerHTML = `<img src="${AVATAR_DIR}${file}" alt="avatar" loading="lazy" />` +
+          (need ? `<span class="ap-streak">${locked ? "🔒" : "🔥"} ${need} დღე</span>` : "");
+        if (locked) btn.setAttribute("aria-label", `დახურულია — ${need} დღე ზედიზედ შემოდი`);
         btn.addEventListener("click", () => {
+          if (locked) {
+            showToast(`🔒 გაიხსნება, როცა ${need} დღე ზედიზედ შემოხვალ და აიღებ დღის ბონუსს — შენი რეკორდი: ${best} დღე`, 4500);
+            return;
+          }
           containerEl.querySelectorAll(".avatar-picker-option").forEach(b => b.classList.remove("selected"));
           btn.classList.add("selected");
           onPick(file);
@@ -2039,13 +2091,13 @@ body.guest-mode .profile-actions { display: none; }
           aria-pressed="${t.id === state.current}" aria-label="${esc(t.label)}${unlocked.has(t.id) ? "" : " — " + esc(T.lockHint(t))}">
           <span class="theme-swatch" style="background:${t.ring}"><span>${pic}</span></span>
           <span class="theme-name">${esc(t.label)}</span>
-          ${t.lock ? `<span class="theme-tag">${t.lock === "vip" ? "👑 VIP" : "🔥 7 დღე"}</span>` : ""}
+          ${t.lock ? `<span class="theme-tag">🔥 ${t.lock.days} დღე</span>` : ""}
           ${unlocked.has(t.id) ? "" : '<span class="theme-lock" aria-hidden="true">🔒</span>'}
         </button>`).join("");
       grid.querySelectorAll(".theme-opt").forEach(b => b.addEventListener("click", () => {
         const t = T.get(b.dataset.theme);
         if (!unlocked.has(t.id)) {
-          showToast(t.lock === "vip" ? "👑 ეს სტილი მხოლოდ VIP-ისთვისაა" : `🔥 გაიხსნება, როცა 7 დღე ზედიზედ აიღებ დღის ბონუსს (შენი რეკორდი: ${state.bestStreak || 0})`, 4500);
+          showToast(`🔒 გაიხსნება, როცა ${t.lock.days} დღე ზედიზედ შემოხვალ და აიღებ დღის ბონუსს${t.lock.vip ? " (VIP-ს უკვე აქვს)" : ""} — შენი რეკორდი: ${state.bestStreak || 0} დღე`, 4500);
           return;
         }
         if (t.id === myTheme) return;
@@ -2084,7 +2136,7 @@ body.guest-mode .profile-actions { display: none; }
         } catch (e) {
           authUser.avatar = prev; // revert on failure
           paintUserAvatar();
-          showToast("⚠️ სურათის შენახვა ვერ მოხერხდა");
+          showToast(`⚠️ ${e.message && e.message.startsWith("🔒") ? e.message : "სურათის შენახვა ვერ მოხერხდა"}`);
         }
       });
     });
@@ -3069,6 +3121,10 @@ function profileChipsHTML(p) {
       if (chip) {
         chip.hidden = !(st.streak > 0);
         chip.textContent = `🔥 ${st.streak} დღე ზედიზედ`;
+        // The flame grows with the streak: 3+ warm, 7+ on fire, 14+ blue-hot.
+        chip.classList.toggle("tier-warm", st.streak >= 3 && st.streak < 7);
+        chip.classList.toggle("tier-fire", st.streak >= 7 && st.streak < 14);
+        chip.classList.toggle("tier-blue", st.streak >= 14);
         const atRisk = st.canClaim && st.streak > 0;
         chip.classList.toggle("at-risk", atRisk);
         chip.title = atRisk ? "დღეს აიღე ბონუსი, თორემ სერია თავიდან დაიწყება" : `ხვალ: +${st.reward} მონეტა`;
@@ -3093,6 +3149,11 @@ function profileChipsHTML(p) {
         if (r.error) { showToast(`⚠️ ${r.error}`, 4500); if (typeof r.canClaim === "boolean") paintDaily(r); return; }
         paintDaily(r);
         showToast(`🎁 +${r.granted} მონეტა! 🔥 ${r.streak} დღე ზედიზედ — ხვალ +${r.reward}`, 4500);
+        // 🔓 What coming back today unlocked: pictures and profile styles.
+        (r.unlocked || []).forEach((u, i) => setTimeout(() => {
+          if (u.type === "avatar") showToast(`🔓 ${u.days} დღე ზედიზედ — ახალი სურათი გაიხსნა! 👤 პროფილი → სურათი`, 5000);
+          else showToast(`🔓 ${u.days} დღე ზედიზედ — სტილი „${window.GaicaniThemes?.get(u.id)?.label || u.id}“ გაიხსნა! 👤 პროფილი → 🎨`, 5000);
+        }, 1200 * (i + 1)));
       });
     });
     document.getElementById("dailyStreakChip")?.addEventListener("click", () => {
@@ -3208,13 +3269,16 @@ function profileChipsHTML(p) {
           : "";
         const nickHtml = `<div class="pc-nick" id="pcNick"${fi && fi.nickname ? "" : " hidden"}>შენთვის: „${esc(fi?.nickname || "")}“</div>`;
         const toolsHtml = fi ? `
-          <div class="pc-tools">
-            <button type="button" class="pc-tool${fi.pinned ? " on" : ""}" id="pcPinBtn">${fi.pinned ? "📌 მოხსნა" : "📌 მიმაგრება"}</button>
-            <button type="button" class="pc-tool" id="pcNickBtn" aria-expanded="false">✏️ მეტსახელი</button>
-          </div>
-          <div class="pc-nick-edit" id="pcNickEdit" hidden>
-            <input type="text" id="pcNickInput" maxlength="30" placeholder="მაგ: ნიკა 🏀 სკოლიდან" aria-label="მეტსახელი მხოლოდ შენთვის" />
-            <button type="button" id="pcNickSave">შენახვა</button>
+          <div class="pc-tools-box">
+            <div class="pc-tools-cap">⭐ მხოლოდ შენთვის — სხვები ამას ვერ ხედავენ</div>
+            <div class="pc-tools">
+              <button type="button" class="pc-tool pc-tool-pin${fi.pinned ? " on" : ""}" id="pcPinBtn">${fi.pinned ? "📌 მოხსნა" : "📌 მიმაგრება"}</button>
+              <button type="button" class="pc-tool pc-tool-nick" id="pcNickBtn" aria-expanded="false">✏️ მეტსახელი</button>
+            </div>
+            <div class="pc-nick-edit" id="pcNickEdit" hidden>
+              <input type="text" id="pcNickInput" maxlength="30" placeholder="მაგ: ნიკა 🏀 სკოლიდან" aria-label="მეტსახელი მხოლოდ შენთვის" />
+              <button type="button" id="pcNickSave">შენახვა</button>
+            </div>
           </div>` : "";
         const bioHtml = d.bio
           ? `<div class="profile-card-bio">${esc(d.bio)}</div>`

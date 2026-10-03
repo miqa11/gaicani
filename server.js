@@ -4667,8 +4667,20 @@ const AVAILABLE_AVATARS = [
   "avatar13.jpg", "avatar14.jpg", "avatar15.jpg", "avatar16.jpg",
   "avatar17.jpg", "avatar18.jpg", "avatar19.jpg", "avatar20.jpg",
   "avatar21.jpg", "avatar22.jpg", "avatar23.jpg", "avatar24.jpg",
+  // 🔒 rewards for coming back every day — see STREAK_AVATARS
+  "avatar25.jpg", "avatar26.jpg", "avatar27.jpg", "avatar28.jpg",
 ];
 const DEFAULT_AVATAR = AVAILABLE_AVATARS[0];
+// Pictures that unlock with your best daily-bonus streak (days in a row).
+// Once unlocked they stay yours, even if a later streak breaks.
+const STREAK_AVATARS = { "avatar25.jpg": 7, "avatar26.jpg": 10, "avatar27.jpg": 14, "avatar28.jpg": 21 };
+function bestStreak(u) {
+  const d = (u && u.daily) || {};
+  return Math.max(d.best || 0, d.streak || 0);
+}
+function avatarUnlocked(u, file) {
+  return !STREAK_AVATARS[file] || bestStreak(u) >= STREAK_AVATARS[file];
+}
 
 // A dedicated avatar specifically for temporary guest accounts — kept
 // separate from AVAILABLE_AVATARS on purpose, so it never shows up as a
@@ -5997,7 +6009,7 @@ app.post("/api/auth/register", authLimiter, express.json({ limit: "5kb" }), asyn
   if (registeredUsers.has(lc) || isRetiredName(lc))
     return res.status(409).json({ error: "ეს სახელი უკვე დაკავებულია" });
 
-  const chosenAvatar = (typeof avatar === "string" && AVAILABLE_AVATARS.includes(avatar))
+  const chosenAvatar = (typeof avatar === "string" && AVAILABLE_AVATARS.includes(avatar) && !STREAK_AVATARS[avatar])
     ? avatar
     : DEFAULT_AVATAR;
 
@@ -6059,6 +6071,9 @@ app.post("/api/auth/avatar", express.json({ limit: "1kb" }), (req, res) => {
 
   const user = registeredUsers.get(entry.usernameLower);
   if (!user) return res.status(401).json({ error: "User not found" });
+  if (!avatarUnlocked(user, avatar)) {
+    return res.status(403).json({ error: `🔒 ეს სურათი გაიხსნება, როცა ${STREAK_AVATARS[avatar]} დღე ზედიზედ შემოხვალ და აიღებ დღის ბონუსს` });
+  }
 
   user.avatar = avatar;
   saveAuthUsers();
@@ -10216,17 +10231,26 @@ function friendDetails(me) {
 // ── Profile styles (ring around your picture) ─────────────────────────────
 // Same ids as profile-themes.js. Rare ones are rewards: VIP, or a 7-day
 // daily-bonus streak (best streak ever, so missing a day later keeps it).
+// null = free; days = unlocks at that best daily-bonus streak; vip = VIP
+// accounts get it straight away too.
 const PROFILE_THEMES = {
-  default: null, cobalt: null, emerald: null, ruby: null, amethyst: null, sunset: null, ocean: null,
-  fire: "streak7", gold: "vip", diamond: "vip",
+  default: null, cobalt: null, emerald: null, ruby: null, amethyst: null,
+  sunset: { days: 3 }, ocean: { days: 5 }, fire: { days: 7 },
+  gold: { days: 14, vip: true }, diamond: { days: 30, vip: true },
 };
 const isThemeId = (id) => Object.prototype.hasOwnProperty.call(PROFILE_THEMES, id);
 function themeUnlocked(u, id) {
   if (!isThemeId(id)) return false;
   const lock = PROFILE_THEMES[id];
-  if (lock === "vip") return !!u.isPro;
-  if (lock === "streak7") return ((u.daily && u.daily.best) || 0) >= 7;
-  return true;
+  if (!lock) return true;
+  return bestStreak(u) >= lock.days || (lock.vip && !!u.isPro);
+}
+// What a claim pushing the best streak from `before` to `after` just unlocked.
+function streakUnlocks(before, after) {
+  const out = [];
+  for (const [file, days] of Object.entries(STREAK_AVATARS)) if (before < days && after >= days) out.push({ type: "avatar", file, days });
+  for (const [id, lock] of Object.entries(PROFILE_THEMES)) if (lock && before < lock.days && after >= lock.days) out.push({ type: "theme", id, days: lock.days });
+  return out;
 }
 // What others see: a VIP style stops showing if VIP ends.
 function effectiveTheme(u) {
@@ -10249,7 +10273,7 @@ function dailyState(u) {
   const streak = alive ? (d.streak || 0) : 0;            // current streak (0 if broken)
   // reward = today's (if not claimed yet) or tomorrow's (if already claimed)
   return {
-    canClaim: !claimedToday, streak, claimedToday,
+    canClaim: !claimedToday, streak, claimedToday, best: bestStreak(u),
     reward: DAILY_REWARDS[Math.min(streak + 1, DAILY_REWARDS.length) - 1],
   };
 }
@@ -10551,10 +10575,13 @@ io.on("connection", (socket) => {
     if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return ack({ error: "ჯერ დაასრულე მიმდინარე თამაში (პოკერი/ბლექჯეკი), მერე აიღე ბონუსი" });
     ensurePokerCoins(me); bjEnsureCoins(me);
     me.pokerCoins += st.reward; me.bjCoins += st.reward;
-    me.daily = { last: georgiaDay(), streak: st.streak + 1, best: Math.max((me.daily && me.daily.best) || 0, st.streak + 1) };
+    const bestBefore = bestStreak(me);
+    me.daily = { last: georgiaDay(), streak: st.streak + 1, best: Math.max(bestBefore, st.streak + 1) };
     saveAuthUsers();
-    // granted = what you just got; reward = tomorrow's (from dailyState)
-    ack({ ...dailyState(me), ok: true, granted: st.reward, streak: me.daily.streak, pokerCoins: me.pokerCoins, bjCoins: me.bjCoins });
+    // granted = what you just got; reward = tomorrow's (from dailyState);
+    // unlocked = pictures / profile styles this streak just opened
+    ack({ ...dailyState(me), ok: true, granted: st.reward, streak: me.daily.streak, pokerCoins: me.pokerCoins, bjCoins: me.bjCoins,
+      unlocked: streakUnlocks(bestBefore, me.daily.best) });
   });
 
   // ── Profile style ───────────────────────────────────────────────────────
@@ -10564,7 +10591,8 @@ io.on("connection", (socket) => {
     ack({
       current: effectiveTheme(me) || "default",
       unlocked: Object.keys(PROFILE_THEMES).filter((id) => themeUnlocked(me, id)),
-      bestStreak: (me.daily && me.daily.best) || 0,
+      bestStreak: bestStreak(me),
+      avatarLocks: STREAK_AVATARS,
     });
   });
   socket.on("profile:setTheme", (data, ack) => {
@@ -10573,7 +10601,7 @@ io.on("connection", (socket) => {
     if (mediaRateLimited(socket, "profileTheme", 20, 60_000)) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან" });
     const id = String((data && data.theme) || "");
     if (!isThemeId(id)) return reply({ error: "ასეთი სტილი არ არსებობს" });
-    if (!themeUnlocked(me, id)) return reply({ error: PROFILE_THEMES[id] === "vip" ? "ეს სტილი მხოლოდ VIP-ისთვისაა" : "ჯერ 7 დღე ზედიზედ აიღე დღის ბონუსი" });
+    if (!themeUnlocked(me, id)) return reply({ error: `🔒 გაიხსნება, როცა ${PROFILE_THEMES[id].days} დღე ზედიზედ აიღებ დღის ბონუსს` });
     me.profileTheme = id === "default" ? null : id;
     saveAuthUsers();
     for (const f of [socket._regUser.usernameLower, ...(me.friends || [])]) io.to(`user:${f}`).emit("friends:changed");
