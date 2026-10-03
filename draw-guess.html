@@ -185,12 +185,17 @@
       margin: 0 auto; width: 100%; max-width: 520px; padding: 0 12px;
     }
     #dgCanvas {
-      width: 100%; height: auto; aspect-ratio: 4 / 3;
+      /* As wide as the screen, but never so tall that the guess box below
+         gets pushed off (e.g. while the phone keyboard is open). */
+      width: min(100%, calc((var(--app-height, 100dvh) - 225px) * 4 / 3));
+      min-width: 120px; margin: 0 auto;
+      height: auto; aspect-ratio: 4 / 3;
       background: #f5f5f7; border-radius: 12px; display: block;
       touch-action: none; box-shadow: 0 4px 18px rgba(0,0,0,0.35);
     }
     .dg-overlay {
-      position: absolute; inset: 0 12px; border-radius: 12px;
+      /* Grows past a small canvas instead of cutting its buttons off. */
+      position: absolute; inset: 0 12px auto; min-height: 100%; z-index: 5; border-radius: 12px;
       background: rgba(23,24,29,0.92); display: flex; align-items: center; justify-content: center; padding: 16px;
     }
     .dg-overlay-card { text-align: center; width: 100%; }
@@ -199,7 +204,12 @@
     .dg-word-choice-buttons { display: flex; flex-direction: column; gap: 8px; }
     .dg-word-choice-btn {
       background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
-      border-radius: 10px; padding: 12px; font-size: 1em; font-weight: 700; cursor: pointer;
+      border-radius: 10px; padding: 11px; font-size: 1em; font-weight: 700; cursor: pointer;
+    }
+    @media (max-height: 640px) {
+      .dg-overlay { padding: 10px; }
+      .dg-overlay-title { margin-bottom: 8px; font-size: 1.05em; }
+      .dg-word-choice-btn { padding: 9px; }
     }
     .dg-word-choice-btn:active { background: var(--accent); }
 
@@ -264,7 +274,9 @@
        scores / chat / guess box on the right. Stacked, the canvas alone was
        taller than the screen and pushed the tools and the guess box off the
        bottom — guessing was impossible. ── */
-    @media (orientation: landscape) and (max-height: 500px) {
+    /* min-aspect-ratio: a phone held upright with its keyboard open is also
+       "wider than tall and short" — it must keep the normal layout. */
+    @media (orientation: landscape) and (max-height: 500px) and (min-aspect-ratio: 3/2) {
       #playScreen.visible {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr);
@@ -276,11 +288,11 @@
         width: auto; max-width: none; padding: 6px 0 8px 10px;
       }
       #dgCanvas {
-        width: auto;
+        width: auto; min-width: 0;
         height: calc(100vh - 66px);
         height: calc(var(--app-height, 100dvh) - 66px - var(--safe-bottom));
       }
-      #playScreen .dg-overlay { inset: 6px 0 8px 10px; }
+      #playScreen .dg-overlay { inset: 6px 0 auto 10px; }
       #playScreen > .dg-word-hint  { grid-column: 2; grid-row: 2; }
       #playScreen > .dg-tools      { grid-column: 2; grid-row: 3; flex-wrap: wrap; }
       #playScreen > .dg-scoreboard { grid-column: 2; grid-row: 4; }
@@ -428,7 +440,7 @@
     <div class="dg-scoreboard" id="scoreboard"></div>
     <div class="dg-chat" id="dgChat"></div>
 
-    <div class="dg-guess-hint" id="dgGuessHint">✍️ დაწერე ვარაუდი ქართული კლავიატურით</div>
+    <div class="dg-guess-hint" id="dgGuessHint" style="display:none">✍️ დაწერე ვარაუდი ქართული კლავიატურით</div>
     <div class="dg-guess-bar" id="guessBar" style="display:none">
       <input id="guessInput" placeholder="დაწერე შენი ვარაუდი..." maxlength="60" autocomplete="off" />
       <button id="guessSend">გაგზავნა</button>
@@ -1058,6 +1070,11 @@
 
     socket.on("drawGuess:chooseWord", ({ choices }) => {
       showScreen("play");
+      // You're the drawer now: no guess box, and close the keyboard if it
+      // was still open from guessing last round.
+      $("guessBar").style.display = "none";
+      $("dgGuessHint").style.display = "none";
+      $("guessInput").blur();
       $("roundEndOverlay").style.display = "none";
       $("wordChoiceOverlay").style.display = "flex";
       $("wordChoiceButtons").innerHTML = choices.map(w => `<button class="dg-word-choice-btn" data-w="${esc(w)}">${esc(w)}</button>`).join("");
