@@ -601,6 +601,10 @@ html, body {
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
 }
+.rp-item { display: flex; gap: 8px; text-align: left; margin: 0 0 8px; line-height: 1.45; }
+.rp-ico { flex-shrink: 0; width: 1.4em; text-align: center; }
+.rp-hr { border: none; border-top: 1px solid rgba(255,255,255,.15); margin: 10px 0; }
+.rp-cta { margin: 6px 0; }
 .register-promo-card:hover  { background: linear-gradient(135deg, rgba(88,101,242,0.28) 0%, rgba(88,101,242,0.1) 100%); }
 .register-promo-card:active { transform: scale(0.98); }
 
