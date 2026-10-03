@@ -85,7 +85,11 @@ button, input, select, textarea { font-family:inherit; }
 .photo-row small { color:var(--muted); line-height:1.45; }
 .photo-row a { color:var(--gold); }
 label.f { display:block; font-size:.82em; color:var(--muted); margin:10px 0 5px; }
-label.f .req { color:var(--rose); }
+label.f .req, h2 .req, .req-note .req { color:var(--rose); }
+.req-note { color:var(--muted); font-size:.82em; line-height:1.45; margin:0 2px 12px; }
+.req-note.warn { color:#ffd27a; background:rgba(240,185,58,.1); border:1px solid rgba(240,185,58,.4); border-radius:12px; padding:10px 12px; }
+.missing, .missing:focus, .missing:focus-visible { outline:2px solid #ff5d7a !important; outline-offset:3px; border-radius:12px; }
+.in.missing { border-color:#ff5d7a !important; }
 .in { width:100%; padding:12px 13px; border-radius:12px; border:1px solid rgba(214,168,79,.22); background:var(--field); color:var(--text); font-size:16px; }
 .in:focus { outline:none; border-color:rgba(244,217,143,.6); box-shadow:0 0 0 3px rgba(214,168,79,.14); }
 textarea.in { min-height:84px; resize:vertical; line-height:1.5; }
@@ -148,7 +152,7 @@ select.in { appearance:none; -webkit-appearance:none; }
 </header>
 <nav class="tabs" id="tabs" hidden>
   <button data-tab="deck" class="on"><span class="ti">🔍</span>აღმოაჩინე</button>
-  <button data-tab="likes"><span class="ti">💗<span class="count" id="likesCount" hidden>0</span></span>მოგწონს</button>
+  <button data-tab="likes"><span class="ti">💗<span class="count" id="likesCount" hidden>0</span></span>მოგიწონეს</button>
   <button data-tab="matches"><span class="ti">💬</span>მატჩები</button>
   <button data-tab="profile"><span class="ti">👤</span>პროფილი</button>
 </nav>
@@ -168,6 +172,7 @@ select.in { appearance:none; -webkit-appearance:none; }
       <p>შეავსე პროფილი, მოიწონე ადამიანები და როცა მოწონება ორმხრივია — ეს მატჩია: ხდებით მეგობრები და შეგიძლიათ პირადად მიწეროთ ერთმანეთს.</p>
     </div>
     <form id="tForm" novalidate>
+      <div class="req-note" id="reqNote"><span class="req">*</span> ყველა ველი სავალდებულოა — სრული პროფილი უკეთეს მატჩებს ნიშნავს.</div>
       <div class="block">
         <h2>ფოტო</h2>
         <div class="photo-row"><img id="fPhoto" alt=""><small>ფოტოდ შენი პროფილის სურათი გამოიყენება. შეცვლა შეგიძლია <a href="/dashboard.html">დეშბორდზე</a>.</small></div>
@@ -178,7 +183,7 @@ select.in { appearance:none; -webkit-appearance:none; }
         <input class="in" id="fName" maxlength="20" autocomplete="given-name" placeholder="მაგ. ნინო">
         <div class="row2">
           <div><label class="f" for="fAge">ასაკი <span class="req">*</span></label><input class="in" id="fAge" type="number" inputmode="numeric" min="18" max="99" placeholder="18+"></div>
-          <div><label class="f" for="fHeight">სიმაღლე (სმ)</label><input class="in" id="fHeight" type="number" inputmode="numeric" min="140" max="220" placeholder="მაგ. 175"></div>
+          <div><label class="f" for="fHeight">სიმაღლე (სმ) <span class="req">*</span></label><input class="in" id="fHeight" type="number" inputmode="numeric" min="140" max="220" placeholder="მაგ. 175"></div>
         </div>
         <label class="f">სქესი <span class="req">*</span></label>
         <div class="seg" data-one="gender"><button type="button" class="opt" data-v="male">👨 კაცი</button><button type="button" class="opt" data-v="female">👩 ქალი</button></div>
@@ -187,38 +192,39 @@ select.in { appearance:none; -webkit-appearance:none; }
       </div>
       <div class="block">
         <h2>დეტალები</h2>
-        <label class="f" for="fCity">სად ცხოვრობ</label>
+        <label class="f" for="fCity">სად ცხოვრობ <span class="req">*</span></label>
         <input class="in" id="fCity" list="cities" maxlength="40" placeholder="მაგ. თბილისი">
         <datalist id="cities"><option value="თბილისი"><option value="ბათუმი"><option value="ქუთაისი"><option value="რუსთავი"><option value="გორი"><option value="ზუგდიდი"><option value="ფოთი"><option value="ქობულეთი"><option value="ხაშური"><option value="სამტრედია"><option value="სენაკი"><option value="ზესტაფონი"><option value="მარნეული"><option value="თელავი"><option value="ახალციხე"><option value="ოზურგეთი"><option value="ბორჯომი"><option value="მცხეთა"><option value="სიღნაღი"><option value="საზღვარგარეთ"></datalist>
         <div class="row2">
-          <div><label class="f" for="fJob">სამსახური</label><input class="in" id="fJob" maxlength="40" placeholder="მაგ. დიზაინერი"></div>
-          <div><label class="f" for="fUni">უნივერსიტეტი</label><input class="in" id="fUni" maxlength="60" placeholder="მაგ. თსუ"></div>
+          <div><label class="f" for="fJob">სამსახური <span class="req">*</span></label><input class="in" id="fJob" maxlength="40" placeholder="მაგ. დიზაინერი"></div>
+          <div><label class="f" for="fUni">უნივერსიტეტი <span class="req">*</span></label><input class="in" id="fUni" maxlength="60" placeholder="მაგ. თსუ"></div>
         </div>
-        <label class="f" for="fZodiac">ზოდიაქო</label>
+        <div class="hint">თუ არ მუშაობ ან არ სწავლობ, დაწერე „არა“.</div>
+        <label class="f" for="fZodiac">ზოდიაქო <span class="req">*</span></label>
         <select class="in" id="fZodiac"></select>
-        <label class="f">რას ეძებ</label>
+        <label class="f">რას ეძებ <span class="req">*</span></label>
         <div class="seg" data-one="lookingFor" id="segLooking"></div>
       </div>
       <div class="block">
-        <h2>ჩემ შესახებ</h2>
+        <h2>ჩემ შესახებ <span class="req">*</span></h2>
         <textarea class="in" id="fAbout" maxlength="300" placeholder="რამდენიმე სიტყვა შენზე — რა გიყვარს, რით ერთობი…"></textarea>
-        <div class="counter"><span id="aboutN">0</span>/300</div>
+        <div class="counter">მინიმუმ 10 · <span id="aboutN">0</span>/300</div>
       </div>
       <div class="block">
-        <h2>მუსიკა</h2>
+        <h2>მუსიკა <span class="req">*</span></h2>
         <div class="seg" data-many="music" data-max="6" id="segMusic"></div>
-        <div class="hint">აირჩიე 6-მდე</div>
+        <div class="hint">აირჩიე 1-დან 6-მდე</div>
       </div>
       <div class="block">
-        <h2>ჰობი და ინტერესები</h2>
+        <h2>ჰობი და ინტერესები <span class="req">*</span></h2>
         <div class="seg" data-many="hobbies" data-max="8" id="segHobbies"></div>
-        <div class="hint">აირჩიე 8-მდე</div>
+        <div class="hint">აირჩიე 1-დან 8-მდე</div>
       </div>
       <div class="block">
         <h2>ცხოვრების წესი</h2>
-        <label class="f">მოწევა</label><div class="seg" data-one="smoking" id="segSmoking"></div>
-        <label class="f">ალკოჰოლი</label><div class="seg" data-one="drinking" id="segDrinking"></div>
-        <label class="f">შინაური ცხოველი</label><div class="seg" data-one="pets" id="segPets"></div>
+        <label class="f">მოწევა <span class="req">*</span></label><div class="seg" data-one="smoking" id="segSmoking"></div>
+        <label class="f">ალკოჰოლი <span class="req">*</span></label><div class="seg" data-one="drinking" id="segDrinking"></div>
+        <label class="f">შინაური ცხოველი <span class="req">*</span></label><div class="seg" data-one="pets" id="segPets"></div>
       </div>
       <label class="confirm" id="ageConfirmRow"><input type="checkbox" id="fAdult"><span>ვადასტურებ, რომ 18 წლის ან მეტის ვარ</span></label>
       <div class="err" id="fErr" role="alert"></div>
@@ -340,6 +346,7 @@ select.in { appearance:none; -webkit-appearance:none; }
   document.querySelectorAll("#tabs button").forEach(function (b) { b.addEventListener("click", function () { openTab(b.dataset.tab); }); });
   function openTab(tab) {
     document.querySelectorAll("#tabs button").forEach(function (b) { b.classList.toggle("on", b.dataset.tab === tab); });
+    if (tab === "deck" && state && state.joined && state.complete === false) { openForm(true); return; }
     if (tab === "deck") { show("vDeck"); if (!queue.length) loadDeck(); else renderDeck(); }
     if (tab === "likes") { show("vLikes"); loadLikes(); }
     if (tab === "matches") { show("vMatches"); renderMatches(); }
@@ -387,23 +394,62 @@ select.in { appearance:none; -webkit-appearance:none; }
     $("fAdult").checked = !!editing; $("ageConfirmRow").hidden = !!editing;
     $("fSubmit").textContent = editing ? "შენახვა" : "Trinder-ზე შესვლა";
     $("fLeave").hidden = !editing; $("fErr").textContent = "";
+    var incomplete = !!(editing && state && state.complete === false);
+    $("reqNote").classList.toggle("warn", incomplete);
+    $("reqNote").innerHTML = incomplete
+      ? '<span class="req">*</span> Trinder-ზე ყველა ველი სავალდებულო გახდა — შეავსე დარჩენილი, რომ აღმოჩენა განაგრძო.'
+      : '<span class="req">*</span> ყველა ველი სავალდებულოა — სრული პროფილი უკეთეს მატჩებს ნიშნავს.';
+    document.querySelectorAll(".missing").forEach(function (x) { x.classList.remove("missing"); });
     show("vForm");
     if (editing) document.querySelectorAll("#tabs button").forEach(function (b) { b.classList.toggle("on", b.dataset.tab === "profile"); });
     window.scrollTo(0, 0);
   }
+  // Every field is required — same list and order as the server's check, so
+  // the message always names the first thing still missing, and that field is
+  // outlined and scrolled into view (the message itself is at the very bottom).
+  function firstMissing(p) {
+    if (p.name.length < 2) return ["#fName", "შეიყვანე სახელი"];
+    if (!p.age) return ["#fAge", "შეიყვანე ასაკი"];
+    if (p.age < 18) return ["#fAge", "Trinder მხოლოდ 18+ მომხმარებლებისთვისაა"];
+    if (!p.height || p.height < 140 || p.height > 220) return ["#fHeight", "შეიყვანე სიმაღლე (140–220 სმ)"];
+    if (!p.gender) return ['[data-one="gender"]', "აირჩიე სქესი"];
+    if (!p.interestedIn) return ['[data-one="interestedIn"]', "აირჩიე, ვინ გაინტერესებს"];
+    if (!p.city) return ["#fCity", "მიუთითე, სად ცხოვრობ"];
+    if (!p.job) return ["#fJob", "მიუთითე სამსახური (თუ არ მუშაობ, დაწერე „არა“)"];
+    if (!p.university) return ["#fUni", "მიუთითე უნივერსიტეტი (თუ არ სწავლობ, დაწერე „არა“)"];
+    if (!p.zodiac) return ["#fZodiac", "აირჩიე ზოდიაქო"];
+    if (!p.lookingFor) return ['[data-one="lookingFor"]', "აირჩიე, რას ეძებ"];
+    if (p.about.length < 10) return ["#fAbout", "„ჩემ შესახებ“ — დაწერე მინიმუმ 10 სიმბოლო"];
+    if (!p.music.length) return ['[data-many="music"]', "აირჩიე მინიმუმ ერთი მუსიკის ჟანრი"];
+    if (!p.hobbies.length) return ['[data-many="hobbies"]', "აირჩიე მინიმუმ ერთი ჰობი"];
+    if (!p.smoking) return ['[data-one="smoking"]', "მიუთითე, ეწევი თუ არა"];
+    if (!p.drinking) return ['[data-one="drinking"]', "მიუთითე, სვამ თუ არა ალკოჰოლს"];
+    if (!p.pets) return ['[data-one="pets"]', "მიუთითე შინაური ცხოველი (ან „არ მყავს“)"];
+    return null;
+  }
+  function markMissing(sel) {
+    document.querySelectorAll(".missing").forEach(function (x) { x.classList.remove("missing"); });
+    var target = document.querySelector(sel);
+    if (!target) return;
+    var box = sel === "#fAdult" ? $("ageConfirmRow") : target;
+    box.classList.add("missing");
+    box.scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "center" });
+    if (target.focus && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) target.focus({ preventScroll: true });
+  }
+  // Fixing a field clears its outline.
+  $("tForm").addEventListener("input", function (e) { var m = e.target.closest(".missing"); if (m) m.classList.remove("missing"); });
+  $("tForm").addEventListener("click", function (e) { var m = e.target.closest(".missing"); if (m && e.target.closest(".opt, input")) m.classList.remove("missing"); });
+
   $("tForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var err = $("fErr"); err.textContent = "";
     var age = Number($("fAge").value);
-    if ($("fName").value.trim().length < 2) { err.textContent = "შეიყვანე სახელი"; return; }
-    if (!age) { err.textContent = "შეიყვანე ასაკი"; return; }
-    if (age < 18) { err.textContent = "Trinder მხოლოდ 18+ მომხმარებლებისთვისაა"; return; }
-    if (!getOne("gender")) { err.textContent = "აირჩიე სქესი"; return; }
-    if (!getOne("interestedIn")) { err.textContent = "აირჩიე, ვინ გაინტერესებს"; return; }
-    if (!$("fAdult").checked) { err.textContent = "დაადასტურე, რომ 18 წლის ან მეტის ხარ"; return; }
     var profile = { name: $("fName").value.trim(), age: age, height: Number($("fHeight").value) || null, gender: getOne("gender"), interestedIn: getOne("interestedIn"),
       city: $("fCity").value.trim(), job: $("fJob").value.trim(), university: $("fUni").value.trim(), zodiac: $("fZodiac").value, lookingFor: getOne("lookingFor"),
       about: $("fAbout").value.trim(), music: getMany("music"), hobbies: getMany("hobbies"), smoking: getOne("smoking"), drinking: getOne("drinking"), pets: getOne("pets") };
+    var miss = firstMissing(profile);
+    if (!miss && !$("fAdult").checked) miss = ["#fAdult", "დაადასტურე, რომ 18 წლის ან მეტის ხარ"];
+    if (miss) { err.textContent = miss[1]; markMissing(miss[0]); return; }
     var wasJoined = state && state.joined;
     $("fSubmit").disabled = true;
     call("trinder:join", { profile: profile }).then(function (st) {

@@ -4924,6 +4924,7 @@ const TRINDER_OPTS = {
   hobbies: ["sport", "football", "travel", "movies", "books", "gaming", "cooking", "photography", "dance", "hiking", "art", "tech", "fashion", "animals", "fitness", "music"],
   smoking: ["no", "sometimes", "yes"], drinking: ["no", "social", "yes"], pets: ["dog", "cat", "other", "none"],
 };
+const TRINDER_ABOUT_MIN = 10;
 function sanitizeTrinderProfile(src) {
   src = (src && typeof src === "object") ? src : {};
   const text = (v, max) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, max) : "");
@@ -4938,17 +4939,51 @@ function sanitizeTrinderProfile(src) {
   if (age < 18) return { error: "Trinder მხოლოდ 18+ მომხმარებლებისთვისაა" };
   if (age > 99) return { error: "ასაკი: 18–99" };
   p.age = age;
+  // Every field is required, so every card in the deck is a full profile.
+  // Checked in the same order as the form, so the message always points at
+  // the first thing still missing.
+  const h = Number(src.height);
+  if (!Number.isInteger(h) || h < 140 || h > 220) return { error: "შეიყვანე სიმაღლე (140–220 სმ)" };
+  p.height = h;
   p.gender = one(src.gender, TRINDER_OPTS.gender);
   if (!p.gender) return { error: "აირჩიე სქესი" };
   p.interestedIn = one(src.interestedIn, TRINDER_OPTS.interestedIn);
   if (!p.interestedIn) return { error: "აირჩიე, ვინ გაინტერესებს" };
-  p.city = text(src.city, 40); p.job = text(src.job, 40); p.university = text(src.university, 60); p.about = text(src.about, 300);
-  const h = Number(src.height); p.height = Number.isInteger(h) && h >= 140 && h <= 220 ? h : null;
-  for (const k of ["zodiac", "lookingFor", "smoking", "drinking", "pets"]) p[k] = one(src[k], TRINDER_OPTS[k]);
+  p.city = text(src.city, 40);
+  if (!p.city) return { error: "მიუთითე, სად ცხოვრობ" };
+  p.job = text(src.job, 40);
+  if (!p.job) return { error: "მიუთითე სამსახური (თუ არ მუშაობ, დაწერე „არა“)" };
+  p.university = text(src.university, 60);
+  if (!p.university) return { error: "მიუთითე უნივერსიტეტი (თუ არ სწავლობ, დაწერე „არა“)" };
+  p.zodiac = one(src.zodiac, TRINDER_OPTS.zodiac);
+  if (!p.zodiac) return { error: "აირჩიე ზოდიაქო" };
+  p.lookingFor = one(src.lookingFor, TRINDER_OPTS.lookingFor);
+  if (!p.lookingFor) return { error: "აირჩიე, რას ეძებ" };
+  p.about = text(src.about, 300);
+  if (p.about.length < TRINDER_ABOUT_MIN) return { error: `„ჩემ შესახებ“ — დაწერე მინიმუმ ${TRINDER_ABOUT_MIN} სიმბოლო` };
   p.music = many(src.music, TRINDER_OPTS.music, 6);
+  if (!p.music.length) return { error: "აირჩიე მინიმუმ ერთი მუსიკის ჟანრი" };
   p.hobbies = many(src.hobbies, TRINDER_OPTS.hobbies, 8);
+  if (!p.hobbies.length) return { error: "აირჩიე მინიმუმ ერთი ჰობი" };
+  p.smoking = one(src.smoking, TRINDER_OPTS.smoking);
+  if (!p.smoking) return { error: "მიუთითე, ეწევი თუ არა" };
+  p.drinking = one(src.drinking, TRINDER_OPTS.drinking);
+  if (!p.drinking) return { error: "მიუთითე, სვამ თუ არა ალკოჰოლს" };
+  p.pets = one(src.pets, TRINDER_OPTS.pets);
+  if (!p.pets) return { error: "მიუთითე შინაური ცხოველი (ან „არ მყავს“)" };
   for (const k of ["name", "city", "job", "university", "about"]) if (p[k] && findBannedWord(p[k])) return { error: ABUSE_WORD_MESSAGE };
   return { profile: p };
+}
+// A profile saved before every field was required — its owner is asked to
+// finish it the next time they open Trinder.
+function trinderProfileComplete(profile) { return !!profile && !sanitizeTrinderProfile(profile).error; }
+// Both people fit each other's "interested in". The deck only ever offered
+// such pairs, but likes and matches didn't check: after someone changed their
+// preference (or with a hand-made request) "someone likes you" could come
+// from exactly the people you'd said you're not interested in.
+function trinderCompatible(a, b) {
+  const pa = a && a.trinder && a.trinder.profile, pb = b && b.trinder && b.trinder.profile;
+  return !!(pa && pb && trinderWants(pa.interestedIn, pb.gender) && trinderWants(pb.interestedIn, pa.gender));
 }
 function trinderOf(u) {
   if (!u.trinder) u.trinder = { active: false, profile: null, likes: [], passes: [], matches: [] };
@@ -4970,6 +5005,7 @@ function trinderPendingLikers(meLc, me) {
     if (!(u.trinder.likes || []).includes(meLc)) continue;
     if (mt.likes.includes(lc) || mt.passes.includes(lc) || mt.matches.includes(lc)) continue;
     if (trinderBlocked(me, meLc, u, lc)) continue;
+    if (!trinderCompatible(me, u)) continue;
     out.push([lc, u]);
   }
   return out;
@@ -4977,10 +5013,13 @@ function trinderPendingLikers(meLc, me) {
 function trinderWants(pref, gender) { return pref === "everyone" || (pref === "men" && gender === "male") || (pref === "women" && gender === "female"); }
 function trinderState(meLc, me) {
   const t = trinderOf(me);
-  const matches = t.matches.map(lc => [lc, registeredUsers.get(lc)]).filter(([, u]) => u && !u.isGuest)
+  // A match is a friendship: once either side unfriends or blocks, it's over
+  // (its 💬 button would only lead to a chat that refuses them).
+  const matches = t.matches.map(lc => [lc, registeredUsers.get(lc)])
+    .filter(([lc, u]) => u && !u.isGuest && (me.friends || []).includes(lc) && !trinderBlocked(me, meLc, u, lc))
     .map(([lc, u]) => ({ username: u.username, name: (u.trinder && u.trinder.profile && u.trinder.profile.name) || u.username, avatar: u.avatar || DEFAULT_AVATAR, online: isVisiblyOnline(lc) }));
   const pr = me.profile || {};
-  return { joined: !!t.active, profile: t.profile, avatar: me.avatar || DEFAULT_AVATAR, isPro: !!me.isPro,
+  return { joined: !!t.active, complete: trinderProfileComplete(t.profile), profile: t.profile, avatar: me.avatar || DEFAULT_AVATAR, isPro: !!me.isPro,
     likesCount: trinderPendingLikers(meLc, me).length, matches,
     prefill: { age: pr.age || null, gender: pr.gender || "", city: pr.city || "", job: pr.work || "", university: pr.study || "" } };
 }
@@ -10409,7 +10448,7 @@ io.on("connection", (socket) => {
       if (lc === meLc || u.isGuest || u.nameBlocked || !u.trinder || !u.trinder.active || !u.trinder.profile || seen.has(lc)) continue;
       if (trinderBlocked(me, meLc, u, lc)) continue;
       const p = u.trinder.profile;
-      if (!trinderWants(mine.interestedIn, p.gender) || !trinderWants(p.interestedIn, mine.gender)) continue;
+      if (!trinderCompatible(me, u)) continue;
       // same city first, then people online, then the rest — shuffled within each group
       const score = (mine.city && p.city && mine.city.toLowerCase() === p.city.toLowerCase() ? 2 : 0) + (isVisiblyOnline(lc) ? 1 : 0) + Math.random();
       pool.push([score, lc, u]);
@@ -10427,6 +10466,7 @@ io.on("connection", (socket) => {
     const them = registeredUsers.get(tLc);
     if (!them || tLc === meLc || them.isGuest || !them.trinder || !them.trinder.active) return ack({ error: "ეს პროფილი აღარ არსებობს" });
     const action = data && data.action === "like" ? "like" : "pass";
+    if (action === "like" && !trinderCompatible(me, them)) return ack({ error: "ეს პროფილი შენს არჩევანს აღარ შეესაბამება" });
     const likedBefore = t.likes.includes(tLc);
     t.likes = t.likes.filter(x => x !== tLc); t.passes = t.passes.filter(x => x !== tLc);
     if (action === "pass" || trinderBlocked(me, meLc, them, tLc)) {
