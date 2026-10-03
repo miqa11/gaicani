@@ -1167,6 +1167,38 @@ body:not(.guest-mode) .user-avatar::after {
   font-size: 12px; background: #2b2454; box-shadow: 0 0 0 2px var(--gold), 0 4px 10px rgba(0,0,0,.4);
 }
 body.guest-mode .profile-actions { display: none; }
+/* ── Dashboard screens: home / 👤 profile / 🎮 games ─────────────────────── */
+.page[data-current="home"]    > [data-view]:not([data-view~="home"]),
+.page[data-current="profile"] > [data-view]:not([data-view~="profile"]),
+.page[data-current="games"]   > [data-view]:not([data-view~="games"]) { display: none !important; }
+.view-head { display: flex; align-items: center; gap: 12px; margin: -4px 0 16px; }
+.view-back {
+  width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center;
+  cursor: pointer; font: inherit; font-size: 1.15em; color: var(--text);
+  background: rgba(255,255,255,.07); border: 1px solid var(--border-2);
+}
+.view-back:hover { background: rgba(255,255,255,.13); }
+.view-back:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.view-title { margin: 0; font-size: 1.35em; font-weight: 900; font-stretch: 80%; color: var(--gold-lt); }
+.nav-card--profile { background: radial-gradient(120% 100% at 0% 0%,rgba(255,255,255,.16),transparent 50%) padding-box, linear-gradient(160deg,#a36bff,#5b2bb8) padding-box, var(--cloison) border-box; }
+.nav-card--games   { background: radial-gradient(120% 100% at 0% 0%,rgba(255,255,255,.16),transparent 50%) padding-box, linear-gradient(160deg,#20c997,#0b7a5c) padding-box, var(--cloison) border-box; }
+.nav-card-live {
+  position: absolute; top: 10px; right: 10px; padding: 2px 8px; border-radius: 999px;
+  background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.28); font-size: .7em; font-weight: 800;
+}
+.nav-card-live[hidden] { display: none; }
+.live-heading { margin-top: 20px; }
+.live-empty { color: var(--muted); font-size: .84em; line-height: 1.5; text-align: center; padding: 12px 12px 4px; }
+.top-bar-username { cursor: pointer; }
+.dash-footer { margin-top: 20px; text-align: center; }
+.dash-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 10px; }
+.dash-footer-link {
+  padding: 9px 15px; border-radius: 999px; text-decoration: none; font-weight: 700; font-size: .82em;
+  color: var(--text); background: rgba(255,255,255,.06); border: 1px solid var(--border-2);
+}
+.dash-footer-link:hover { background: rgba(255,255,255,.11); }
+.dash-footer-donate { color: #e9d5ff; background: rgba(157,92,255,.16); border-color: rgba(157,92,255,.45); }
+
 @media (prefers-reduced-motion: reduce) {
   .pa-panel { animation: none; }
   .pa-chev { transition: none; }
@@ -1211,10 +1243,23 @@ body.guest-mode .profile-actions { display: none; }
     <a href="/" class="btn-go-home">← ჩატზე დაბრუნება</a>
   </div>
 
-  <div class="page" id="main-page" style="display:none">
+  <div class="page" id="main-page" style="display:none" data-current="home">
+
+    <!-- The dashboard is three screens: home, 👤 profile and 🎮 games. Every
+         section below says which screen(s) it belongs to (data-view); only the
+         current screen's sections show. Nothing is rebuilt when switching, so
+         all the existing scripts keep working on the same elements. -->
+    <div class="view-head" data-view="profile">
+      <button type="button" class="view-back" data-view-back aria-label="უკან">←</button>
+      <h1 class="view-title">👤 პროფილი</h1>
+    </div>
+    <div class="view-head" data-view="games">
+      <button type="button" class="view-back" data-view-back aria-label="უკან">←</button>
+      <h1 class="view-title">🎮 თამაშები</h1>
+    </div>
 
     <!-- User Card -->
-    <div class="user-card">
+    <div class="user-card" data-view="home profile">
       <div class="user-avatar" id="userAvatar">?</div>
       <div class="user-info">
         <div class="user-name" id="userName">—</div>
@@ -1227,7 +1272,7 @@ body.guest-mode .profile-actions { display: none; }
     <!-- Edit-your-profile rows. Each one says what it opens: ▾ rows unfold
          their editor right underneath (▴ when open, tap again or "დახურვა"
          to fold it), the › row opens a window. Registered accounts only. -->
-    <div class="profile-actions" id="profileActions">
+    <div class="profile-actions" id="profileActions" data-view="profile">
       <div class="pa-label">✏️ პროფილის რედაქტირება</div>
 
       <button class="pa-row" id="changeAvatarBtn" type="button" aria-expanded="false" aria-controls="avatarPickerSection">
@@ -1281,7 +1326,7 @@ body.guest-mode .profile-actions { display: none; }
 
     <!-- Guest-mode banner: shown instead of Friends/Pending/Blocked, explains
          what registering unlocks. Hidden entirely for real accounts. -->
-    <div class="section" id="guestBanner" style="display:none">
+    <div class="section" id="guestBanner" style="display:none" data-view="home">
       <div style="background:linear-gradient(135deg,#5865f2,#4752c4);border-radius:12px;padding:16px;">
         <div style="font-weight:800;font-size:1.02em;margin-bottom:6px;">✨ სტუმრის რეჟიმში ხარ</div>
         <div style="font-size:0.86em;line-height:1.6;opacity:0.95;margin-bottom:12px;">
@@ -1305,7 +1350,7 @@ body.guest-mode .profile-actions { display: none; }
 
     <!-- Notification settings — turn chat-time invite notifications back on
          after having muted them from the invite bar's "🔕" link -->
-    <div class="section">
+    <div class="section" id="chatNotifSection" data-view="profile">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--raised);border-radius:var(--radius-md);padding:14px 16px;">
         <div style="min-width:0;">
           <div style="font-weight:700;font-size:0.92em;">🔔 შეტყობინებები ჩატის დროს</div>
@@ -1341,7 +1386,7 @@ body.guest-mode .profile-actions { display: none; }
     </div>
 
     <!-- Privacy — registered accounts only (revealed after login; guests never see it) -->
-    <div class="section" id="privacySection" style="display:none">
+    <div class="section" id="privacySection" style="display:none" data-view="profile">
       <div class="section-label">🔒 კონფიდენციალურობა</div>
       <div class="privacy-row">
         <div style="min-width:0;">
@@ -1356,16 +1401,27 @@ body.guest-mode .profile-actions { display: none; }
     </div>
 
     <!-- Start Chat — the single boldest action on the page -->
-    <a href="/" class="btn-start-chat">🔎&nbsp; შემთხვევითი ჩატის დაწყება</a>
+    <a href="/" class="btn-start-chat" data-view="home">🔎&nbsp; შემთხვევითი ჩატის დაწყება</a>
     <!-- Trinder — registered accounts only (revealed after login) -->
-    <a href="/trinder.html" class="trinder-cta" id="trinderBtn" style="display:none">
+    <a href="/trinder.html" class="trinder-cta" id="trinderBtn" style="display:none" data-view="home">
       <span class="tc-logo" id="trinderLogo"></span>
       <span class="tc-text"><b>Trinder</b><small>გაიცანი ახალი ადამიანები — მოიწონე და დაემატჩე</small></span>
       <span class="tc-badge" id="trinderLikes" hidden>0</span>
     </a>
 
     <!-- Rooms & Forum — side by side, distinct from the game grid below -->
-    <div class="nav-row">
+    <div class="nav-row" data-view="home">
+      <a href="#profile" id="profileNavBtn" class="nav-card nav-card--profile">
+        <span class="nav-card-icon">👤</span>
+        პროფილი
+        <span class="nav-card-sub">პარამეტრები</span>
+      </a>
+      <a href="#games" id="gamesNavBtn" class="nav-card nav-card--games">
+        <span class="nav-card-icon">🎮</span>
+        თამაშები
+        <span class="nav-card-sub" id="gamesNavSub">8 თამაში</span>
+        <span class="nav-card-live" id="gamesLiveBadge" hidden></span>
+      </a>
       <a href="/rooms.html" id="roomsNavBtn" class="nav-card nav-card--rooms">
         <span class="nav-card-icon">🗨️</span>
         ოთახები
@@ -1379,7 +1435,7 @@ body.guest-mode .profile-actions { display: none; }
     </div>
 
     <!-- Install-as-app — single entry point, full experience lives on its own page -->
-    <a href="/install.html" class="section install-cta-card">
+    <a href="/install.html" class="section install-cta-card" data-view="none">
       <div class="install-cta-icon">📲</div>
       <div class="install-cta-text">
         <div class="install-cta-title">ჩაიწერე გაიცანი აპლიკაციად</div>
@@ -1388,11 +1444,11 @@ body.guest-mode .profile-actions { display: none; }
       <div class="install-cta-arrow">›</div>
     </a>
 
-    <div class="games-heading">
+    <div class="games-heading" data-view="none">
       <div class="games-heading-label">🎮 თამაშები</div>
     </div>
 
-    <div class="game-grid">
+    <div class="game-grid" data-view="games">
       <a href="/flappy-bird.html" class="game-tile game-tile--flappy">
         <div class="game-tile-icon"><img src="/icon-flappybird.jpg" alt="მფრინავი ჩიტი" /></div>
         <div class="game-tile-name">მფრინავი ჩიტი</div>
@@ -1429,43 +1485,50 @@ body.guest-mode .profile-actions { display: none; }
 
     <!-- Active tables/rooms you can join — appear below the grid, per game,
          only when there's actually something to show -->
-    <div id="pkRoomsSection" class="rooms-browser" style="display:none">
+    <div class="games-heading live-heading" data-view="games">
+      <div class="games-heading-label">🟢 ახლა თამაშობენ</div>
+    </div>
+    <div class="live-empty" id="liveTablesEmpty" data-view="games">
+      ახლა ღია მაგიდა არ არის — აირჩიე თამაში ზემოთ და მოიწვიე მეგობრები.
+    </div>
+
+    <div id="pkRoomsSection" class="rooms-browser" style="display:none" data-view="games">
       <div class="dg-rooms-label">🃏 პოკერის მაგიდები — შემოუერთდი</div>
       <div id="pkRoomsList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
-    <div id="csRoomsSection" class="rooms-browser" style="display:none">
+    <div id="csRoomsSection" class="rooms-browser" style="display:none" data-view="games">
       <div class="dg-rooms-label">♟️ ჭადრაკის თამაშები — შემოუერთდი</div>
       <div id="csRoomsList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
-    <div id="dmRoomsSection" class="rooms-browser" style="display:none">
+    <div id="dmRoomsSection" class="rooms-browser" style="display:none" data-view="games">
       <div class="dg-rooms-label">⚪ დამის თამაშები — შემოუერთდი</div>
       <div id="dmRoomsList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
-    <div id="jkRoomsSection" class="rooms-browser" style="display:none">
+    <div id="jkRoomsSection" class="rooms-browser" style="display:none" data-view="games">
       <div class="dg-rooms-label">🃏 ჯოკერის მაგიდები — შემოუერთდი</div>
       <div id="jkRoomsList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
-    <div id="imRoomsSection" class="rooms-browser" style="display:none">
+    <div id="imRoomsSection" class="rooms-browser" style="display:none" data-view="games">
       <div class="dg-rooms-label">🕵️ იმპოსტორის თამაშები — შემოუერთდი</div>
       <div id="imRoomsList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
-    <div id="bjRoomsSection" class="rooms-browser" style="display:none">
+    <div id="bjRoomsSection" class="rooms-browser" style="display:none" data-view="games">
       <div class="dg-rooms-label">🂡 ბლექჯეკის მაგიდები — შემოუერთდი</div>
       <div id="bjRoomsList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
-    <div id="dgRoomsSection" class="rooms-browser" style="display:none">
+    <div id="dgRoomsSection" class="rooms-browser" style="display:none" data-view="games">
       <div class="dg-rooms-label">🎨 დახატე და გამოიცანი — შემოუერთდი</div>
       <div id="dgRoomsList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
     <!-- Incoming friend requests — hidden until there are entries -->
-    <div class="section" id="pendingSection" style="display:none">
+    <div class="section" id="pendingSection" style="display:none" data-view="home">
       <div class="section-label">
         📨 მეგობრობის მოთხოვნები
         <span class="section-badge pending-badge-alert" id="pendingCount">0</span>
@@ -1474,7 +1537,7 @@ body.guest-mode .profile-actions { display: none; }
     </div>
 
     <!-- Friends -->
-    <div class="section" id="friendsSection">
+    <div class="section" id="friendsSection" data-view="home">
       <div class="section-label">
         👥 მეგობრები
         <span class="section-badge" id="friendCount">0</span>
@@ -1486,7 +1549,7 @@ body.guest-mode .profile-actions { display: none; }
     </div>
 
     <!-- Online registered users -->
-    <div class="section" id="onlineUsersSection" data-collapsible>
+    <div class="section" id="onlineUsersSection" data-collapsible data-view="home">
       <div class="section-label">
         🟢 ონლაინ მომხმარებლები
         <span class="section-badge" id="onlineUsersCount">0</span>
@@ -1497,7 +1560,7 @@ body.guest-mode .profile-actions { display: none; }
       </div></div></div>
     </div>
 
-    <div class="section" id="tempUsersSection" style="display:none" data-collapsible>
+    <div class="section" id="tempUsersSection" style="display:none" data-collapsible data-view="home">
       <div class="section-label">
         🕐 დროებითი მომხმარებლები
         <span class="section-badge" id="tempUsersCount">0</span>
@@ -1507,7 +1570,7 @@ body.guest-mode .profile-actions { display: none; }
     </div>
 
     <!-- Blocked (session) — hidden until there are entries -->
-    <div class="section" id="blockedSection" style="display:none">
+    <div class="section" id="blockedSection" style="display:none" data-view="profile">
       <div class="section-label">
         🚫 დაბლოკილი (სესია)
         <span class="section-badge" id="blockedCount">0</span>
@@ -1515,8 +1578,9 @@ body.guest-mode .profile-actions { display: none; }
       <div class="friends-list" id="blockedList"></div>
     </div>
 
-    <!-- Donation — shown to everyone, near the bottom of the page -->
-    <div class="donate-card">
+    <!-- Donation — the long card is replaced on home by the compact footer
+         below (same link); kept in the markup but not shown. -->
+    <div class="donate-card" data-view="none">
       <div class="donate-text">
         💜 მხარი დაუჭირე Gaicani.online-ს მცირე დონაციით 🙏<br>
         შენი დახმარება საიტის განვითარებასა და გაუმჯობესებას მოხმარდება 🚀<br>
@@ -1528,7 +1592,7 @@ body.guest-mode .profile-actions { display: none; }
     </div>
 
     <!-- Danger zone — placed last, away from everyday controls -->
-    <div class="section danger-zone" id="dangerZone" style="display:none">
+    <div class="section danger-zone" id="dangerZone" style="display:none" data-view="profile">
       <div class="section-label">⚠️ საშიში ზონა</div>
       <div class="danger-zone-body">
         <div class="danger-zone-text">
@@ -1539,9 +1603,15 @@ body.guest-mode .profile-actions { display: none; }
       </div>
     </div>
 
-    <!-- Support footer -->
-    <div class="support-footer">
-      📧 Support: <a href="mailto:gaicanionline@gmail.com">gaicanionline@gmail.com</a>
+    <!-- Compact footer: install, donate, contact — one line instead of three cards -->
+    <div class="dash-footer" data-view="home">
+      <div class="dash-footer-links">
+        <a href="/install.html" class="dash-footer-link">📲 აპლიკაციად ჩაწერა</a>
+        <a href="https://www.kisa.ge/donate/8fvhi1xii0" target="_blank" rel="noopener noreferrer" class="dash-footer-link dash-footer-donate">💜 მხარდაჭერა</a>
+      </div>
+      <div class="support-footer">
+        📧 Support: <a href="mailto:gaicanionline@gmail.com">gaicanionline@gmail.com</a>
+      </div>
     </div>
 
   </div>
@@ -1701,7 +1771,9 @@ body.guest-mode .profile-actions { display: none; }
     }));
     // Tapping your own picture is the obvious way to change it.
     document.getElementById("userAvatar")?.addEventListener("click", () => {
-      if (authUser && !authUser.isGuest) document.getElementById("changeAvatarBtn")?.click();
+      if (!authUser || authUser.isGuest) return;
+      window.GaicaniDashView?.("profile"); // the picker lives on the 👤 profile screen
+      document.getElementById("changeAvatarBtn")?.click();
     });
 
     // "25 წლის · თბილისი · თსუ" under ✨ პროფილის დეტალები, so you can see
@@ -3245,6 +3317,73 @@ function profileChipsHTML(p) {
       });
     });
   })();
+</script>
+<script>
+/* ── Dashboard screens: home / 👤 profile / 🎮 games ─────────────────────
+   Sections carry data-view; .page[data-current] shows one screen's worth.
+   #profile / #games are real history entries, so the phone's back button
+   returns home (to where you were scrolled). A link to a section on home,
+   like the 🔔's "#pendingSection", switches back to home and scrolls to it. */
+(function () {
+  "use strict";
+  const page = document.getElementById("main-page");
+  if (!page) return;
+  const VIEWS = ["profile", "games"];
+  let current = "home", homeScroll = 0, cameFromHome = false;
+
+  function show(view) {
+    if (view === current) return;
+    if (current === "home") homeScroll = window.scrollY;
+    current = view;
+    page.dataset.current = view;
+    if (view === "home") cameFromHome = false;
+    window.scrollTo(0, view === "home" ? homeScroll : 0);
+  }
+  function fromUrl() {
+    const h = decodeURIComponent(location.hash.slice(1));
+    if (VIEWS.includes(h)) { show(h); return; }
+    show("home");
+    const target = h && document.getElementById(h);
+    if (target && target.offsetParent !== null) target.scrollIntoView({ block: "start" });
+  }
+  function go(view) {
+    if (view === current) return;
+    const base = location.pathname + location.search;
+    if (view === "home") {
+      if (cameFromHome) { history.back(); return; } // popstate brings us home
+      history.replaceState(null, "", base);
+    } else {
+      cameFromHome = current === "home";
+      history.pushState(null, "", base + "#" + view);
+    }
+    show(view);
+  }
+  window.addEventListener("popstate", fromUrl);
+  window.addEventListener("hashchange", fromUrl);
+  document.querySelectorAll('a[href="#profile"], a[href="#games"]').forEach((a) =>
+    a.addEventListener("click", (e) => { e.preventDefault(); go(a.getAttribute("href").slice(1)); }));
+  document.querySelectorAll("[data-view-back]").forEach((b) => b.addEventListener("click", () => go("home")));
+  document.getElementById("topUsername")?.addEventListener("click", () => go("profile"));
+  window.GaicaniDashView = go;
+  fromUrl();
+
+  // 🟢 N on the games tile + "nobody's playing" note — counted from the
+  // active-tables lists the page already keeps up to date.
+  const sub = document.getElementById("gamesNavSub");
+  if (sub) sub.textContent = page.querySelectorAll(".game-grid .game-tile").length + " თამაში";
+  const browsers = page.querySelectorAll(".rooms-browser");
+  const badge = document.getElementById("gamesLiveBadge");
+  const empty = document.getElementById("liveTablesEmpty");
+  function countLive() {
+    let n = 0;
+    browsers.forEach((b) => { if (b.style.display !== "none") n += b.querySelectorAll(".dg-room-row").length; });
+    if (badge) { badge.hidden = !n; badge.textContent = "🟢 " + n; badge.title = n + " აქტიური მაგიდა"; }
+    if (empty) empty.style.display = n ? "none" : "";
+  }
+  const mo = new MutationObserver(countLive);
+  browsers.forEach((b) => mo.observe(b, { childList: true, subtree: true, attributes: true, attributeFilter: ["style"] }));
+  countLive();
+})();
 </script>
 </body>
 </html>

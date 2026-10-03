@@ -262,8 +262,13 @@
       const [p, hash] = link.split("#");
       if (hash && p === location.pathname) {
         closePanel(false);
-        const target = document.getElementById(hash);
-        if (target && target.offsetParent !== null) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        // Changing the hash lets a page with screens (the dashboard) switch to
+        // the one holding that section before we scroll to it.
+        if (location.hash !== "#" + hash) location.hash = hash;
+        setTimeout(() => {
+          const target = document.getElementById(hash);
+          if (target && target.offsetParent !== null) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 0);
         render();
         return;
       }

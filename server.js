@@ -5677,6 +5677,9 @@ function loadAuthUsers() {
     const obj = readJsonFile(USERS_FILE);
     for (const u of Object.values(obj)) {
       if (!u.avatar || !AVAILABLE_AVATARS.includes(u.avatar)) u.avatar = DEFAULT_AVATAR;
+      // Stray requests from people who are already friends (the server used
+      // to accept those) — they showed up as "pending" next to the friendship.
+      if (Array.isArray(u.pendingRequests) && Array.isArray(u.friends)) u.pendingRequests = u.pendingRequests.filter(x => !u.friends.includes(x));
       registeredUsers.set(u.username.toLowerCase(), u);
       authReservedNames.add(u.username.toLowerCase());
     }
@@ -6426,6 +6429,7 @@ app.post("/api/friends/request", friendRestLimiter, express.json({ limit: "2kb" 
   if (fromUser.isGuest || toUser.isGuest) return res.status(403).json({ error: "სტუმრებს მეგობრობა არ შეუძლიათ" });
   if (toUser.blockedUsers?.includes(entry.usernameLower)) return res.status(403).json({ error: "ამ მომხმარებელს არ შეუძლია მოთხოვნის მიღება" });
   if (fromUser.blockedUsers?.includes(toLc)) return res.status(403).json({ error: "მოხსენით ბლოკი ჯერ, რომ მოთხოვნა გაგზავნოთ" });
+  if ((fromUser.friends || []).includes(toLc)) return res.status(400).json({ error: "უკვე მეგობრები ხართ" });
   // ...and the 24h wait after this person declined, which the socket route
   // enforces but this one skipped.
   const cooldownExpiry = friendRequestDeclineCooldown.get(`${entry.usernameLower}|${toLc}`);
@@ -10289,6 +10293,12 @@ io.on("connection", (socket) => {
     }
     if (myUser?.blockedUsers && myUser.blockedUsers.includes(targetLc)) {
       socket.emit("friend:error", { msg: "მოხსენით ბლოკი ჯერ, რომ მოთხოვნა გაგზავნოთ", targetUsername: targetUser.username });
+      return;
+    }
+    // Already friends — a request would just show up as a stray "pending"
+    // entry next to the friendship.
+    if ((myUser?.friends || []).includes(targetLc)) {
+      socket.emit("friend:error", { msg: "უკვე მეგობრები ხართ", targetUsername: targetUser.username });
       return;
     }
 
