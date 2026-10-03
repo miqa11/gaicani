@@ -1204,6 +1204,153 @@ body.guest-mode .profile-actions { display: none; }
   .pa-chev { transition: none; }
 }
   </style>
+  <style id="friends-extras-css">
+/* ── Login streak chip on your card ───────────────────────────────────── */
+.streak-chip {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 7px; min-height: 28px;
+  padding: 3px 11px; border-radius: 999px; cursor: pointer; font: inherit;
+  font-size: .76em; font-weight: 800; color: #ffd27a;
+  background: rgba(240,185,58,.12); border: 1px solid rgba(240,185,58,.40);
+}
+.streak-chip[hidden] { display: none; }
+.streak-chip.at-risk { color: #ff9fb3; background: rgba(227,59,95,.12); border-color: rgba(227,59,95,.45); }
+
+/* ── Daily bonus ───────────────────────────────────────────────────────── */
+.daily-card {
+  display: flex; align-items: center; gap: 12px; margin: -4px 0 14px; padding: 12px 14px;
+  border-radius: 20px; border: 1.5px solid transparent;
+  background: radial-gradient(110% 140% at 0% 0%, rgba(240,185,58,.30), transparent 55%) padding-box,
+    linear-gradient(160deg,#3a2c52,#221b3f) padding-box, var(--cloison) border-box;
+  box-shadow: 0 14px 30px -18px rgba(240,185,58,.7);
+}
+.daily-card[hidden] { display: none; }
+.dc-gift { font-size: 1.9em; line-height: 1; flex-shrink: 0; animation: dc-wiggle 2.8s ease-in-out infinite; }
+@keyframes dc-wiggle { 0%,80%,100% { transform: rotate(0); } 85% { transform: rotate(-12deg); } 90% { transform: rotate(10deg); } 95% { transform: rotate(-6deg); } }
+.dc-text { flex: 1; min-width: 0; }
+.dc-text b { display: block; font-weight: 900; font-size: .98em; color: var(--gold-lt); }
+.dc-text small { display: block; font-size: .78em; color: var(--text-dim); margin-top: 1px; line-height: 1.35; }
+.dc-week { display: flex; gap: 4px; margin-top: 7px; }
+.dc-week span { flex: 1; max-width: 26px; height: 6px; border-radius: 99px; background: rgba(255,255,255,.12); }
+.dc-week span.done { background: linear-gradient(90deg,var(--gold),var(--gold-lt)); }
+.dc-week span.today { background: rgba(244,217,143,.45); box-shadow: 0 0 0 1px var(--gold-lt); animation: dc-pulse 1.4s ease-in-out infinite; }
+@keyframes dc-pulse { 50% { opacity: .45; } }
+.dc-claim {
+  flex-shrink: 0; border: none; border-radius: 999px; padding: 10px 18px; cursor: pointer;
+  font: inherit; font-weight: 900; font-size: .9em; color: #2a1d05;
+  background: linear-gradient(135deg,#ffe7a3,var(--gold)); box-shadow: 0 8px 18px -8px rgba(240,185,58,.9);
+}
+.dc-claim:disabled { opacity: .6; cursor: default; }
+
+/* ── Profile completion ────────────────────────────────────────────────── */
+.completion-card {
+  display: block; width: 100%; text-align: left; margin: -4px 0 14px; padding: 11px 14px 12px;
+  border-radius: 18px; cursor: pointer; font: inherit; color: var(--text);
+  border: 1px solid transparent;
+  background: linear-gradient(180deg,#211b40,var(--surface)) padding-box, var(--cloison-soft) border-box;
+}
+.completion-card[hidden] { display: none; }
+.completion-card:hover { filter: brightness(1.08); }
+.cc-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .82em; }
+.cc-title { color: var(--text-dim); min-width: 0; }
+.cc-title b { color: var(--gold-lt); }
+.cc-next { flex-shrink: 0; font-weight: 800; color: var(--accent-lt); white-space: nowrap; }
+.cc-bar { display: block; height: 7px; margin-top: 8px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+.cc-fill { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg,var(--cobalt),var(--emerald)); transition: width .5s ease; }
+
+/* ── Status circles (24h text stories) ─────────────────────────────────── */
+.stories-row {
+  display: flex; gap: 12px; overflow-x: auto; padding: 12px 14px 4px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+}
+.stories-row::-webkit-scrollbar { display: none; }
+.stories-row[hidden] { display: none; }
+.story {
+  flex: 0 0 auto; width: 62px; display: flex; flex-direction: column; align-items: center; gap: 5px;
+  border: none; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--text-dim);
+}
+.story-ring {
+  position: relative; width: 56px; height: 56px; border-radius: 50%; padding: 3px; box-sizing: border-box;
+  background: rgba(255,255,255,.16);
+}
+.story.unseen .story-ring { background: conic-gradient(var(--gold-lt),var(--ruby),var(--amethyst),var(--cobalt),var(--emerald),var(--gold-lt)); }
+.story-ring > span {
+  width: 100%; height: 100%; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  background: #2b2454; box-shadow: 0 0 0 2px #1c1735; font-weight: 800; color: var(--accent-lt);
+}
+.story-ring img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.story-add {
+  position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 13px; font-weight: 900; color: #fff;
+  background: var(--accent); box-shadow: 0 0 0 2px #1c1735;
+}
+.story-name { max-width: 100%; font-size: .7em; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.story.unseen .story-name { color: var(--text); }
+
+.story-modal { max-width: 400px; }
+.story-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.story-head .friend-avatar { width: 40px; height: 40px; }
+.story-head-text { min-width: 0; flex: 1; }
+.story-head-text b { display: block; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.story-head-text small { color: var(--muted); font-size: .78em; }
+.story-text {
+  min-height: 150px; display: grid; place-items: center; text-align: center; padding: 22px 18px;
+  border-radius: 18px; font-size: 1.18em; font-weight: 700; line-height: 1.45; color: #fff;
+  overflow-wrap: anywhere; white-space: pre-wrap;
+  background: radial-gradient(120% 90% at 0% 0%, rgba(255,255,255,.18), transparent 55%), linear-gradient(150deg,#5b77ff,#8b55ff 55%,#e33b5f);
+}
+.story-nav { display: flex; gap: 8px; margin-top: 12px; }
+.story-nav button { flex: 1; }
+.story-input {
+  width: 100%; box-sizing: border-box; min-height: 96px; resize: vertical; padding: 12px; border-radius: 14px;
+  border: 1px solid rgba(214,168,79,.25); background: #221c42; color: var(--text); font: inherit; font-size: 16px; line-height: 1.4;
+}
+.story-count { text-align: right; font-size: .74em; color: var(--muted); margin: 4px 2px 8px; }
+.story-ideas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.story-ideas button {
+  border: 1px solid rgba(214,168,79,.30); background: rgba(255,255,255,.06); color: var(--text);
+  border-radius: 999px; padding: 5px 10px; font: inherit; font-size: .78em; cursor: pointer;
+}
+.story-ideas button:hover { background: rgba(255,255,255,.12); }
+.pe-actions .pe-danger { background: rgba(227,59,95,.14); color: #ff8aa1; margin-right: auto; }
+
+/* ── Friend rows: nickname, status / last seen, pins ───────────────────── */
+.friend-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.friend-main .friend-name { flex: none; display: block; }
+.friend-real { color: var(--muted); font-weight: 600; font-size: .86em; }
+.friend-sub { font-size: .74em; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-sub.is-online { color: #62e3b3; }
+.friend-sub.is-status { color: var(--text-dim); }
+.pin-mark { font-size: .82em; margin-right: 3px; }
+.friend-item.is-pinned { border-color: rgba(214,168,79,.32); }
+.friends-list .friend-avatar-wrap .online-dot { border-color: #262046; }
+
+/* Profile card extras for friends */
+.pc-nick { margin-top: 3px; font-size: .82em; color: var(--gold-lt); }
+.pc-status {
+  margin: 10px auto 2px; max-width: 300px; padding: 9px 13px; border-radius: 14px; font-size: .88em; line-height: 1.4;
+  background: rgba(79,108,255,.14); border: 1px solid rgba(79,108,255,.35); overflow-wrap: anywhere;
+}
+.pc-status small { display: block; margin-top: 3px; color: var(--muted); font-size: .82em; }
+.pc-tools { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+.pc-tool {
+  border: 1px solid rgba(214,168,79,.30); background: rgba(255,255,255,.06); color: var(--text);
+  border-radius: 999px; padding: 7px 13px; font: inherit; font-size: .8em; font-weight: 700; cursor: pointer;
+}
+.pc-tool:hover { background: rgba(255,255,255,.12); }
+.pc-tool.on { background: rgba(214,168,79,.18); color: var(--gold-lt); }
+.pc-nick-edit { display: flex; gap: 6px; margin-top: 10px; }
+.pc-nick-edit[hidden] { display: none; }
+.pc-nick-edit input {
+  flex: 1; min-width: 0; padding: 9px 11px; border-radius: 12px; border: 1px solid rgba(214,168,79,.25);
+  background: #221c42; color: var(--text); font: inherit; font-size: 16px;
+}
+.pc-nick-edit button { border: none; border-radius: 12px; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; color: #fff; background: linear-gradient(135deg,#5b77ff,#8b55ff); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-gift, .dc-week span.today { animation: none; }
+  .cc-fill { transition: none; }
+}
+  </style>
 </head>
 <body>
   <script>
@@ -1265,9 +1412,30 @@ body.guest-mode .profile-actions { display: none; }
         <div class="user-name" id="userName">—</div>
         <div class="user-meta" id="userMeta">რეგისტრირებული მომხმარებელი</div>
         <div class="user-bio-display" id="userBioDisplay" style="display:none"></div>
+        <button type="button" class="streak-chip" id="dailyStreakChip" hidden></button>
         <button class="btn-change-name-guest" id="changeGuestNameBtn" style="display:none">✏️ სახელის შეცვლა</button>
       </div>
     </div>
+
+    <!-- Daily bonus — only while today's is still waiting to be picked up -->
+    <div class="daily-card" id="dailyCard" hidden data-view="home">
+      <div class="dc-gift" aria-hidden="true">🎁</div>
+      <div class="dc-text">
+        <b>დღის ბონუსი</b>
+        <small id="dailySub">მონეტები პოკერსა და ბლექჯეკში</small>
+        <div class="dc-week" id="dailyWeek" aria-hidden="true"></div>
+      </div>
+      <button type="button" class="dc-claim" id="dailyClaimBtn">აიღე</button>
+    </div>
+
+    <!-- "Your profile is 60% complete — add …" until everything's filled in -->
+    <button type="button" class="completion-card" id="completionCard" hidden data-view="home profile">
+      <span class="cc-top">
+        <span class="cc-title">პროფილი <b id="completionPct">0%</b>-ით შევსებულია</span>
+        <span class="cc-next" id="completionNext"></span>
+      </span>
+      <span class="cc-bar"><span class="cc-fill" id="completionFill"></span></span>
+    </button>
 
     <!-- Edit-your-profile rows. Each one says what it opens: ▾ rows unfold
          their editor right underneath (▴ when open, tap again or "დახურვა"
@@ -1383,6 +1551,11 @@ body.guest-mode .profile-actions { display: none; }
           <button class="pe-save" id="peSave" type="button">შენახვა</button>
         </div>
       </div>
+    </div>
+
+    <!-- 24h status: read a friend's, or write your own -->
+    <div class="pe-backdrop" id="storyBackdrop" style="display:none">
+      <div class="pe-modal story-modal" id="storyModal" role="dialog" aria-modal="true" aria-label="სტატუსი"></div>
     </div>
 
     <!-- Privacy — registered accounts only (revealed after login; guests never see it) -->
@@ -1542,6 +1715,8 @@ body.guest-mode .profile-actions { display: none; }
         👥 მეგობრები
         <span class="section-badge" id="friendCount">0</span>
       </div>
+      <!-- 24h text statuses: yours first, then friends' (newest first) -->
+      <div class="stories-row" id="storiesRow" hidden></div>
       <div class="friends-list" id="friendsList">
         <div class="empty-state">ჯერ მეგობრები არ გყავს.<br>
           <small>ჩატის დროს ➕ ღილაკს დააჭირე.</small></div>
@@ -1779,9 +1954,11 @@ body.guest-mode .profile-actions { display: none; }
     // "25 წლის · თბილისი · თსუ" under ✨ პროფილის დეტალები, so you can see
     // what's filled in without opening it.
     function paintDetailsSummary(p) {
+      p = p || {};
+      myDetails = p;
+      paintCompletion();
       const el = document.getElementById("detailsRowSub");
       if (!el) return;
-      p = p || {};
       const parts = [p.age ? p.age + " წლის" : "", p.city, p.study, p.work].filter(Boolean);
       el.textContent = parts.length ? parts.join(" · ") : "ასაკი, ქალაქი, სწავლა, სამსახური";
       el.classList.toggle("has-value", parts.length > 0);
@@ -1835,6 +2012,7 @@ body.guest-mode .profile-actions { display: none; }
         sub.textContent = authUser.bio || "მოკლედ აღწერე შენი თავი";
         sub.classList.toggle("has-value", !!authUser.bio);
       }
+      paintCompletion();
     }
 
     /* ── Guest mode — same interface, registered-only sections replaced
@@ -2031,6 +2209,10 @@ body.guest-mode .profile-actions { display: none; }
     let unreadFromFriends = new Set(); // lowercase usernames with unread messages
     let lastOnlineUsers = []; // cached [{username, avatar}] from the server
     let friendStreaks = {}; // lowercase username -> { count, atRisk }
+    const friendInfo = new Map(); // lowercase username -> { online, lastSeenAt, status, nickname, pinned, … } (friends:details)
+    let friendInfoLoaded = false;
+    let myStatus = null;          // your own 24h status { text, at }, or null
+    let myDetails = null;         // your age/gender/city/study/work, once loaded
     let sentRequestsTo = new Set(); // lowercase usernames we've sent a request to this session
 
     /* ── Socket setup ────────────────────────────────────────────── */
@@ -2121,6 +2303,11 @@ function profileChipsHTML(p) {
     function setupSocket(token) {
       socket = io(); attachTempBanGuard(socket);
       socket.on("settings:state", applyPrivacyState);
+      // Anything that changes who your friends are, their status or whether
+      // they're online → fetch the friend details again.
+      ["friends:changed", "friend:accepted", "friend:acceptedByOther", "friend:removed", "friend:removedByOther", "trinder:match"]
+        .forEach(ev => socket.on(ev, () => loadFriendInfo(150)));
+      socket.on("users:onlineChanged", () => loadFriendInfo(800));
       socket.on("trinder:liked", (d) => { setTrinderLikes(d.likesCount || 0); showToast("💗 ვიღაცას მოეწონე Trinder-ზე!"); });
       socket.on("trinder:match", (d) => {
         setTrinderLikes(d.likesCount || 0);
@@ -2160,6 +2347,7 @@ function profileChipsHTML(p) {
           refreshTrinder();
           if (window.GaicaniNotif) window.GaicaniNotif.attach(socket);
           setTimeout(loadDetailsSummary, 0); // authUser is filled in just below
+          setTimeout(() => { loadFriendInfo(); loadDaily(); }, 0);
         }
         if (authUser) {
           authUser.friends = friends || [];
@@ -2497,18 +2685,47 @@ function profileChipsHTML(p) {
       if (!friends || !friends.length) {
         list.innerHTML = `<div class="empty-state">ჯერ მეგობრები არ გყავს.<br>
           <small>ჩატის დროს ➕ ღილაკს დააჭირე.</small></div>`;
+        renderStories();
         return;
       }
+
+      // Pinned friends first, then whoever's online, then by how recently
+      // they were around. Without the details yet, the server's order.
+      const rank = (f) => {
+        const i = friendInfo.get(f.toLowerCase());
+        return i ? (i.pinned ? 3e13 : 0) + (i.online ? 2e13 : 0) + (i.lastSeenAt || 0) : 0;
+      };
+      friends = friendInfo.size ? [...friends].sort((a, b) => rank(b) - rank(a)) : friends;
 
       list.innerHTML = friends.map(f => {
         const streak = friendStreaks[f.toLowerCase()];
         const streakHtml = streak
           ? `<span class="friend-streak${streak.atRisk ? " at-risk" : ""}" title="${streak.atRisk ? "დღეს მოწერე, თორემ სერია ჩაქრება!" : "სერიის დღეები"}">🔥${streak.count}</span>`
           : "";
+        const info = friendInfo.get(f.toLowerCase());
+        const shown = info ? info.username : f;
+        const avatarHtml = info && info.avatar
+          ? `<img src="${AVATAR_DIR}${esc(info.avatar)}" alt="" />`
+          : esc(shown).charAt(0).toUpperCase();
+        let sub = "";
+        if (info) {
+          if (info.status) sub = `<span class="friend-sub is-status">💬 ${esc(info.status)}</span>`;
+          else if (info.online) sub = '<span class="friend-sub is-online">ონლაინ</span>';
+          else sub = `<span class="friend-sub">${info.lastSeenAt ? "ბოლოს ნანახი " + agoText(info.lastSeenAt) : "ოფლაინ"}</span>`;
+        }
+        const nameHtml = info && info.nickname
+          ? `${esc(info.nickname)} <span class="friend-real">· ${esc(shown)}</span>`
+          : esc(shown);
         return `
-        <div class="friend-item" data-friend="${esc(f)}">
-          <div class="friend-avatar">${esc(f).charAt(0).toUpperCase()}</div>
-          <span class="friend-name">${esc(f)}</span>
+        <div class="friend-item${info && info.pinned ? " is-pinned" : ""}" data-friend="${esc(f)}">
+          <div class="friend-avatar-wrap">
+            <div class="friend-avatar">${avatarHtml}</div>
+            ${info && info.online ? '<span class="online-dot" title="ონლაინ"></span>' : ""}
+          </div>
+          <div class="friend-main">
+            <span class="friend-name">${info && info.pinned ? '<span class="pin-mark" title="მიმაგრებული">📌</span>' : ""}${nameHtml}${info && info.isPro ? ' <span class="pro-star" title="Pro">⭐</span>' : ""}</span>
+            ${sub}
+          </div>
           ${trinderMatchSet.has(f.toLowerCase()) ? '<span class="trinder-badge" title="Trinder-ის მატჩი">' + trinderMark(18) + '</span>' : ''}
           ${streakHtml}
           <div class="friend-actions">
@@ -2562,7 +2779,10 @@ function profileChipsHTML(p) {
         });
       });
 
-      paintFriendAvatars(friends, list);
+      // Pictures come with the details; only fetch them before those arrive.
+      const missing = friends.filter(f => !friendInfo.has(f.toLowerCase()));
+      if (missing.length) paintFriendAvatars(missing, list);
+      renderStories();
     }
 
     /* Fetch real profile pictures for a list of usernames and swap them
@@ -2586,6 +2806,247 @@ function profileChipsHTML(p) {
         })
         .catch(() => {});
     }
+
+    /* ── Friends extras: last seen, nicknames, pins, 24h text statuses ──
+       One request brings everything about your friends; it's refreshed when
+       something changes (friends:changed, someone comes or goes) and once a
+       minute so "5 წუთის წინ" stays true. */
+    function agoText(ts) {
+      const m = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+      if (m < 1) return "ახლახან";
+      if (m < 60) return `${m} წუთის წინ`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h} საათის წინ`;
+      const d = Math.floor(h / 24);
+      if (d < 30) return `${d} დღის წინ`;
+      return new Date(ts).toLocaleDateString("ka-GE", { day: "numeric", month: "short" });
+    }
+    let friendInfoTimer = null;
+    function loadFriendInfo(delay = 0) {
+      clearTimeout(friendInfoTimer);
+      friendInfoTimer = setTimeout(() => {
+        if (!socket || !authUser || authUser.isGuest) return;
+        socket.emit("friends:details", null, (d) => {
+          if (!d || !Array.isArray(d.friends)) return;
+          friendInfo.clear();
+          d.friends.forEach(f => friendInfo.set(f.lc, f));
+          friendInfoLoaded = true;
+          myStatus = d.myStatus || null;
+          renderFriends(authUser.friends || []);
+        });
+      }, delay);
+    }
+    setInterval(() => { if (document.visibilityState === "visible") loadFriendInfo(); }, 60000);
+
+    // ── Status circles ──
+    const STORY_SEEN_KEY = "gaicani_status_seen";
+    function storySeen() { try { return JSON.parse(localStorage.getItem(STORY_SEEN_KEY) || "{}") || {}; } catch (_) { return {}; } }
+    function markStorySeen(lc, at) {
+      try {
+        const m = storySeen(); m[lc] = at;
+        for (const k of Object.keys(m)) if (Date.now() - m[k] > 2 * 86400000) delete m[k];
+        localStorage.setItem(STORY_SEEN_KEY, JSON.stringify(m));
+      } catch (_) {}
+    }
+    function storyList() {
+      return [...friendInfo.values()].filter(i => i.status).sort((a, b) => b.statusAt - a.statusAt);
+    }
+    function avatarInner(file, name) {
+      return file ? `<img src="${AVATAR_DIR}${esc(file)}" alt="" />` : esc(name || "?").charAt(0).toUpperCase();
+    }
+    function renderStories() {
+      const row = document.getElementById("storiesRow");
+      if (!row) return;
+      if (!authUser || authUser.isGuest || !friendInfoLoaded || !(authUser.friends || []).length) { row.hidden = true; return; }
+      const seen = storySeen();
+      const mine = `<button type="button" class="story story-mine${myStatus ? " unseen" : ""}" data-story="me"
+          aria-label="${myStatus ? "შენი სტატუსი" : "სტატუსის დაწერა"}">
+          <span class="story-ring"><span>${avatarInner(authUser.avatar, authUser.username)}</span>${myStatus ? "" : '<i class="story-add" aria-hidden="true">+</i>'}</span>
+          <span class="story-name">${myStatus ? "შენი" : "სტატუსი"}</span></button>`;
+      const others = storyList().map(i => `<button type="button" class="story${(seen[i.lc] || 0) < i.statusAt ? " unseen" : ""}" data-story="${esc(i.lc)}"
+          aria-label="${esc(i.nickname || i.username)} — სტატუსი">
+          <span class="story-ring"><span>${avatarInner(i.avatar, i.username)}</span></span>
+          <span class="story-name">${esc(i.nickname || i.username)}</span></button>`).join("");
+      row.innerHTML = mine + others;
+      row.hidden = false;
+      row.querySelectorAll(".story").forEach(b => b.addEventListener("click", () => {
+        if (b.dataset.story === "me") openStoryEditor(); else openStory(b.dataset.story);
+      }));
+    }
+
+    let storyAct = {};
+    function closeStory() { document.getElementById("storyBackdrop").style.display = "none"; storyAct = {}; }
+    function showStoryModal(html, acts) {
+      document.getElementById("storyModal").innerHTML = html;
+      storyAct = acts;
+      document.getElementById("storyBackdrop").style.display = "flex";
+    }
+    document.getElementById("storyModal")?.addEventListener("click", (e) => {
+      const a = e.target.closest("[data-act]");
+      if (a && storyAct[a.dataset.act]) storyAct[a.dataset.act](a);
+    });
+    document.getElementById("storyBackdrop")?.addEventListener("click", (e) => { if (e.target.id === "storyBackdrop") closeStory(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && document.getElementById("storyBackdrop")?.style.display === "flex") closeStory();
+    });
+
+    function openStory(lc) {
+      const list = storyList();
+      const idx = list.findIndex(i => i.lc === lc);
+      if (idx < 0) return closeStory();
+      const i = list[idx], prev = list[idx - 1], next = list[idx + 1];
+      markStorySeen(i.lc, i.statusAt);
+      showStoryModal(`
+        <div class="story-head">
+          <div class="friend-avatar">${avatarInner(i.avatar, i.username)}</div>
+          <div class="story-head-text"><b>${esc(i.nickname || i.username)}</b><small>${agoText(i.statusAt)}${i.online ? " · 🟢 ონლაინ" : ""}</small></div>
+          <button type="button" class="pa-close" data-act="close" aria-label="დახურვა">✕</button>
+        </div>
+        <div class="story-text">${esc(i.status)}</div>
+        <div class="story-nav">
+          ${prev ? '<button type="button" class="pe-cancel" data-act="prev" aria-label="წინა">‹</button>' : ""}
+          <button type="button" class="pe-save" data-act="reply">💬 უპასუხე</button>
+          ${next ? '<button type="button" class="pe-cancel" data-act="next" aria-label="შემდეგი">›</button>' : ""}
+        </div>`, {
+        close: closeStory,
+        prev: () => openStory(prev.lc),
+        next: () => openStory(next.lc),
+        reply: () => {
+          clearUnreadDot(i.lc);
+          window.location.href = `/friend-chat.html?friend=${encodeURIComponent(i.username)}&reply=${encodeURIComponent(i.status)}`;
+        },
+      });
+      renderStories();
+    }
+
+    const STATUS_IDEAS = ["🎮 ვთამაშობ — შემომიერთდით", "☕ ყავას ვსვამ", "📚 ვსწავლობ", "🎧 მუსიკას ვუსმენ", "⚽ ფეხბურთს ვუყურებ", "😴 მალე დავიძინებ"];
+    function openStoryEditor() {
+      showStoryModal(`
+        <div class="pe-title">💬 შენი სტატუსი</div>
+        <div class="pe-sub">${myStatus ? "დაწერილია " + agoText(myStatus.at) + " · " : ""}ხედავენ მხოლოდ შენი მეგობრები, 24 საათში თავისით ქრება</div>
+        <textarea class="story-input" id="storyInput" maxlength="140" placeholder="რას აკეთებ ახლა?"></textarea>
+        <div class="story-count" id="storyCount">0/140</div>
+        <div class="story-ideas">${STATUS_IDEAS.map(t => `<button type="button" data-act="idea">${esc(t)}</button>`).join("")}</div>
+        <div class="pe-error" id="storyError"></div>
+        <div class="pe-actions">
+          ${myStatus ? '<button type="button" class="pe-cancel pe-danger" data-act="del">🗑️ წაშლა</button>' : ""}
+          <button type="button" class="pe-cancel" data-act="close">გაუქმება</button>
+          <button type="button" class="pe-save" data-act="save">გამოქვეყნება</button>
+        </div>`, {
+        close: closeStory,
+        idea: (b) => { input.value = b.textContent; count(); input.focus(); },
+        save: (b) => send(input.value.trim(), b),
+        del: (b) => send("", b),
+      });
+      const input = document.getElementById("storyInput");
+      const count = () => {
+        document.getElementById("storyCount").textContent = `${input.value.length}/140`;
+        document.getElementById("storyError").textContent = "";
+      };
+      input.value = myStatus ? myStatus.text : "";
+      count();
+      input.addEventListener("input", count);
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input.value.trim()); } });
+      setTimeout(() => input.focus(), 50);
+      function send(text, btn) {
+        const err = document.getElementById("storyError");
+        if (!text && !myStatus) { err.textContent = "ჯერ დაწერე რამე"; return; }
+        if (!socket) return;
+        if (btn) btn.disabled = true;
+        socket.emit("status:set", { text }, (r) => {
+          if (btn) btn.disabled = false;
+          if (!r || r.error) { err.textContent = (r && r.error) || "ვერ შეინახა"; return; }
+          myStatus = r.status || null;
+          closeStory();
+          renderStories();
+          showToast(myStatus ? "✅ სტატუსი გამოქვეყნდა — მეგობრები 24 საათი დაინახავენ" : "🗑️ სტატუსი წაიშალა");
+        });
+      }
+    }
+
+    // ── Daily bonus + login streak ──
+    let dailySt = null;
+    function loadDaily() {
+      if (!socket || !authUser || authUser.isGuest) return;
+      socket.emit("daily:state", null, (st) => { if (st && !st.error) paintDaily(st); });
+    }
+    function paintDaily(st) {
+      dailySt = st;
+      const chip = document.getElementById("dailyStreakChip");
+      if (chip) {
+        chip.hidden = !(st.streak > 0);
+        chip.textContent = `🔥 ${st.streak} დღე ზედიზედ`;
+        const atRisk = st.canClaim && st.streak > 0;
+        chip.classList.toggle("at-risk", atRisk);
+        chip.title = atRisk ? "დღეს აიღე ბონუსი, თორემ სერია თავიდან დაიწყება" : `ხვალ: +${st.reward} მონეტა`;
+      }
+      const card = document.getElementById("dailyCard");
+      if (!card) return;
+      card.hidden = !st.canClaim;
+      if (!st.canClaim) return;
+      const day = st.streak + 1;
+      document.getElementById("dailySub").textContent = `+${st.reward} მონეტა პოკერსა და ბლექჯეკში · ${day}-ე დღე ზედიზედ`;
+      const pos = Math.min(day, 7);
+      document.getElementById("dailyWeek").innerHTML =
+        Array.from({ length: 7 }, (_, i) => `<span class="${i < pos - 1 ? "done" : i === pos - 1 ? "today" : ""}"></span>`).join("");
+    }
+    document.getElementById("dailyClaimBtn")?.addEventListener("click", (e) => {
+      const btn = e.currentTarget;
+      if (!socket) return;
+      btn.disabled = true;
+      socket.emit("daily:claim", null, (r) => {
+        btn.disabled = false;
+        if (!r) return;
+        if (r.error) { showToast(`⚠️ ${r.error}`, 4500); if (typeof r.canClaim === "boolean") paintDaily(r); return; }
+        paintDaily(r);
+        showToast(`🎁 +${r.granted} მონეტა! 🔥 ${r.streak} დღე ზედიზედ — ხვალ +${r.reward}`, 4500);
+      });
+    });
+    document.getElementById("dailyStreakChip")?.addEventListener("click", () => {
+      if (!dailySt) return;
+      if (dailySt.canClaim) {
+        window.GaicaniDashView?.("home");
+        document.getElementById("dailyCard")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      } else {
+        showToast(`🔥 ${dailySt.streak} დღე ზედიზედ! ხვალ შემოდი — +${dailySt.reward} მონეტა`);
+      }
+    });
+
+    // ── Profile completion ──
+    function openProfileRow(btnId) {
+      window.GaicaniDashView?.("profile");
+      setTimeout(() => {
+        const b = document.getElementById(btnId);
+        if (b && b.getAttribute("aria-expanded") !== "true") b.click();
+      }, 60);
+    }
+    const openDetailsEditor = () => document.getElementById("editProfileBtn")?.click();
+    const COMPLETION_STEPS = [
+      { ok: () => !!authUser?.bio,                          label: "დაამატე „ჩემ შესახებ“",   go: () => openProfileRow("changeBioBtn") },
+      { ok: () => !!myDetails?.age,                         label: "მიუთითე ასაკი",           go: openDetailsEditor },
+      { ok: () => !!myDetails?.gender,                      label: "მიუთითე სქესი",           go: openDetailsEditor },
+      { ok: () => !!myDetails?.city,                        label: "მიუთითე ქალაქი",          go: openDetailsEditor },
+      { ok: () => !!(myDetails?.study || myDetails?.work),  label: "სწავლა ან სამსახური",     go: openDetailsEditor },
+    ];
+    function paintCompletion() {
+      const card = document.getElementById("completionCard");
+      if (!card) return;
+      const next = authUser && !authUser.isGuest && myDetails ? COMPLETION_STEPS.find(st => !st.ok()) : null;
+      card.hidden = !next;
+      if (!next) return;
+      // Having an account counts as the first step, so it never says 0%.
+      const done = COMPLETION_STEPS.filter(st => st.ok()).length + 1;
+      const pct = Math.round(done / (COMPLETION_STEPS.length + 1) * 100);
+      document.getElementById("completionPct").textContent = pct + "%";
+      document.getElementById("completionFill").style.width = pct + "%";
+      document.getElementById("completionNext").textContent = next.label + " ›";
+      card.onclick = next.go;
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      loadDaily();
+      loadFriendInfo(300);
+    });
 
     /* ── Tap-to-preview profile card ─────────────────────────────────
        A small "mini profile page" for a friend or online user — picture,
@@ -2646,7 +3107,22 @@ function profileChipsHTML(p) {
           : esc(d.username).charAt(0).toUpperCase();
         const statusHtml = d.isOnline
           ? '<div class="profile-card-status online"><span class="profile-card-status-dot"></span>ონლაინ</div>'
-          : '<div class="profile-card-status offline"><span class="profile-card-status-dot"></span>ოფლაინ</div>';
+          : `<div class="profile-card-status offline"><span class="profile-card-status-dot"></span>${d.lastSeenAt ? "ბოლოს ნანახი " + agoText(d.lastSeenAt) : "ოფლაინ"}</div>`;
+        // Friends: their 24h status, and your own nickname / pin for them.
+        const fi = d.relation === "friend" ? friendInfo.get(d.username.toLowerCase()) : null;
+        const storyHtml = d.status
+          ? `<div class="pc-status">💬 ${esc(d.status)}${fi && fi.statusAt ? `<small>${agoText(fi.statusAt)}</small>` : ""}</div>`
+          : "";
+        const nickHtml = `<div class="pc-nick" id="pcNick"${fi && fi.nickname ? "" : " hidden"}>შენთვის: „${esc(fi?.nickname || "")}“</div>`;
+        const toolsHtml = fi ? `
+          <div class="pc-tools">
+            <button type="button" class="pc-tool${fi.pinned ? " on" : ""}" id="pcPinBtn">${fi.pinned ? "📌 მოხსნა" : "📌 მიმაგრება"}</button>
+            <button type="button" class="pc-tool" id="pcNickBtn" aria-expanded="false">✏️ მეტსახელი</button>
+          </div>
+          <div class="pc-nick-edit" id="pcNickEdit" hidden>
+            <input type="text" id="pcNickInput" maxlength="30" placeholder="მაგ: ნიკა 🏀 სკოლიდან" aria-label="მეტსახელი მხოლოდ შენთვის" />
+            <button type="button" id="pcNickSave">შენახვა</button>
+          </div>` : "";
         const bioHtml = d.bio
           ? `<div class="profile-card-bio">${esc(d.bio)}</div>`
           : '<div class="profile-card-bio empty">ბიოგრაფია ჯერ არ დაუწერია</div>';
@@ -2665,9 +3141,12 @@ function profileChipsHTML(p) {
         body.innerHTML = `
           <div class="profile-card-avatar">${avatarHtml}</div>
           <div class="profile-card-name">${esc(d.username)}${d.isPro ? ' <span class="pro-star" title="Pro">⭐</span>' : ""}</div>
+          ${nickHtml}
           ${statusHtml}
+          ${storyHtml}
           ${bioHtml}
           ${detailsHtml}
+          ${toolsHtml}
           <div class="profile-card-actions">
             <span id="profileCardFriendSlot"></span>
             ${blockBtnHtml}
@@ -2675,6 +3154,7 @@ function profileChipsHTML(p) {
           ${reportBtnHtml}`;
 
         mountFriendAction(document.getElementById("profileCardFriendSlot"), d);
+        if (fi) bindFriendTools(fi);
 
         const reportBtn = document.getElementById("profileCardReportBtn");
         if (reportBtn) {
@@ -2705,6 +3185,48 @@ function profileChipsHTML(p) {
       } catch (_) {
         body.innerHTML = '<div class="profile-card-loading">პროფილის ჩატვირთვა ვერ მოხერხდა</div>';
       }
+    }
+    // 📌 pin and ✏️ nickname on a friend's card — both only for you.
+    function bindFriendTools(fi) {
+      const pinBtn = document.getElementById("pcPinBtn");
+      const nickBtn = document.getElementById("pcNickBtn");
+      const edit = document.getElementById("pcNickEdit");
+      const input = document.getElementById("pcNickInput");
+      const save = document.getElementById("pcNickSave");
+      pinBtn?.addEventListener("click", () => {
+        const pinned = !fi.pinned;
+        pinBtn.disabled = true;
+        socket?.emit("friend:setPinned", { friendUsername: fi.lc, pinned }, (r) => {
+          pinBtn.disabled = false;
+          if (!r || r.error) { showToast(`⚠️ ${(r && r.error) || "ვერ მოხერხდა"}`); return; }
+          fi.pinned = pinned;
+          pinBtn.textContent = pinned ? "📌 მოხსნა" : "📌 მიმაგრება";
+          pinBtn.classList.toggle("on", pinned);
+          renderFriends(authUser?.friends || []);
+          showToast(pinned ? "📌 მიმაგრებულია — სიის თავში იქნება" : "📌 მოხსნილია");
+        });
+      });
+      nickBtn?.addEventListener("click", () => {
+        edit.hidden = !edit.hidden;
+        nickBtn.setAttribute("aria-expanded", String(!edit.hidden));
+        if (!edit.hidden) { input.value = fi.nickname || ""; input.focus(); }
+      });
+      const saveNick = () => {
+        save.disabled = true;
+        socket?.emit("friend:setNickname", { friendUsername: fi.lc, nickname: input.value }, (r) => {
+          save.disabled = false;
+          if (!r || r.error) { showToast("⚠️ ვერ შეინახა"); return; }
+          fi.nickname = r.nickname || "";
+          const el = document.getElementById("pcNick");
+          if (el) { el.textContent = `შენთვის: „${fi.nickname}“`; el.hidden = !fi.nickname; }
+          edit.hidden = true;
+          nickBtn.setAttribute("aria-expanded", "false");
+          renderFriends(authUser?.friends || []);
+          showToast(fi.nickname ? "✅ მეტსახელი შენახულია — მხოლოდ შენ ხედავ" : "✅ მეტსახელი წაიშალა");
+        });
+      };
+      save?.addEventListener("click", saveNick);
+      input?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveNick(); } });
     }
     function closeProfileCard() {
       document.getElementById("profileCardBackdrop").classList.remove("show");

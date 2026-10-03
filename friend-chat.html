@@ -497,7 +497,7 @@
       border-radius: 20px;
       padding: 8px 14px;
       color: var(--text);
-      font-size: 0.88em;
+      font-size: 16px; /* under 16px, iPhones zoom the page in when you tap it */
       outline: none;
       width: 100%;
     }
@@ -1978,7 +1978,38 @@ button, textarea, input { font-family: inherit; }
       });
       refreshPhotoBtnVisibility();
       socket.emit("friendChat:join", { friendUsername: friendName });
+      loadFriendHeader();
     });
+
+    // Header: your nickname for them, and "ონლაინ" / "ბოლოს ნანახი 5 წუთის წინ".
+    let fhTimer = null, fhInfo = null;
+    function fcAgo(ts) {
+      const m = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+      if (m < 1) return "ახლახან";
+      if (m < 60) return `${m} წუთის წინ`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h} საათის წინ`;
+      const d = Math.floor(h / 24);
+      return d < 30 ? `${d} დღის წინ` : new Date(ts).toLocaleDateString("ka-GE", { day: "numeric", month: "short" });
+    }
+    function paintFriendHeader() {
+      const i = fhInfo; if (!i) return;
+      $("fcName").textContent = i.nickname || i.username;
+      $("fcName").title = i.nickname ? i.username : "";
+      const sub = $("fcSub");
+      sub.textContent = i.online ? "🟢 ონლაინ" : i.lastSeenAt ? `ბოლოს ნანახი ${fcAgo(i.lastSeenAt)}` : "პირადი ჩატი";
+      if (i.nickname) sub.textContent = `${i.username} · ${sub.textContent}`;
+    }
+    function loadFriendHeader(delay = 0) {
+      clearTimeout(fhTimer);
+      fhTimer = setTimeout(() => socket.emit("friends:details", null, (d) => {
+        fhInfo = (d && d.friends || []).find(f => f.lc === friendName.toLowerCase()) || null;
+        paintFriendHeader();
+      }), delay);
+    }
+    socket.on("users:onlineChanged", () => loadFriendHeader(800));
+    socket.on("friends:changed", () => loadFriendHeader(150));
+    setInterval(paintFriendHeader, 60000);
 
     // Pro status changed while this session is live (admin granted/revoked
     // it just now) — update immediately rather than waiting for a reconnect.
@@ -2153,6 +2184,17 @@ button, textarea, input { font-family: inherit; }
     elCharCount.textContent = `${len}/2000`;
     elCharCount.classList.toggle("warning", len > 1800);
   }
+
+  // Opened from "💬 უპასუხე" on their status: start the message with a quote of it.
+  (function prefillStatusReply() {
+    const params = new URLSearchParams(window.location.search);
+    const st = (params.get("reply") || "").trim().slice(0, 140);
+    if (!st) return;
+    params.delete("reply");
+    try { history.replaceState(null, "", `${location.pathname}?${params}`); } catch (_) {}
+    elInput.value = `↩ „${st}“ — `;
+    setTimeout(() => { elInput.dispatchEvent(new Event("input")); elInput.focus(); }, 0);
+  })();
 
   /* ── Input handlers ──────────────────────────────────────────── */
   elInput.addEventListener("input", () => {

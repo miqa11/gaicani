@@ -4800,8 +4800,13 @@ function markNotificationsRead(lc, pred) {
   if (changed) notifChanged(lc, box);
 }
 
-// Account deleted: drop their own history and anything they sent anyone.
+// Account deleted: drop their own history and anything they sent anyone
+// (and other people's private nickname / pin for them).
 function forgetNotificationsOf(lc) {
+  for (const [, u] of registeredUsers) {
+    if (u.friendNicknames) delete u.friendNicknames[lc];
+    if (Array.isArray(u.pinnedFriends)) u.pinnedFriends = u.pinnedFriends.filter((x) => x !== lc);
+  }
   userNotifications.delete(lc);
   for (const [, box] of userNotifications) box.items = box.items.filter(it => it.fromLc !== lc);
   notifDirty = true; scheduleSave();
@@ -5109,6 +5114,11 @@ function renameAccount(oldLc, newName) {
   if (accountReportLog.has(oldLc)) { accountReportLog.set(newLc, accountReportLog.get(oldLc)); accountReportLog.delete(oldLc); }
   for (const [, arr] of accountReportLog) for (const e of arr || []) { if (e.reportedBy === oldLc) e.reportedBy = newLc; else if (e.reportedBy === oldName) e.reportedBy = newName; }
   if (flappyLastSubmit.has(oldLc)) { flappyLastSubmit.set(newLc, flappyLastSubmit.get(oldLc)); flappyLastSubmit.delete(oldLc); }
+  // other people's private nicknames / pins for them
+  for (const [, u] of registeredUsers) {
+    if (u.friendNicknames && Object.prototype.hasOwnProperty.call(u.friendNicknames, oldLc)) { u.friendNicknames[newLc] = u.friendNicknames[oldLc]; delete u.friendNicknames[oldLc]; }
+    if (Array.isArray(u.pinnedFriends)) u.pinnedFriends = u.pinnedFriends.map(swap);
+  }
   // notifications — their own history, and their name in everyone else's
   if (userNotifications.has(oldLc)) { userNotifications.set(newLc, userNotifications.get(oldLc)); userNotifications.delete(oldLc); }
   for (const [, box] of userNotifications) for (const it of box.items) {
@@ -6336,6 +6346,12 @@ app.get("/api/users/profile", (req, res) => {
     isPro: !!u.isPro,
     profile: publicProfileOf(u),
     relation: friendRelation(auth.usernameLower, auth.user, lc, u),
+    // Friends (and you) see the 24h status and when they were last online.
+    ...(((auth.user.friends || []).includes(lc) || lc === auth.usernameLower) ? {
+      status: (activeStatus(u) || {}).text || "",
+      lastSeenAt: isOnline || u.appearOffline ? null : (u.lastSeenAt || null),
+      theme: u.profileTheme || null,
+    } : { theme: u.profileTheme || null }),
   });
 });
 
@@ -9971,6 +9987,55 @@ function cleanupDrawGuessForSocket(socketId) {
   if (room.round && room.round.drawerLc === player.lc) endDrawRound(room, "drawerLeft");
 }
 
+// ── Friends extras: last seen, nicknames, pins, 24h text status ───────────
+// All stored on the account. Status and last-seen are shown to friends only;
+// someone who "appears offline" never shows a last-seen time.
+const STATUS_TTL_MS = 24 * 60 * 60 * 1000;
+const STATUS_MAX    = 140;
+const NICKNAME_MAX  = 30;
+const PINNED_MAX    = 10;
+function cleanShortText(v, max) {
+  return typeof v === "string" ? v.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, max) : "";
+}
+function activeStatus(u) {
+  const st = u && u.status;
+  return st && st.text && Date.now() - st.at < STATUS_TTL_MS ? st : null;
+}
+function friendDetails(me) {
+  const nick = me.friendNicknames || {}, pins = me.pinnedFriends || [];
+  return (me.friends || []).map((lc) => {
+    const u = registeredUsers.get(lc);
+    if (!u || u.isGuest) return null;
+    const online = isVisiblyOnline(lc), st = activeStatus(u);
+    return {
+      lc, username: u.username, avatar: u.avatar || DEFAULT_AVATAR, isPro: !!u.isPro,
+      online, lastSeenAt: online || u.appearOffline ? null : (u.lastSeenAt || null),
+      status: st ? st.text : "", statusAt: st ? st.at : null,
+      nickname: nick[lc] || "", pinned: pins.includes(lc), theme: u.profileTheme || null,
+    };
+  }).filter(Boolean);
+}
+
+// ── Daily reward ───────────────────────────────────────────────────────────
+// Once a day (Georgian time), coins for poker and blackjack; coming back on
+// consecutive days grows the streak and the reward. Missing a day restarts it.
+const DAILY_REWARDS = [100, 150, 200, 250, 300, 400, 500]; // day 1 … day 7+
+function georgiaDay(offsetDays = 0) {
+  return new Date(Date.now() + 4 * 60 * 60 * 1000 + offsetDays * 86400000).toISOString().slice(0, 10);
+}
+function dailyState(u) {
+  const d = u.daily || {};
+  const today = georgiaDay(), yesterday = georgiaDay(-1);
+  const claimedToday = d.last === today;
+  const alive = d.last === today || d.last === yesterday;
+  const streak = alive ? (d.streak || 0) : 0;            // current streak (0 if broken)
+  // reward = today's (if not claimed yet) or tomorrow's (if already claimed)
+  return {
+    canClaim: !claimedToday, streak, claimedToday,
+    reward: DAILY_REWARDS[Math.min(streak + 1, DAILY_REWARDS.length) - 1],
+  };
+}
+
 // ── Lobby kick ────────────────────────────────────────────────────────────────
 // Until a game starts, its host can remove anyone from the lobby — public
 // lobbies are open to everyone, so unwanted people do wander in. The kicked
@@ -10053,6 +10118,77 @@ io.on("connection", (socket) => {
   }
 
   console.log(`[SOCKET] Connected: ${socket.id} from ${socket.clientIP}`);
+
+  // ── Friends extras: details for the dashboard list, nicknames, pins ─────
+  const regMe = () => (socket._regUser && !socket._regUser.isGuest) ? registeredUsers.get(socket._regUser.usernameLower) : null;
+  socket.on("friends:details", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = regMe();
+    ack({ friends: me ? friendDetails(me) : [], myStatus: me ? (activeStatus(me) || null) : null });
+  });
+  socket.on("friend:setNickname", (data, ack) => {
+    const me = regMe(); if (!me || !data) return;
+    if (mediaRateLimited(socket, "friendMeta", 30, 60_000)) return;
+    const lc = String(data.friendUsername || "").toLowerCase().trim();
+    if (!(me.friends || []).includes(lc)) return;
+    const nick = cleanShortText(data.nickname, NICKNAME_MAX);
+    me.friendNicknames = me.friendNicknames || {};
+    if (nick) me.friendNicknames[lc] = nick; else delete me.friendNicknames[lc];
+    saveAuthUsers();
+    io.to(`user:${socket._regUser.usernameLower}`).emit("friends:changed");
+    if (typeof ack === "function") ack({ ok: true, nickname: nick });
+  });
+  socket.on("friend:setPinned", (data, ack) => {
+    const me = regMe(); if (!me || !data) return;
+    if (mediaRateLimited(socket, "friendMeta", 30, 60_000)) return;
+    const lc = String(data.friendUsername || "").toLowerCase().trim();
+    if (!(me.friends || []).includes(lc)) return;
+    let pins = (me.pinnedFriends || []).filter((x) => x !== lc && (me.friends || []).includes(x));
+    if (data.pinned) {
+      if (pins.length >= PINNED_MAX) { if (typeof ack === "function") ack({ error: `მაქსიმუმ ${PINNED_MAX} მიმაგრებული მეგობარი` }); return; }
+      pins.unshift(lc);
+    }
+    me.pinnedFriends = pins;
+    saveAuthUsers();
+    io.to(`user:${socket._regUser.usernameLower}`).emit("friends:changed");
+    if (typeof ack === "function") ack({ ok: true });
+  });
+
+  // ── 24h text status (stories) — friends see it ───────────────────────────
+  socket.on("status:set", (data, ack) => {
+    const me = regMe(); if (!me) return;
+    const reply = (x) => { if (typeof ack === "function") ack(x); };
+    if (mediaRateLimited(socket, "statusSet", 10, 60_000)) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან" });
+    const text = cleanShortText(data && data.text, STATUS_MAX);
+    if (text && findBannedWord(text)) return reply({ error: ABUSE_WORD_MESSAGE });
+    me.status = text ? { text, at: Date.now() } : null;
+    saveAuthUsers();
+    for (const f of [socket._regUser.usernameLower, ...(me.friends || [])]) io.to(`user:${f}`).emit("friends:changed");
+    reply({ ok: true, status: me.status });
+  });
+
+  // ── Daily reward ────────────────────────────────────────────────────────
+  socket.on("daily:state", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = regMe(); if (!me) return ack({ error: "registered-only" });
+    ack(dailyState(me));
+  });
+  socket.on("daily:claim", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = regMe(); if (!me) return ack({ error: "registered-only" });
+    const lc = socket._regUser.usernameLower;
+    const st = dailyState(me);
+    if (!st.canClaim) return ack({ error: "დღევანდელი ბონუსი უკვე აღებულია", ...st });
+    // A table keeps its own copy of your balance and writes it back at the end
+    // of a hand — a bonus added now would be overwritten.
+    if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return ack({ error: "ჯერ დაასრულე მიმდინარე თამაში (პოკერი/ბლექჯეკი), მერე აიღე ბონუსი" });
+    ensurePokerCoins(me); bjEnsureCoins(me);
+    me.pokerCoins += st.reward; me.bjCoins += st.reward;
+    me.daily = { last: georgiaDay(), streak: st.streak + 1 };
+    saveAuthUsers();
+    // granted = what you just got; reward = tomorrow's (from dailyState)
+    ack({ ...dailyState(me), ok: true, granted: st.reward, streak: me.daily.streak, pokerCoins: me.pokerCoins, bjCoins: me.bjCoins });
+  });
 
   // Host removes someone from a game lobby before it starts — see kickFromLobby.
   for (const game of Object.keys(LOBBY_GAMES)) {
@@ -13133,6 +13269,10 @@ io.on("connection", (socket) => {
         sockets.delete(socket.id);
         if (sockets.size === 0) {
           onlineRegSockets.delete(socket._regUser.usernameLower);
+          if (!socket._regUser.isGuest) {
+            const gone = registeredUsers.get(socket._regUser.usernameLower);
+            if (gone) { gone.lastSeenAt = Date.now(); saveAuthUsers(); }
+          }
           announceOnlineChanged(); // they just went fully offline
         }
       }
