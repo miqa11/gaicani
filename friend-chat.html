@@ -1072,7 +1072,7 @@ button, textarea, input { font-family: inherit; }
 
   <!-- INPUT BAR -->
   <div id="fc-input-bar" style="display:none">
-    <button class="fc-extra-btn" id="fc-gif-btn" title="სტიკერები და GIF" aria-label="სტიკერები და GIF">GIF</button>
+    <button class="fc-extra-btn" id="fc-gif-btn" title="ემოჯი, სტიკერები და GIF" aria-label="ემოჯი, სტიკერები და GIF" style="font-size:20px">😊</button>
     <button class="fc-extra-btn" id="fc-question-btn" title="შემთხვევითი კითხვა">?</button>
     <!-- Pro-only. Stays hidden (display:none) until JS confirms isPro, so
          non-pro users — the vast majority — see no extra clutter in an
@@ -2588,6 +2588,7 @@ button, textarea, input { font-family: inherit; }
   const openMediaTab = elGifPicker && window.GaicaniStickers
     ? window.GaicaniStickers.attach(elGifPicker, {
         gifEls: [elGifSearch, elGifResults],
+        input: elInput, // 😊 tab: emoji go into the message
         onPick: sendFCSticker,
         onGifs: () => { if (elGifSearch) { elGifSearch.value = ""; elGifSearch.focus(); } fetchGifs(""); },
         onClose: () => closeGifPicker(),

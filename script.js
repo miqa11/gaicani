@@ -897,6 +897,7 @@ function updateGifPickerPosition() {
 const openMediaTab = window.GaicaniStickers
   ? window.GaicaniStickers.attach(gifPicker, {
       gifEls: [gifSearch.closest(".gif-picker-header"), gifResults],
+      input: messageInput, // 😊 tab: emoji go into the message
       onPick: sendSticker,
       onGifs: () => { gifSearch.value = ""; gifSearch.focus(); fetchGifs(""); },
       onClose: () => closeGifPickerPanel(),

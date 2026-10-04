@@ -297,6 +297,12 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 
 /* ── Sticker tab in the GIF panel (stickers.js) ── */
 #gifPicker .stk-tabs { padding: 10px 10px 6px; }
+#gifPicker .emo-panel { flex: 1; padding: 0 8px 10px; }
+#gifBtn.emoji-btn { font-size: 22px !important; line-height: 1; }
+/* Emoji / sticker tabs don't open the keyboard, so the panel can be taller;
+   the GIF search keeps the shorter, keyboard-friendly height. */
+#gifPicker:not(.stk-on-gif) { height: min(56vh, 420px) !important; }
+#gifPicker:not(.stk-on-gif) .gif-powered { display: none; }
 #gifPicker .stk-grid { flex: 1; padding: 4px 10px 12px; align-content: start; }
   </style>
   <style id="profile-fields">
@@ -536,7 +542,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
              rows="1" maxlength="2000" disabled></textarea>
       <span id="charCount" class="char-count"></span>
       <button id="questionBtn" class="question-btn" disabled title="Random question">?</button>
-      <button id="gifBtn" class="gif-btn" disabled title="სტიკერები და GIF" aria-label="სტიკერები და GIF">GIF</button>
+      <button id="gifBtn" class="gif-btn emoji-btn" disabled title="ემოჯი, სტიკერები და GIF" aria-label="ემოჯი, სტიკერები და GIF">😊</button>
       <button id="sendBtn" disabled>SEND</button>
     </div>
   </div>
