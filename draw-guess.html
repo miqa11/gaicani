@@ -299,10 +299,28 @@
     html.dg-sideways #playScreen > .dg-guess-hint { grid-column: 2; grid-row: 6; }
     html.dg-sideways #playScreen > .dg-guess-bar  { grid-column: 2; grid-row: 7; }
 
+    /* Upright touch screens: finger-sized drawing tools — two rows of colour
+       pills, then the brush size and the 🪣 ↩️ 🗑️ buttons. */
+    @media (pointer: coarse) {
+      html:not(.dg-sideways) .dg-tools { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+      html:not(.dg-sideways) .dg-colors { flex: 1 1 100%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+      html:not(.dg-sideways) .dg-color-swatch { width: auto; height: 32px; border-radius: 10px; }
+      html:not(.dg-sideways) .dg-color-swatch.active { transform: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #fff; }
+      html:not(.dg-sideways) #brushSize { flex: 1; width: auto; height: 32px; }
+      html:not(.dg-sideways) .dg-tool-btn { width: 46px; height: 40px; font-size: 1.15em; border-radius: 10px; }
+    }
+    .dg-tool-btn, .dg-color-swatch, #guessSend, .dg-word-choice-btn { touch-action: manipulation; }
+
     /* Typing a guess on a phone (html.dg-kb): the keyboard takes most of the
        screen, so keep only what matters — the drawing, the word and the
        guess box right above the keyboard. */
-    html.dg-kb #playScreen .dg-play-header { height: 38px; }
+    html.dg-kb #playScreen .dg-play-header { display: none; }
+    .dg-kb-timer { display: none; }
+    html.dg-kb .dg-kb-timer {
+      display: grid; place-items: center; flex-shrink: 0; min-width: 40px; height: 40px; align-self: center;
+      border-radius: 50%; font-weight: 800; color: var(--accent-lt); background: var(--surface-2); border: 1px solid var(--border);
+    }
+    html.dg-kb .dg-kb-timer.low { color: var(--danger); border-color: var(--danger); }
     html.dg-kb #playScreen .dg-word-hint { padding: 3px 8px 2px; font-size: 1.1em; min-height: 0; }
     html.dg-kb #playScreen .dg-scoreboard,
     html.dg-kb #playScreen .dg-guess-hint { display: none !important; }
@@ -451,7 +469,8 @@
 
     <div class="dg-guess-hint" id="dgGuessHint" style="display:none">✍️ დაწერე ვარაუდი ქართული კლავიატურით</div>
     <div class="dg-guess-bar" id="guessBar" style="display:none">
-      <input id="guessInput" placeholder="დაწერე შენი ვარაუდი..." maxlength="60" autocomplete="off" />
+      <span class="dg-kb-timer" id="dgKbTimer" aria-hidden="true"></span>
+      <input id="guessInput" placeholder="დაწერე შენი ვარაუდი..." maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" />
       <button id="guessSend">გაგზავნა</button>
     </div>
   </div>
@@ -510,6 +529,11 @@
       canvas.style.width = Math.floor(h * 4 / 3) + "px";
       canvas.style.height = Math.floor(h) + "px";
     }
+    // Tallest the page has been in this orientation — the keyboard is open
+    // when the page is now clearly shorter than that (works on Android,
+    // where the page shrinks, and iOS, where only the visible part does).
+    var fullH = 0, lastSideways = null;
+    function viewH() { return window.visualViewport ? window.visualViewport.height : window.innerHeight; }
     var queued = false;
     function updateLayout() {
       if (queued) return;
@@ -517,9 +541,12 @@
       requestAnimationFrame(function () {
         queued = false;
         var sideways = deviceSideways() && window.innerHeight <= 500;
+        if (sideways !== lastSideways) { fullH = 0; lastSideways = sideways; }
+        fullH = Math.max(fullH, viewH());
         root.classList.toggle("dg-sideways", sideways);
         var ae = document.activeElement;
-        root.classList.toggle("dg-kb", !sideways && coarse && !!ae && ae.id === "guessInput");
+        var keyboardUp = fullH - viewH() > 120;
+        root.classList.toggle("dg-kb", !sideways && coarse && !!ae && ae.id === "guessInput" && keyboardUp);
         fitCanvas();
       });
     }
@@ -977,9 +1004,10 @@
     clearInterval(timerInterval);
     function tick() {
       const secs = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-      const el = $("dgTimer");
-      el.textContent = secs;
-      el.classList.toggle("low", secs <= 15);
+      for (const el of [$("dgTimer"), $("dgKbTimer")]) { // the 2nd shows in the guess bar while typing
+        el.textContent = secs;
+        el.classList.toggle("low", secs <= 15);
+      }
       if (secs <= 0) clearInterval(timerInterval);
     }
     tick();
@@ -1029,6 +1057,9 @@
     input.value = "";
   }
   $("guessSend").addEventListener("click", sendGuess);
+  // Tapping გაგზავნა must not take the focus away from the box — otherwise
+  // the phone keyboard closes after every guess and the screen jumps.
+  $("guessSend").addEventListener("pointerdown", (e) => { if (document.activeElement === $("guessInput")) e.preventDefault(); });
   $("guessInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendGuess(); });
 
   /* ── End screen ──────────────────────────────────────────────── */
