@@ -2594,18 +2594,35 @@ button, textarea, input { font-family: inherit; }
         onClose: () => closeGifPicker(),
       })
     : () => true;
+  // Like Messenger: while the 😊 panel is open the page makes room for it at
+  // the bottom, so the message box sits right above the panel and you can
+  // see what you're typing (before, the panel covered the box).
+  function syncInputWithPicker() {
+    const app = $("app");
+    if (!app || !elGifPicker) return;
+    const wasNear = isNearBottom();
+    const open = elGifPicker.classList.contains("open") && window.innerWidth < 700;
+    app.style.paddingBottom = open ? elGifPicker.offsetHeight + "px" : "";
+    if (wasNear) scrollToBottom();
+  }
+  if (elGifPicker && window.ResizeObserver) new ResizeObserver(() => syncInputWithPicker()).observe(elGifPicker);
+  window.addEventListener("resize", () => syncInputWithPicker());
+
   function openGifPicker() {
     if (!elGifPicker) return;
     elGifPicker.style.display = "flex";
     elGifPicker.getBoundingClientRect(); // force reflow before transition
     elGifPicker.classList.add("open");
-    if (!openMediaTab()) return; // sticker tab — nothing to load, no keyboard
+    const gifTab = openMediaTab();
+    syncInputWithPicker();
+    if (!gifTab) return; // emoji / sticker tab — nothing to load, no keyboard
     if (elGifSearch) { elGifSearch.value = ""; elGifSearch.focus(); }
     fetchGifs("");
   }
   function closeGifPicker() {
     if (!elGifPicker) return;
     elGifPicker.classList.remove("open");
+    syncInputWithPicker();
     setTimeout(() => { if (!elGifPicker.classList.contains("open")) elGifPicker.style.display = "none"; }, 250);
   }
 
@@ -2682,8 +2699,13 @@ button, textarea, input { font-family: inherit; }
     e.stopPropagation();
     gifPickerOpen() ? closeGifPicker() : openGifPicker();
   });
+  // A tap outside closes the panel — except on the message bar's buttons
+  // (send, 🎤 …), so you can send and keep picking. Tapping the text box
+  // itself closes it, like Messenger, since the keyboard takes its place.
   document.addEventListener("click", (e) => {
-    if (gifPickerOpen() && !elGifPicker.contains(e.target)) closeGifPicker();
+    if (!gifPickerOpen() || elGifPicker.contains(e.target)) return;
+    if (elInputBar.contains(e.target) && e.target !== elInput) return;
+    closeGifPicker();
   });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && gifPickerOpen()) closeGifPicker(); });
   if (elGifSearch) elGifSearch.addEventListener("input", () => {

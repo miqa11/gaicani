@@ -865,6 +865,7 @@ function updateViewportOffsets() {
   // When keyboard is closed, reset to 0 so CSS env(safe-area-inset-bottom) takes over.
   chatInputBar.style.bottom     = kbH > 0 ? kbH + "px" : "";
   chatInputBar.style.transition = kbH === 0 ? "bottom 0.22s ease" : "none";
+  syncInputWithPicker(); // the 😊 panel open → the bar sits on top of it
 
   // GIF picker: bottom sheet sits flush above keyboard
   if (gifPickerOpen) {
@@ -905,6 +906,28 @@ const openMediaTab = window.GaicaniStickers
   : () => true;
 if (window.GaicaniStickers) gifPickerClose.style.display = "none";
 
+// Like Messenger: while the 😊 panel is open the message bar rides on top of
+// it (and the chat makes room above), so you can see what you're typing —
+// before, the panel slid over the bar and hid it.
+function syncInputWithPicker() {
+  const kbH = getKeyboardHeight();
+  const ph = gifPickerOpen ? gifPicker.offsetHeight : 0;
+  if (!ph) {
+    if (chatInputBar.dataset.overPicker) {
+      delete chatInputBar.dataset.overPicker;
+      chatInputBar.style.bottom = kbH > 0 ? kbH + "px" : "";
+      chat.style.paddingBottom = "";
+    }
+    return;
+  }
+  chatInputBar.dataset.overPicker = "1";
+  chatInputBar.style.transition = "bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1)";
+  chatInputBar.style.bottom = (kbH + ph) + "px";
+  chat.style.paddingBottom = `calc(${ph + chatInputBar.offsetHeight + 12}px + env(safe-area-inset-bottom, 0px))`;
+  scheduleScroll();
+}
+if (window.ResizeObserver) new ResizeObserver(() => syncInputWithPicker()).observe(gifPicker);
+
 function openGifPicker() {
   const kbH = getKeyboardHeight();
   gifPicker.style.display = "flex";
@@ -912,7 +935,9 @@ function openGifPicker() {
   gifPicker.getBoundingClientRect();
   gifPicker.style.bottom = kbH + "px";
   gifPickerOpen = true;
-  if (!openMediaTab()) return; // sticker tab — nothing to load, no keyboard
+  const gifTab = openMediaTab();
+  syncInputWithPicker();
+  if (!gifTab) return; // emoji / sticker tab — nothing to load, no keyboard
   gifSearch.value = "";
   gifSearch.focus();
   fetchGifs("");
@@ -921,6 +946,7 @@ function openGifPicker() {
 function closeGifPickerPanel() {
   gifPicker.style.bottom = "-100%";
   gifPickerOpen = false;
+  syncInputWithPicker();
   // Hide after slide-out animation
   setTimeout(() => {
     if (!gifPickerOpen) gifPicker.style.display = "none";
@@ -944,10 +970,13 @@ gifSearch.addEventListener("keydown", (e) => {
   if (e.key === "Enter") e.preventDefault();
 });
 
+// A tap outside closes the panel — except on the message bar's buttons (send,
+// ?, 😊), so you can send and keep picking. Tapping the text box closes it,
+// like Messenger, since the keyboard takes its place.
 document.addEventListener("click", (e) => {
-  if (gifPickerOpen && !gifPicker.contains(e.target) && e.target !== gifBtn) {
-    closeGifPickerPanel();
-  }
+  if (!gifPickerOpen || gifPicker.contains(e.target) || e.target === gifBtn) return;
+  if (chatInputBar.contains(e.target) && e.target !== messageInput) return;
+  closeGifPickerPanel();
 });
 
 function sendGif(fullUrl, previewUrl) {
