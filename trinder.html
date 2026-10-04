@@ -64,18 +64,18 @@ button, input, select, textarea { font-family:inherit; }
 .details p { margin:0 0 10px; line-height:1.55; color:#e4dcf7; }
 .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
 .chip { padding:5px 11px; border-radius:999px; font-size:.82em; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); }
-/* 5 swipes a day */
+/* 5 likes a day (passing is unlimited) */
 .swipes { display:flex; align-items:center; justify-content:center; gap:8px; margin:12px 0 0; color:var(--muted); font-size:.84em; font-weight:700; }
 .swipes .dots { display:flex; gap:5px; }
 .swipes .dots i { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.14); }
 .swipes .dots i.on { background:linear-gradient(135deg,#ff7aa0,var(--rose)); box-shadow:0 0 8px rgba(255,77,125,.6); }
-.out { text-align:center; padding:34px 18px; margin-top:8px; border-radius:24px; background:var(--plate); border:1px solid var(--line); line-height:1.6; color:#e4dcf7; }
-.out .big { font-size:2.4em; margin-bottom:6px; }
-.out b { display:block; font-size:1.15em; color:var(--text); margin-bottom:4px; }
-.out .clock { margin:14px auto 4px; font-size:2em; font-weight:900; font-variant-numeric:tabular-nums; letter-spacing:.04em;
-  background:linear-gradient(90deg,#ffd1dd,var(--rose),var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-.out small { color:var(--muted); }
-.out .btn { margin-top:16px; }
+.out { display:flex; align-items:center; gap:10px; margin:12px 0 0; padding:10px 12px; border-radius:16px; background:var(--plate); border:1px solid var(--line); color:#e4dcf7; font-size:.86em; line-height:1.4; }
+.out .big { font-size:1.6em; flex-shrink:0; }
+.out .txt { flex:1; min-width:0; }
+.out b { display:block; color:var(--text); }
+.out .clock { font-weight:900; font-variant-numeric:tabular-nums; color:#ff8fb0; }
+.out .btn { flex-shrink:0; padding:8px 11px; font-size:.92em; }
+.act.like.spent { filter:grayscale(.85) brightness(.75); box-shadow:none; }
 /* ℹ️ on the card + full-profile sheet */
 .card-i { position:absolute; right:14px; bottom:18px; z-index:2; width:40px; height:40px; border-radius:50%; cursor:pointer;
   border:1.5px solid rgba(255,255,255,.55); background:rgba(19,15,38,.55); color:#fff; font:inherit; font-weight:900; font-size:1.15em;
@@ -273,19 +273,16 @@ select.in { appearance:none; -webkit-appearance:none; }
     <div class="empty" id="deckEmpty" hidden><b>ამ წუთას ახალი პროფილები აღარ არის</b>
       შემოიარე მოგვიანებით — ახალი ადამიანები ყოველდღე ემატებიან.<br><br>
       <button class="btn ghost" id="btnReset" type="button">გამოტოვებულების თავიდან ნახვა</button></div>
-    <div class="out" id="deckOut" hidden>
-      <div class="big">⏳</div>
-      <b>დღევანდელი 5 სვაიპი ამოიწურა</b>
-      ხვალ ისევ 5 სვაიპი გექნება — ახალი სვაიპები:
-      <div class="clock" id="outClock">--:--:--</div>
-      <small>ვინც უკვე მოგწონს, იმას „მოგწონს“ ჩანართში უფასოდ უპასუხებ</small><br>
-      <button class="btn ghost" id="outLikes" type="button">💗 ნახე ვის მოეწონე</button>
-    </div>
     <div class="actions" id="deckActions">
       <button class="act pass" id="btnPass" type="button" aria-label="გამოტოვება">✕</button>
       <button class="act like" id="btnLike" type="button" aria-label="მომწონს">❤</button>
     </div>
     <div class="swipes" id="swipesBar" hidden><span class="dots" id="swipeDots"></span><span id="swipesText"></span></div>
+    <div class="out" id="deckOut" hidden>
+      <div class="big">⏳</div>
+      <div class="txt"><b>დღევანდელი 5 ლაიქი ამოიწურა</b>ახალი ლაიქები <span class="clock" id="outClock">--:--:--</span>-ში · გამოტოვება შეგიძლია</div>
+      <button class="btn ghost" id="outLikes" type="button">💗 ვის მოეწონე</button>
+    </div>
     <div class="details" id="details" hidden></div>
   </section>
 
@@ -384,23 +381,29 @@ select.in { appearance:none; -webkit-appearance:none; }
     setSwipes(st);
   }
 
-  // ── 5 swipes a day ──────────────────────────────────────────────────────
+  // ── 5 likes a day (✕ is unlimited) ──────────────────────────────────────
   var swipes = { left: 5, max: 5, resetAt: 0 }, outTimer = null;
   function setSwipes(r) {
-    if (!r || typeof r.swipesLeft !== "number") return;
-    swipes = { left: r.swipesLeft, max: r.swipesMax || 5, resetAt: r.swipesResetAt || 0 };
+    if (!r || typeof r.likesLeft !== "number") return;
+    swipes = { left: r.likesLeft, max: r.likesMax || 5, resetAt: r.likesResetAt || 0 };
     paintSwipes();
   }
   function paintSwipes() {
     var dots = "";
     for (var i = 0; i < swipes.max; i++) dots += '<i class="' + (i < swipes.left ? "on" : "") + '"></i>';
     $("swipeDots").innerHTML = dots;
-    $("swipesText").textContent = "დღეს დარჩა " + swipes.left + "/" + swipes.max + " სვაიპი";
+    $("swipesText").textContent = "❤ დღეს დარჩა " + swipes.left + "/" + swipes.max + " ლაიქი";
+    var out = outOfSwipes();
+    $("btnLike").classList.toggle("spent", out);
+    $("deckOut").hidden = !out || $("deckActions").hidden;
+    $("swipesBar").hidden = out || $("deckActions").hidden;
+    if (out) { tickOut(); if (!outTimer) outTimer = setInterval(tickOut, 1000); }
   }
   function outOfSwipes() { return swipes.left <= 0 && swipes.resetAt > Date.now(); }
+  function noLikesToast() { toast("⏳ დღევანდელი 5 ლაიქი ამოიწურა — ახალი ლაიქები " + $("outClock").textContent + "-ში. გამოტოვება შეგიძლია"); }
   function tickOut() {
     var ms = swipes.resetAt - Date.now();
-    if (ms <= 0) { clearInterval(outTimer); outTimer = null; swipes.left = swipes.max; paintSwipes(); queue = []; deckDry = false; renderDeck(); return; }
+    if (ms <= 0) { clearInterval(outTimer); outTimer = null; swipes.left = swipes.max; paintSwipes(); return; }
     var s2 = Math.floor(ms / 1000), h = Math.floor(s2 / 3600), m = Math.floor(s2 % 3600 / 60), sec = s2 % 60;
     $("outClock").textContent = [h, m, sec].map(function (x) { return String(x).padStart(2, "0"); }).join(":");
   }
@@ -594,17 +597,9 @@ select.in { appearance:none; -webkit-appearance:none; }
   }
   function renderDeck() {
     var deck = $("deck"); deck.innerHTML = "";
-    var out = outOfSwipes();
-    $("deckOut").hidden = !out;
-    $("swipesBar").hidden = out;
-    if (out) {
-      deck.hidden = true; $("deckActions").hidden = true; $("deckEmpty").hidden = true; renderDetails(null);
-      tickOut(); if (!outTimer) outTimer = setInterval(tickOut, 1000);
-      return;
-    }
     var empty = !queue.length;
-    $("swipesBar").hidden = empty;
     $("deckEmpty").hidden = !empty || deckLoading; $("deckActions").hidden = empty; deck.hidden = empty;
+    paintSwipes();
     if (empty) { renderDetails(null); if (!deckLoading && !deckDry) loadDeck(); return; }
     if (queue[1]) deck.appendChild(cardEl(queue[1], true));
     var top = cardEl(queue[0], false); deck.appendChild(top);
@@ -625,7 +620,9 @@ select.in { appearance:none; -webkit-appearance:none; }
     var end = function () {
       if (!dragging) return; dragging = false;
       var v = Math.abs(dx) / Math.max(1, performance.now() - t0);
-      if (Math.abs(dx) > 110 || (Math.abs(dx) > 40 && v > .6)) { decide(dx > 0 ? "like" : "pass", card); }
+      var flung = Math.abs(dx) > 110 || (Math.abs(dx) > 40 && v > .6);
+      if (flung && dx > 0 && outOfSwipes()) { flung = false; noLikesToast(); } // no likes left: spring back
+      if (flung) { decide(dx > 0 ? "like" : "pass", card); }
       else { card.style.transition = "transform .25s cubic-bezier(.2,.8,.2,1)"; card.style.transform = ""; like.style.opacity = 0; nope.style.opacity = 0; }
       dx = dy = 0;
     };
@@ -633,7 +630,7 @@ select.in { appearance:none; -webkit-appearance:none; }
   }
   function decide(action, card) {
     if (busy || !queue.length) return;
-    if (outOfSwipes()) { renderDeck(); return; }
+    if (action === "like" && outOfSwipes()) { noLikesToast(); return; }
     busy = true;
     var c = queue[0];
     card = card || $("deck").lastElementChild;
@@ -647,14 +644,13 @@ select.in { appearance:none; -webkit-appearance:none; }
     swiped.add(c.username);
     call("trinder:swipe", { target: c.username, action: action }).then(function (r) {
       setSwipes(r);
-      if (r && r.outOfSwipes) { // the limit was reached elsewhere — bring the card back
+      if (r && r.outOfLikes) { // the likes ran out elsewhere — bring the card back
         swiped.delete(c.username);
         if (!queue.some(function (q) { return q.username === c.username; })) queue.unshift(c);
-        renderDeck(); return;
+        renderDeck(); noLikesToast(); return;
       }
       if (r && r.error) toast(r.error);
       if (r && r.match) { setLikes(r.likesCount || 0); addMatch(r.match); celebrate(r.match); }
-      if (outOfSwipes()) renderDeck();
     });
     setTimeout(function () { queue.shift(); busy = false; renderDeck(); }, REDUCE ? 0 : 300);
   }
@@ -680,9 +676,9 @@ select.in { appearance:none; -webkit-appearance:none; }
     if (queue[0] && queue[0].username === c.username && !$("vDeck").hidden) {
       var acts = el("div", "info-actions");
       var p = el("button", "act pass", "✕"); p.type = "button"; p.setAttribute("aria-label", "გამოტოვება");
-      var l = el("button", "act like", "❤"); l.type = "button"; l.setAttribute("aria-label", "მომწონს");
+      var l = el("button", "act like" + (outOfSwipes() ? " spent" : ""), "❤"); l.type = "button"; l.setAttribute("aria-label", "მომწონს");
       p.onclick = function () { closeInfo(); decide("pass"); };
-      l.onclick = function () { closeInfo(); decide("like"); };
+      l.onclick = function () { if (outOfSwipes()) { noLikesToast(); return; } closeInfo(); decide("like"); };
       acts.appendChild(p); acts.appendChild(l); sh.appendChild(acts);
     }
     $("infoOv").hidden = false;

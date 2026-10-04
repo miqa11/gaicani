@@ -5043,20 +5043,20 @@ function trinderPendingLikers(meLc, me) {
   return out;
 }
 function trinderWants(pref, gender) { return pref === "everyone" || (pref === "men" && gender === "male") || (pref === "women" && gender === "female"); }
-// ── 5 swipes a day ───────────────────────────────────────────────────────
-// Every like / pass on a new person in the deck uses one; the count starts
-// again at Georgian midnight. Answering someone who already liked you (the
-// "მოგწონს" tab — liking back is a match) is always free.
-const TRINDER_DAILY_SWIPES = 5;
-function trinderSwipesLeft(t) {
-  return t.swipes && t.swipes.day === georgiaDay() ? Math.max(0, TRINDER_DAILY_SWIPES - (t.swipes.n || 0)) : TRINDER_DAILY_SWIPES;
+// ── 5 likes a day ────────────────────────────────────────────────────────
+// Every ❤ on a new person uses one; passing (✕) is unlimited. The count
+// starts again at Georgian midnight. Liking back someone who already liked
+// you (a match) is always free.
+const TRINDER_DAILY_LIKES = 5;
+function trinderLikesLeft(t) {
+  return t.dailyLikes && t.dailyLikes.day === georgiaDay() ? Math.max(0, TRINDER_DAILY_LIKES - (t.dailyLikes.n || 0)) : TRINDER_DAILY_LIKES;
 }
 function nextGeorgiaMidnight() {
   const g = Date.now() + 4 * 3600e3;            // Georgia is UTC+4 all year
   return g - (g % 86400000) + 86400000 - 4 * 3600e3;
 }
-function trinderSwipeInfo(t) {
-  return { swipesLeft: trinderSwipesLeft(t), swipesMax: TRINDER_DAILY_SWIPES, swipesResetAt: nextGeorgiaMidnight() };
+function trinderLikeInfo(t) {
+  return { likesLeft: trinderLikesLeft(t), likesMax: TRINDER_DAILY_LIKES, likesResetAt: nextGeorgiaMidnight() };
 }
 
 function trinderState(meLc, me) {
@@ -5067,7 +5067,7 @@ function trinderState(meLc, me) {
     .filter(([lc, u]) => u && !u.isGuest && (me.friends || []).includes(lc) && !trinderBlocked(me, meLc, u, lc))
     .map(([lc, u]) => ({ username: u.username, name: (u.trinder && u.trinder.profile && u.trinder.profile.name) || u.username, avatar: u.avatar || DEFAULT_AVATAR, online: isVisiblyOnline(lc) }));
   const pr = me.profile || {};
-  return { ...trinderSwipeInfo(t), joined: !!t.active, complete: trinderProfileComplete(t.profile), profile: t.profile, avatar: me.avatar || DEFAULT_AVATAR, isPro: !!me.isPro,
+  return { ...trinderLikeInfo(t), joined: !!t.active, complete: trinderProfileComplete(t.profile), profile: t.profile, avatar: me.avatar || DEFAULT_AVATAR, isPro: !!me.isPro,
     likesCount: trinderPendingLikers(meLc, me).length, matches,
     prefill: { age: pr.age || null, gender: pr.gender || "", city: pr.city || "", job: pr.work || "", university: pr.study || "" } };
 }
@@ -11034,7 +11034,7 @@ io.on("connection", (socket) => {
       pool.push([score, lc, u]);
     }
     pool.sort((a, b) => b[0] - a[0]);
-    ack({ ...trinderSwipeInfo(t), cards: pool.slice(0, 15).map(([, lc, u]) => trinderCard(lc, u)) });
+    ack({ ...trinderLikeInfo(t), cards: pool.slice(0, 15).map(([, lc, u]) => trinderCard(lc, u)) });
   });
   socket.on("trinder:swipe", (data, ack) => {
     if (typeof ack !== "function") return;
@@ -11047,17 +11047,19 @@ io.on("connection", (socket) => {
     if (!them || tLc === meLc || them.isGuest || !them.trinder || !them.trinder.active) return ack({ error: "ეს პროფილი აღარ არსებობს" });
     const action = data && data.action === "like" ? "like" : "pass";
     if (action === "like" && !trinderCompatible(me, them)) return ack({ error: "ეს პროფილი შენს არჩევანს აღარ შეესაბამება" });
-    // Daily limit — free when they already like you (answering, not swiping).
-    if (!trinderOf(them).likes.includes(meLc)) {
-      if (trinderSwipesLeft(t) <= 0) return ack({ error: "დღევანდელი 5 სვაიპი ამოიწურა — ხვალ ისევ გექნება 5", outOfSwipes: true, ...trinderSwipeInfo(t) });
+    // Daily like limit — passes are free, and so is liking back someone who
+    // already likes you (that's a match). Re-liking someone you already
+    // like doesn't use another one.
+    if (action === "like" && !trinderOf(them).likes.includes(meLc) && !t.likes.includes(tLc)) {
+      if (trinderLikesLeft(t) <= 0) return ack({ error: "დღევანდელი 5 ლაიქი ამოიწურა — ხვალ ისევ გექნება 5", outOfLikes: true, ...trinderLikeInfo(t) });
       const today = georgiaDay();
-      t.swipes = t.swipes && t.swipes.day === today ? { day: today, n: (t.swipes.n || 0) + 1 } : { day: today, n: 1 };
+      t.dailyLikes = t.dailyLikes && t.dailyLikes.day === today ? { day: today, n: (t.dailyLikes.n || 0) + 1 } : { day: today, n: 1 };
     }
     const likedBefore = t.likes.includes(tLc);
     t.likes = t.likes.filter(x => x !== tLc); t.passes = t.passes.filter(x => x !== tLc);
     if (action === "pass" || trinderBlocked(me, meLc, them, tLc)) {
       t.passes.push(tLc); if (t.passes.length > 5000) t.passes.splice(0, t.passes.length - 5000);
-      saveAuthUsers(); return ack({ ok: true, ...trinderSwipeInfo(t) });
+      saveAuthUsers(); return ack({ ok: true, ...trinderLikeInfo(t) });
     }
     t.likes.push(tLc);
     const tt = trinderOf(them);
@@ -11076,7 +11078,7 @@ io.on("connection", (socket) => {
       io.to(`user:${tLc}`).emit("trinder:match", { with: cardMe, friends: them.friends, likesCount: trinderPendingLikers(tLc, them).length });
       pushNotification(tLc, { type: "trinder_match", from: me.username, fromLc: meLc, name: cardMe.name, link: "/trinder.html?tab=matches" });
       socket.to(`user:${meLc}`).emit("trinder:match", { with: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
-      return ack({ ok: true, ...trinderSwipeInfo(t), match: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
+      return ack({ ok: true, ...trinderLikeInfo(t), match: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
     }
     saveAuthUsers();
     // Tell them someone likes them — but not who (the notification doesn't
@@ -11086,7 +11088,7 @@ io.on("connection", (socket) => {
     // count = everyone currently waiting on them (same number as the Trinder
     // button), so re-swiping the same person can't inflate it.
     if (!likedBefore && likesCount > 0) pushNotification(tLc, { type: "trinder_like", count: likesCount, link: "/trinder.html?tab=likes" }, "trinder_like");
-    ack({ ok: true, ...trinderSwipeInfo(t) });
+    ack({ ok: true, ...trinderLikeInfo(t) });
   });
   // Who liked me. VIP members see who; everyone else only gets blurred pictures
   // (no names are ever sent, so the blur can't be peeked behind).
