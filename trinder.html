@@ -64,6 +64,39 @@ button, input, select, textarea { font-family:inherit; }
 .details p { margin:0 0 10px; line-height:1.55; color:#e4dcf7; }
 .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
 .chip { padding:5px 11px; border-radius:999px; font-size:.82em; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); }
+/* 5 swipes a day */
+.swipes { display:flex; align-items:center; justify-content:center; gap:8px; margin:12px 0 0; color:var(--muted); font-size:.84em; font-weight:700; }
+.swipes .dots { display:flex; gap:5px; }
+.swipes .dots i { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.14); }
+.swipes .dots i.on { background:linear-gradient(135deg,#ff7aa0,var(--rose)); box-shadow:0 0 8px rgba(255,77,125,.6); }
+.out { text-align:center; padding:34px 18px; margin-top:8px; border-radius:24px; background:var(--plate); border:1px solid var(--line); line-height:1.6; color:#e4dcf7; }
+.out .big { font-size:2.4em; margin-bottom:6px; }
+.out b { display:block; font-size:1.15em; color:var(--text); margin-bottom:4px; }
+.out .clock { margin:14px auto 4px; font-size:2em; font-weight:900; font-variant-numeric:tabular-nums; letter-spacing:.04em;
+  background:linear-gradient(90deg,#ffd1dd,var(--rose),var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.out small { color:var(--muted); }
+.out .btn { margin-top:16px; }
+/* ℹ️ on the card + full-profile sheet */
+.card-i { position:absolute; right:14px; bottom:18px; z-index:2; width:40px; height:40px; border-radius:50%; cursor:pointer;
+  border:1.5px solid rgba(255,255,255,.55); background:rgba(19,15,38,.55); color:#fff; font:inherit; font-weight:900; font-size:1.15em;
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); display:grid; place-items:center; }
+.card-i:hover { background:rgba(19,15,38,.8); }
+.card-info { padding-right:66px; }
+.info-ov { position:fixed; inset:0; z-index:90; background:rgba(8,6,20,.7); display:flex; align-items:flex-end; justify-content:center; }
+.info-sheet { width:100%; max-width:520px; max-height:88vh; max-height:88dvh; overflow-y:auto; border-radius:24px 24px 0 0;
+  background:linear-gradient(180deg,#261f49,#1c1735); border:1px solid var(--line); border-bottom:none; padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  animation:sheetUp .25s cubic-bezier(.2,.8,.2,1); }
+@keyframes sheetUp { from { transform:translateY(40px); opacity:0; } to { transform:none; opacity:1; } }
+.info-photo { position:relative; height:min(46vh,380px); background-size:cover; background-position:center; border-radius:24px 24px 0 0; }
+.info-photo::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 55%,rgba(28,23,53,.95)); border-radius:inherit; }
+.info-close { position:absolute; top:12px; right:12px; z-index:2; width:40px; height:40px; border-radius:50%; border:none; cursor:pointer;
+  background:rgba(19,15,38,.7); color:#fff; font-size:1.1em; }
+.info-head { padding:0 18px; margin-top:-56px; position:relative; z-index:1; }
+.info-head .card-name { font-size:1.9em; }
+.info-body { padding:6px 18px 0; }
+.info-body .details { margin-top:12px; }
+.info-actions { display:flex; justify-content:center; gap:26px; margin:16px 0 4px; }
+@media (prefers-reduced-motion: reduce) { .info-sheet { animation:none; } }
 .empty { text-align:center; padding:48px 16px; color:var(--muted); line-height:1.6; }
 .empty b { color:var(--text); font-size:1.1em; display:block; margin-bottom:6px; }
 
@@ -240,16 +273,29 @@ select.in { appearance:none; -webkit-appearance:none; }
     <div class="empty" id="deckEmpty" hidden><b>ამ წუთას ახალი პროფილები აღარ არის</b>
       შემოიარე მოგვიანებით — ახალი ადამიანები ყოველდღე ემატებიან.<br><br>
       <button class="btn ghost" id="btnReset" type="button">გამოტოვებულების თავიდან ნახვა</button></div>
+    <div class="out" id="deckOut" hidden>
+      <div class="big">⏳</div>
+      <b>დღევანდელი 5 სვაიპი ამოიწურა</b>
+      ხვალ ისევ 5 სვაიპი გექნება — ახალი სვაიპები:
+      <div class="clock" id="outClock">--:--:--</div>
+      <small>ვინც უკვე მოგწონს, იმას „მოგწონს“ ჩანართში უფასოდ უპასუხებ</small><br>
+      <button class="btn ghost" id="outLikes" type="button">💗 ნახე ვის მოეწონე</button>
+    </div>
     <div class="actions" id="deckActions">
       <button class="act pass" id="btnPass" type="button" aria-label="გამოტოვება">✕</button>
       <button class="act like" id="btnLike" type="button" aria-label="მომწონს">❤</button>
     </div>
+    <div class="swipes" id="swipesBar" hidden><span class="dots" id="swipeDots"></span><span id="swipesText"></span></div>
     <div class="details" id="details" hidden></div>
   </section>
 
   <section id="vLikes" hidden><div id="likesBody"><div class="loading">იტვირთება…</div></div></section>
   <section id="vMatches" hidden><div id="matchesBody"></div></section>
 </main>
+
+<div class="info-ov" id="infoOv" hidden>
+  <div class="info-sheet" role="dialog" aria-modal="true" aria-label="პროფილი" id="infoSheet"></div>
+</div>
 
 <div class="match-ov" id="matchOv" hidden>
   <div class="match-box" role="dialog" aria-modal="true" aria-labelledby="mTitle">
@@ -335,6 +381,28 @@ select.in { appearance:none; -webkit-appearance:none; }
     state = st;
     setLikes(st.likesCount || 0);
     $("tabs").hidden = !st.joined;
+    setSwipes(st);
+  }
+
+  // ── 5 swipes a day ──────────────────────────────────────────────────────
+  var swipes = { left: 5, max: 5, resetAt: 0 }, outTimer = null;
+  function setSwipes(r) {
+    if (!r || typeof r.swipesLeft !== "number") return;
+    swipes = { left: r.swipesLeft, max: r.swipesMax || 5, resetAt: r.swipesResetAt || 0 };
+    paintSwipes();
+  }
+  function paintSwipes() {
+    var dots = "";
+    for (var i = 0; i < swipes.max; i++) dots += '<i class="' + (i < swipes.left ? "on" : "") + '"></i>';
+    $("swipeDots").innerHTML = dots;
+    $("swipesText").textContent = "დღეს დარჩა " + swipes.left + "/" + swipes.max + " სვაიპი";
+  }
+  function outOfSwipes() { return swipes.left <= 0 && swipes.resetAt > Date.now(); }
+  function tickOut() {
+    var ms = swipes.resetAt - Date.now();
+    if (ms <= 0) { clearInterval(outTimer); outTimer = null; swipes.left = swipes.max; paintSwipes(); queue = []; deckDry = false; renderDeck(); return; }
+    var s2 = Math.floor(ms / 1000), h = Math.floor(s2 / 3600), m = Math.floor(s2 % 3600 / 60), sec = s2 % 60;
+    $("outClock").textContent = [h, m, sec].map(function (x) { return String(x).padStart(2, "0"); }).join(":");
   }
   function addMatch(m) {
     if (!state || !m) return;
@@ -473,6 +541,7 @@ select.in { appearance:none; -webkit-appearance:none; }
     call("trinder:deck").then(function (r) {
       deckLoading = false;
       if (r && r.error === "not-joined") { openForm(false); return; }
+      setSwipes(r);
       var added = 0;
       ((r && r.cards) || []).forEach(function (c) {
         if (!swiped.has(c.username) && !queue.some(function (q) { return q.username === c.username; })) { queue.push(c); added++; }
@@ -497,10 +566,17 @@ select.in { appearance:none; -webkit-appearance:none; }
     if (c.university) lines.push("🎓 " + c.university);
     lines.forEach(function (l) { info.appendChild(el("div", "card-sub", l)); });
     card.appendChild(info);
+    if (!back) {
+      var ib = el("button", "card-i", "i");
+      ib.type = "button"; ib.setAttribute("aria-label", "სრული ინფორმაცია");
+      ib.addEventListener("pointerdown", function (e) { e.stopPropagation(); }); // not the start of a swipe
+      ib.addEventListener("click", function (e) { e.stopPropagation(); openInfo(c); });
+      card.appendChild(ib);
+    }
     return card;
   }
-  function renderDetails(c) {
-    var d = $("details");
+  function renderDetails(c, target) {
+    var d = target || $("details");
     if (!c) { d.hidden = true; return; }
     d.hidden = false; d.innerHTML = "";
     if (c.about) { d.appendChild(el("h3", null, "ჩემ შესახებ")); d.appendChild(el("p", null, c.about)); }
@@ -518,7 +594,16 @@ select.in { appearance:none; -webkit-appearance:none; }
   }
   function renderDeck() {
     var deck = $("deck"); deck.innerHTML = "";
+    var out = outOfSwipes();
+    $("deckOut").hidden = !out;
+    $("swipesBar").hidden = out;
+    if (out) {
+      deck.hidden = true; $("deckActions").hidden = true; $("deckEmpty").hidden = true; renderDetails(null);
+      tickOut(); if (!outTimer) outTimer = setInterval(tickOut, 1000);
+      return;
+    }
     var empty = !queue.length;
+    $("swipesBar").hidden = empty;
     $("deckEmpty").hidden = !empty || deckLoading; $("deckActions").hidden = empty; deck.hidden = empty;
     if (empty) { renderDetails(null); if (!deckLoading && !deckDry) loadDeck(); return; }
     if (queue[1]) deck.appendChild(cardEl(queue[1], true));
@@ -548,6 +633,7 @@ select.in { appearance:none; -webkit-appearance:none; }
   }
   function decide(action, card) {
     if (busy || !queue.length) return;
+    if (outOfSwipes()) { renderDeck(); return; }
     busy = true;
     var c = queue[0];
     card = card || $("deck").lastElementChild;
@@ -560,16 +646,55 @@ select.in { appearance:none; -webkit-appearance:none; }
     }
     swiped.add(c.username);
     call("trinder:swipe", { target: c.username, action: action }).then(function (r) {
+      setSwipes(r);
+      if (r && r.outOfSwipes) { // the limit was reached elsewhere — bring the card back
+        swiped.delete(c.username);
+        if (!queue.some(function (q) { return q.username === c.username; })) queue.unshift(c);
+        renderDeck(); return;
+      }
       if (r && r.error) toast(r.error);
       if (r && r.match) { setLikes(r.likesCount || 0); addMatch(r.match); celebrate(r.match); }
+      if (outOfSwipes()) renderDeck();
     });
     setTimeout(function () { queue.shift(); busy = false; renderDeck(); }, REDUCE ? 0 : 300);
   }
   $("btnLike").addEventListener("click", function () { decide("like"); });
+  $("outLikes").addEventListener("click", function () { openTab("likes"); });
+
+  // ── ℹ️ Full profile sheet ───────────────────────────────────────────────
+  function openInfo(c) {
+    var sh = $("infoSheet"); sh.innerHTML = "";
+    var ph = el("div", "info-photo"); ph.style.backgroundImage = "url('/" + encodeURI(c.avatar) + "')";
+    var x = el("button", "info-close", "✕"); x.type = "button"; x.setAttribute("aria-label", "დახურვა"); x.onclick = closeInfo;
+    ph.appendChild(x); sh.appendChild(ph);
+    var head = el("div", "info-head");
+    var nm = el("div", "card-name", c.name); nm.appendChild(el("span", "age", String(c.age)));
+    if (c.online) { var dot = el("span", "card-online"); dot.title = "ონლაინ"; nm.appendChild(dot); }
+    head.appendChild(nm);
+    [c.city && "📍 " + c.city, c.zodiac && Z[c.zodiac], c.job && "💼 " + c.job, c.university && "🎓 " + c.university]
+      .filter(Boolean).forEach(function (l) { head.appendChild(el("div", "card-sub", l)); });
+    sh.appendChild(head);
+    var body = el("div", "info-body"), det = el("div", "details"); body.appendChild(det); sh.appendChild(body);
+    renderDetails(c, det);
+    // Decide straight from the sheet when it's the card on top of the deck.
+    if (queue[0] && queue[0].username === c.username && !$("vDeck").hidden) {
+      var acts = el("div", "info-actions");
+      var p = el("button", "act pass", "✕"); p.type = "button"; p.setAttribute("aria-label", "გამოტოვება");
+      var l = el("button", "act like", "❤"); l.type = "button"; l.setAttribute("aria-label", "მომწონს");
+      p.onclick = function () { closeInfo(); decide("pass"); };
+      l.onclick = function () { closeInfo(); decide("like"); };
+      acts.appendChild(p); acts.appendChild(l); sh.appendChild(acts);
+    }
+    $("infoOv").hidden = false;
+    x.focus();
+  }
+  function closeInfo() { $("infoOv").hidden = true; }
+  $("infoOv").addEventListener("click", function (e) { if (e.target.id === "infoOv") closeInfo(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("infoOv").hidden) closeInfo(); });
   $("btnPass").addEventListener("click", function () { decide("pass"); });
   $("btnReset").addEventListener("click", function () { call("trinder:resetPasses").then(function () { swiped.clear(); queue = []; deckDry = false; loadDeck(); }); });
   document.addEventListener("keydown", function (e) {
-    if ($("vDeck").hidden || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "") || !$("matchOv").hidden) return;
+    if ($("vDeck").hidden || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "") || !$("matchOv").hidden || !$("infoOv").hidden) return;
     if (e.key === "ArrowRight") decide("like");
     if (e.key === "ArrowLeft") decide("pass");
   });
