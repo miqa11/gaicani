@@ -911,7 +911,9 @@ if (window.GaicaniStickers) gifPickerClose.style.display = "none";
 // before, the panel slid over the bar and hid it.
 function syncInputWithPicker() {
   const kbH = getKeyboardHeight();
-  const ph = gifPickerOpen ? gifPicker.offsetHeight : 0;
+  // Keyboard up as well (typing a GIF search): no room for the bar too, so
+  // it waits under the panel until the keyboard goes.
+  const ph = gifPickerOpen && kbH <= 80 ? gifPicker.offsetHeight : 0;
   if (!ph) {
     if (chatInputBar.dataset.overPicker) {
       delete chatInputBar.dataset.overPicker;
@@ -936,6 +938,8 @@ function openGifPicker() {
   gifPicker.style.bottom = kbH + "px";
   gifPickerOpen = true;
   const gifTab = openMediaTab();
+  // Like Messenger, the panel takes the keyboard's place: close the keyboard.
+  if (!gifTab && document.activeElement === messageInput) messageInput.blur();
   syncInputWithPicker();
   if (!gifTab) return; // emoji / sticker tab — nothing to load, no keyboard
   gifSearch.value = "";
@@ -969,6 +973,10 @@ gifSearch.addEventListener("keydown", (e) => {
   e.stopPropagation();
   if (e.key === "Enter") e.preventDefault();
 });
+
+// …and the other way round: the keyboard coming up for the message (tap,
+// send, reply…) closes the panel, so the two never pile up on the screen.
+messageInput.addEventListener("focus", () => { if (gifPickerOpen) closeGifPickerPanel(); });
 
 // A tap outside closes the panel — except on the message bar's buttons (send,
 // ?, 😊), so you can send and keep picking. Tapping the text box closes it,
@@ -1238,8 +1246,9 @@ function sendMessage() {
   charCount.textContent = "";
   charCount.classList.remove("warning");
   clearReply();
-  // Keep focus on input so the keyboard stays open on mobile
-  messageInput.focus();
+  // Keep focus on input so the keyboard stays open on mobile — unless the 😊
+  // panel is open: then the panel stays where the keyboard would be.
+  if (!gifPickerOpen) messageInput.focus();
 }
 
 // ── Bio / Interests popup ─────────────────────────────────────────────────────

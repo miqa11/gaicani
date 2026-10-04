@@ -1948,8 +1948,9 @@ button, textarea, input { font-family: inherit; }
     updateFCSendButtonMode();
     // Only re-focus (and pop the keyboard back up) when the send was a real
     // typed message — the quick-heart button isn't "start typing", so it
-    // must never pull focus onto the input.
-    if (focusAfter) elInput.focus();
+    // must never pull focus onto the input. Not while the 😊 panel is open
+    // either: the panel stays where the keyboard would be.
+    if (focusAfter && !(elGifPicker && elGifPicker.classList.contains("open"))) elInput.focus();
   }
 
   /* ── Load history ────────────────────────────────────────────── */
@@ -2601,7 +2602,10 @@ button, textarea, input { font-family: inherit; }
     const app = $("app");
     if (!app || !elGifPicker) return;
     const wasNear = isNearBottom();
-    const open = elGifPicker.classList.contains("open") && window.innerWidth < 700;
+    // With the keyboard also up (typing a GIF search) there's no room for the
+    // box as well — it waits under the panel until the keyboard goes.
+    const kbUp = window.visualViewport && window.screen && (window.screen.height - window.visualViewport.height > 260);
+    const open = elGifPicker.classList.contains("open") && window.innerWidth < 700 && !(kbUp && document.activeElement === elGifSearch);
     app.style.paddingBottom = open ? elGifPicker.offsetHeight + "px" : "";
     if (wasNear) scrollToBottom();
   }
@@ -2614,6 +2618,8 @@ button, textarea, input { font-family: inherit; }
     elGifPicker.getBoundingClientRect(); // force reflow before transition
     elGifPicker.classList.add("open");
     const gifTab = openMediaTab();
+    // Like Messenger, the panel takes the keyboard's place: close the keyboard.
+    if (!gifTab && document.activeElement === elInput) elInput.blur();
     syncInputWithPicker();
     if (!gifTab) return; // emoji / sticker tab — nothing to load, no keyboard
     if (elGifSearch) { elGifSearch.value = ""; elGifSearch.focus(); }
@@ -2699,6 +2705,10 @@ button, textarea, input { font-family: inherit; }
     e.stopPropagation();
     gifPickerOpen() ? closeGifPicker() : openGifPicker();
   });
+  // …and the other way round: the keyboard coming up for the message closes
+  // the panel, so the two never pile up on the screen.
+  elInput.addEventListener("focus", () => { if (gifPickerOpen()) closeGifPicker(); });
+
   // A tap outside closes the panel — except on the message bar's buttons
   // (send, 🎤 …), so you can send and keep picking. Tapping the text box
   // itself closes it, like Messenger, since the keyboard takes its place.
