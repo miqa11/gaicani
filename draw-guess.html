@@ -261,10 +261,18 @@
       display: flex; gap: 8px; flex-shrink: 0; padding: 10px 12px calc(10px + var(--safe-bottom));
       background: var(--surface); border-top: 1px solid var(--border);
     }
+    /* Same kind of box as random chat's message field: a one-line textarea
+       that grows to a second line for a long guess. */
     #guessInput {
-      flex: 1; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+      flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
       border-radius: 20px; padding: 10px 16px; font-size: 0.95em; outline: none;
+      font-family: inherit; line-height: 1.35; resize: none; overflow-y: hidden;
+      height: auto; min-height: 42px; max-height: 84px; display: block;
+      -webkit-text-fill-color: var(--text); caret-color: var(--accent-lt);
     }
+    #guessInput::placeholder { color: var(--muted); -webkit-text-fill-color: var(--muted); }
+    .dg-guess-bar { align-items: flex-end; }
+    #guessSend { min-height: 42px; }
     #guessInput:focus { border-color: var(--accent); }
     /* iPhone/iPad Safari zooms the page into any text field under 16px. */
     @media (pointer: coarse) { #guessInput { font-size: 16px; } }
@@ -470,7 +478,7 @@
     <div class="dg-guess-hint" id="dgGuessHint" style="display:none">✍️ დაწერე ვარაუდი ქართული კლავიატურით</div>
     <div class="dg-guess-bar" id="guessBar" style="display:none">
       <span class="dg-kb-timer" id="dgKbTimer" aria-hidden="true"></span>
-      <input id="guessInput" placeholder="დაწერე შენი ვარაუდი..." maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" />
+      <textarea id="guessInput" placeholder="დაწერე შენი ვარაუდი..." autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" inputmode="text" enterkeyhint="send" rows="1" maxlength="60"></textarea>
       <button id="guessSend">გაგზავნა</button>
     </div>
   </div>
@@ -523,11 +531,14 @@
       var availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       var chat = document.getElementById("dgChat"), ccs = chat ? getComputedStyle(chat) : null;
       var chatPad = ccs && ccs.display !== "none" ? parseFloat(ccs.paddingTop) + parseFloat(ccs.paddingBottom) : 0;
-      var chatMin = root.classList.contains("dg-kb") ? 0 : 48; // room for a couple of chat lines
+      // Room for the newest chat lines — your own guess shows up there, so
+      // it must stay visible even while the keyboard is open.
+      var chatMin = root.classList.contains("dg-kb") ? 40 : 48;
       var availH = play.clientHeight - used - padY - chatPad - chatMin - 2;
       var h = Math.max(60, Math.min(availW * 3 / 4, availH));
       canvas.style.width = Math.floor(h * 4 / 3) + "px";
       canvas.style.height = Math.floor(h) + "px";
+      if (chat) chat.scrollTop = chat.scrollHeight; // keep the newest guess in view
     }
     // Tallest the page has been in this orientation — the keyboard is open
     // when the page is now clearly shorter than that (works on Android,
@@ -1046,21 +1057,36 @@
     $("guessInput").disabled = false;
     $("guessSend").disabled = false;
     $("guessInput").value = "";
+    growGuessInput();
   }
 
   /* ── Guess input ─────────────────────────────────────────────── */
   function sendGuess() {
     const input = $("guessInput");
-    const text = input.value.trim();
+    const text = input.value.replace(/\s+/g, " ").trim();
     if (!text || hasGuessedThisRound) return;
     socket.emit("drawGuess:guess", { roomId: currentRoomId, text });
     input.value = "";
+    growGuessInput();
   }
+  // Grows to two lines for a long guess, like random chat's box.
+  function growGuessInput() {
+    const input = $("guessInput");
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight + 2, 84) + "px";
+  }
+  $("guessInput").addEventListener("input", () => {
+    const input = $("guessInput");
+    if (/\n/.test(input.value)) { input.value = input.value.replace(/\n/g, ""); sendGuess(); return; } // Enter from keyboards that skip keydown
+    growGuessInput();
+  });
   $("guessSend").addEventListener("click", sendGuess);
   // Tapping გაგზავნა must not take the focus away from the box — otherwise
   // the phone keyboard closes after every guess and the screen jumps.
   $("guessSend").addEventListener("pointerdown", (e) => { if (document.activeElement === $("guessInput")) e.preventDefault(); });
-  $("guessInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendGuess(); });
+  $("guessInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); sendGuess(); }
+  });
 
   /* ── End screen ──────────────────────────────────────────────── */
   function renderEnd(scores) {
