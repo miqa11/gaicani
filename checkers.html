@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <script src="/safari-fix.js"></script>
   <title>GAICANI – დამა</title>
   <meta name="theme-color" content="#17181d" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -82,7 +83,7 @@
 
     /* ── Leaderboard — top 3 by wins ─────────────────────────────── */
     .dm-leaderboard { background: var(--surface); border-radius: 12px; padding: 10px 10px 12px; }
-    .dm-leaderboard-label { font-size: 0.68em; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; padding: 0 4px 8px; }
+    .dm-leaderboard-label { font-size: 0.68em; font-weight: 700; color: var(--muted); letter-spacing: 0.6px; padding: 0 4px 8px; }
     .dm-podium { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; gap: 8px; }
     .dm-podium-slot {
       display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -96,7 +97,7 @@
     .dm-podium-name { font-size: 0.74em; font-weight: 700; color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dm-podium-score { font-size: 0.9em; font-weight: 800; color: #fff; }
     .dm-podium-empty { color: var(--muted); font-size: 0.72em; }
-    .dm-section-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .dm-section-label { font-size: 0.76em; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 8px; }
     .dm-pick-row {
       display: flex; align-items: center; gap: 10px; padding: 10px 12px;
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; cursor: pointer;
@@ -147,7 +148,7 @@
       position: relative;
     }
     .dm-anim-layer { position: absolute; inset: 0; pointer-events: none; z-index: 25; overflow: visible; }
-    .dm-sq { position: relative; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+    .dm-sq { position: relative; display: flex; align-items: center; justify-content: center; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
     .dm-sq.light { background: var(--sq-light); cursor: default; }
     .dm-sq.dark { background: var(--sq-dark); }
     .dm-sq.selected { box-shadow: inset 0 0 0 3px var(--gold); }

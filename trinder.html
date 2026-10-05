@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="/safari-fix.js"></script>
 <meta name="theme-color" content="#130f26">
 <meta name="robots" content="noindex, nofollow">
 <title>Trinder — GAICANI</title>
@@ -40,7 +41,7 @@ button, input, select, textarea { font-family:inherit; }
 
 /* deck */
 .deck { position:relative; height:min(66vh,560px); margin-top:8px; }
-.card { position:absolute; inset:0; border-radius:24px; overflow:hidden; touch-action:none; user-select:none; cursor:grab;
+.card { position:absolute; inset:0; border-radius:24px; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; cursor:grab;
   border:1.5px solid transparent; background:linear-gradient(180deg,#2a2350,#1a1533) padding-box, linear-gradient(140deg,rgba(244,217,143,.75),rgba(214,168,79,.15) 45%,rgba(244,217,143,.55)) border-box;
   box-shadow:0 22px 50px -24px rgba(0,0,0,.9); will-change:transform; }
 .card.back { transform:scale(.95) translateY(12px); filter:brightness(.8); cursor:default; }

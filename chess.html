@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <script src="/safari-fix.js"></script>
   <title>GAICANI – ჭადრაკი</title>
   <meta name="theme-color" content="#17181d" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -82,7 +83,7 @@
 
     /* ── Leaderboard — top 3 by wins ─────────────────────────────── */
     .cs-leaderboard { background: var(--surface); border-radius: 12px; padding: 10px 10px 12px; }
-    .cs-leaderboard-label { font-size: 0.68em; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; padding: 0 4px 8px; }
+    .cs-leaderboard-label { font-size: 0.68em; font-weight: 700; color: var(--muted); letter-spacing: 0.6px; padding: 0 4px 8px; }
     .cs-podium { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; gap: 8px; }
     .cs-podium-slot {
       display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -96,7 +97,7 @@
     .cs-podium-name { font-size: 0.74em; font-weight: 700; color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cs-podium-score { font-size: 0.9em; font-weight: 800; color: #fff; }
     .cs-podium-empty { color: var(--muted); font-size: 0.72em; }
-    .cs-section-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .cs-section-label { font-size: 0.76em; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 8px; }
     .cs-pick-row {
       display: flex; align-items: center; gap: 10px; padding: 10px 12px;
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; cursor: pointer;
@@ -145,7 +146,7 @@
       border-radius: 14px; overflow: hidden; border: none;
       box-shadow: 0 0 0 2px rgba(214,168,79,.7), 0 0 0 7px #1c1735, 0 0 0 8px rgba(214,168,79,.25), 0 26px 60px -24px rgba(0,0,0,.9);
     }
-    .cs-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: min(7vw, 34px); user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+    .cs-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: min(7vw, 34px); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
     .cs-sq.light { background: linear-gradient(135deg, #f5effc, var(--sq-light)); }
     .cs-sq.dark { background: linear-gradient(135deg, #9888d2, var(--sq-dark)); }
     .cs-sq.selected::before { content:""; position:absolute; inset:0; z-index:1; pointer-events:none; background:rgba(244,217,143,.38); box-shadow:inset 0 0 0 3px #d6a84f; }

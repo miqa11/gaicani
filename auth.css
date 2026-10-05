@@ -577,7 +577,6 @@ body.reg-user .reg-menu-divider.reg-only-item { display: block; }
   font-size: 0.7em;
   font-weight: 700;
   color: #72767d;
-  text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 .dash-badge {

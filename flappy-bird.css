@@ -157,7 +157,7 @@ button, a, [role="button"] { touch-action: manipulation; }
 }
 .fb-leaderboard-label {
   font-size: 0.68em; font-weight: 700; color: var(--fb-muted);
-  text-transform: uppercase; letter-spacing: 0.6px;
+  letter-spacing: 0.6px;
   padding: 0 4px 8px;
 }
 .fb-podium {

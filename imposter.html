@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
+  <script src="/safari-fix.js"></script>
   <title>GAICANI – იმპოსტორი</title>
   <meta name="theme-color" content="#17181d" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -74,7 +75,7 @@
     .im-setup-body { flex: 1; overflow-y: auto; padding: 16px 14px calc(16px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 16px; }
     .im-new-game-btn { border: none; border-radius: 12px; padding: 14px; font-weight: 800; font-size: 0.98em; background: linear-gradient(135deg, #8b5cf6, #5b21b6); color: #fff; cursor: pointer; }
     .im-new-game-btn:disabled { opacity: 0.5; }
-    .im-section-label { font-size: 0.76em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .im-section-label { font-size: 0.76em; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 8px; }
     .im-hint { color: var(--muted); font-size: 0.78em; text-align: center; }
     .im-pick-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px; cursor: pointer; }
     .im-pick-row.selected { border-color: #8b5cf6; background: rgba(139,92,246,0.1); }
@@ -114,7 +115,7 @@
       background: linear-gradient(135deg, #3a2a6a, #1f1440); border: 1px solid rgba(139,92,246,0.4);
       border-radius: 16px; padding: 18px; text-align: center;
     }
-    .im-word-label { font-size: 0.74em; color: #c4b5fd; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .im-word-label { font-size: 0.74em; color: #c4b5fd; letter-spacing: 0.06em; margin-bottom: 6px; }
     .im-word-value { font-size: 1.6em; font-weight: 800; }
 
     .im-round-history { display: flex; flex-direction: column; gap: 10px; }

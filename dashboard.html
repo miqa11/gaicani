@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <script src="/safari-fix.js"></script>
   <title>ჩემი გვერდი – GAICANI</title>
   <meta name="theme-color" content="#130f26" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -357,7 +358,7 @@
     }
     .dg-room-meta { font-size: 0.76em; color: var(--muted); margin-top: 2px; }
     .dg-room-badge {
-      font-size: 0.64em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      font-size: 0.64em; font-weight: 700; letter-spacing: 0.04em;
       padding: 3px 8px; border-radius: 20px; flex-shrink: 0; white-space: nowrap;
     }
     .dg-room-badge.lobby   { background: rgba(88,101,242,0.18); color: var(--accent-lt); }
@@ -1018,7 +1019,7 @@ html, body {
 .empty-state { color: var(--muted); }
 
 /* ── Collapsible lists (online & guest users) ── */
-.section[data-collapsible] > .section-label { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; transition: background .2s; }
+.section[data-collapsible] > .section-label { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: background .2s; }
 .section[data-collapsible] > .section-label:hover { background: rgba(214,168,79,.05); }
 .collapse-chevron {
   margin-left: auto; flex-shrink: 0; width: 28px; height: 28px; border-radius: 999px;

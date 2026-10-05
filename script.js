@@ -433,7 +433,7 @@ function addSearchingMessage() {
 
   const factLabel       = document.createElement("span");
   factLabel.className   = "fact-label";
-  factLabel.textContent = "💡 Random Fact";
+  factLabel.textContent = "💡 RANDOM FACT";
 
   const factText       = document.createElement("span");
   factText.className   = "fact-text";

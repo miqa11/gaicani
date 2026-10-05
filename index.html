@@ -11,6 +11,7 @@
    
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <script src="/safari-fix.js"></script>
   <title>GAICANI — გაცნობის საიტი და ანონიმური ჩათი საქართველოში</title>
   <meta name="description" content="GAICANI — უფასო გაცნობის საიტი და ანონიმური ჩათი საქართველოში. გაიცანით ახალი ადამიანები ონლაინ, ესაუბრეთ ტექსტში, ითამაშეთ თამაშები მეგობრებთან ერთად, დაწერეთ ფორუმზე და იპოვეთ ახალი მეგობრები — რეგისტრაციის გარეშეც." />
   <meta name="keywords" content="გაცნობის საიტი, გაცნობა ონლაინ, გაიცანი ონლაინ, ანონიმური ჩათი, ჩათი უცნობებთან, GAICANI, გაიცანი, random chat georgia, omegle georgia, ქართული ჩათი, ონლაინ თამაშები საქართველოში" />
@@ -323,7 +324,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
     body.rc-theme-light .pp-card { background:#fff padding-box, linear-gradient(135deg,#e7c877,#f3e6c4) border-box; color:#222; }
     body.rc-theme-light .pp-bio, body.rc-theme-light .pp-guest { color:#555; } body.rc-theme-light .pf-chip { background:#f5f3fb; }
     .signup-extra { margin: 4px 0 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); }
-    .signup-extra > summary { list-style: none; cursor: pointer; padding: 11px 14px; font-weight: 700; font-size: .9em; user-select: none; }
+    .signup-extra > summary { list-style: none; cursor: pointer; padding: 11px 14px; font-weight: 700; font-size: .9em; -webkit-user-select: none; user-select: none; }
     .signup-extra > summary::-webkit-details-marker { display: none; }
     .signup-extra > summary::after { content: "▾"; float: right; opacity: .7; transition: transform .2s; }
     .signup-extra[open] > summary::after { transform: rotate(180deg); }
@@ -524,7 +525,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
     <span></span><span></span><span></span>
   </div>
 
-  <div class="chat-input">
+  <div class="chat-input" data-follows-keyboard>
     <div id="replyPreview" class="reply-preview-bar" style="display:none">
       <div class="reply-preview-inner">
         <span class="reply-preview-label">↩</span>
