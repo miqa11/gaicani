@@ -1948,9 +1948,10 @@ button, textarea, input { font-family: inherit; }
     updateFCSendButtonMode();
     // Only re-focus (and pop the keyboard back up) when the send was a real
     // typed message — the quick-heart button isn't "start typing", so it
-    // must never pull focus onto the input. Not while the 😊 panel is open
-    // either: the panel stays where the keyboard would be.
-    if (focusAfter && !(elGifPicker && elGifPicker.classList.contains("open"))) elInput.focus();
+    // must never pull focus onto the input. Sent from the 😊 panel: close it
+    // and go back to the messages (no keyboard).
+    if (elGifPicker && elGifPicker.classList.contains("open")) closeGifPicker();
+    else if (focusAfter) elInput.focus();
   }
 
   /* ── Load history ────────────────────────────────────────────── */
@@ -2710,7 +2711,7 @@ button, textarea, input { font-family: inherit; }
   elInput.addEventListener("focus", () => { if (gifPickerOpen()) closeGifPicker(); });
 
   // A tap outside closes the panel — except on the message bar's buttons
-  // (send, 🎤 …), so you can send and keep picking. Tapping the text box
+  // (send closes it itself once the message is out). Tapping the text box
   // itself closes it, like Messenger, since the keyboard takes its place.
   document.addEventListener("click", (e) => {
     if (!gifPickerOpen() || elGifPicker.contains(e.target)) return;

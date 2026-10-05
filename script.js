@@ -978,8 +978,8 @@ gifSearch.addEventListener("keydown", (e) => {
 // send, reply…) closes the panel, so the two never pile up on the screen.
 messageInput.addEventListener("focus", () => { if (gifPickerOpen) closeGifPickerPanel(); });
 
-// A tap outside closes the panel — except on the message bar's buttons (send,
-// ?, 😊), so you can send and keep picking. Tapping the text box closes it,
+// A tap outside closes the panel — except on the message bar's buttons (send
+// closes it itself once the message is out). Tapping the text box closes it,
 // like Messenger, since the keyboard takes its place.
 document.addEventListener("click", (e) => {
   if (!gifPickerOpen || gifPicker.contains(e.target) || e.target === gifBtn) return;
@@ -1246,9 +1246,10 @@ function sendMessage() {
   charCount.textContent = "";
   charCount.classList.remove("warning");
   clearReply();
-  // Keep focus on input so the keyboard stays open on mobile — unless the 😊
-  // panel is open: then the panel stays where the keyboard would be.
-  if (!gifPickerOpen) messageInput.focus();
+  // Keep focus on input so the keyboard stays open on mobile. Sent from the
+  // 😊 panel instead: close it and go back to the messages (no keyboard).
+  if (gifPickerOpen) closeGifPickerPanel();
+  else messageInput.focus();
 }
 
 // ── Bio / Interests popup ─────────────────────────────────────────────────────
