@@ -217,6 +217,28 @@ html, body {
   z-index: 2;
   box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.3);
 }
+/* Sign-up: the button stays in its place at the end of the form instead of
+   floating over the pictures while you scroll or type, and the 24 pictures
+   sit in a compact box of their own (about two and a half rows, the rest
+   scrolls inside it), so the whole form fits on a phone screen. */
+.modal-content #signup-btn {
+  position: static;
+  box-shadow: none;
+}
+#signup-avatar-grid {
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: 8px;
+  max-height: 168px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+#signup-avatar-grid .avatar-picker-option:hover { transform: none; }
+
 /* Short screens (sideways phones): the logo alone filled the window. */
 @media (max-height: 560px) {
   .modal-logo { width: auto !important; height: auto !important; max-width: 95%; max-height: 26vh; }
