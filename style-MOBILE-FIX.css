@@ -208,8 +208,8 @@ html, body {
 
 /* Welcome / login / sign-up window: its main button stays visible at the
    bottom of the window while the rest scrolls — on a small or sideways phone
-   it used to sit below the fold, under the logo. */
-.modal-content #saveNameBtn,
+   it used to sit below the fold, under the logo. (Not for the guest
+   "საუბრის დაწყება" and sign-up buttons — see below.) */
 .modal-content .auth-submit-btn {
   position: -webkit-sticky;
   position: sticky;
@@ -225,6 +225,9 @@ html, body {
   position: static;
   box-shadow: none;
 }
+/* Guest tab: "საუბრის დაწყება" also stays in its place under the list
+   instead of floating over it. */
+.modal-content #saveNameBtn { position: static; }
 #signup-avatar-grid {
   grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
   gap: 8px;
