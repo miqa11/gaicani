@@ -1693,8 +1693,12 @@ app.get("/private-photos/:file", async (req, res) => {
   res.end(data);
 });
 
+// ⚡ Pages are sent with fingerprinted script/style/picture addresses, and
+// those files may then be kept for a year — see server-assets.js.
+const assets = require("./server-assets").mountAssets(app, { root: __dirname });
 app.use(express.static(path.join(__dirname), {
   setHeaders(res, filePath) {
+    if (assets.cacheHeaders(res, filePath)) return;
     if (LONG_CACHE_EXT.test(filePath)) res.setHeader("Cache-Control", "public, max-age=86400");
   },
 }));
@@ -6426,9 +6430,13 @@ app.post("/api/auth/verify", express.json({ limit: "1kb" }), (req, res) => {
 
   const user = registeredUsers.get(entry.usernameLower);
   if (!user) return res.status(401).json({ error: "User not found" });
+  // The coin balance comes along (same rules as coins:get), so the
+  // dashboard can show it without waiting for the live connection.
+  if (!user.isGuest) settlePendingCoins(user, entry.usernameLower);
 
   res.json({
     success: true,
+    coins: user.isGuest ? undefined : ensureCoins(user),
     username: user.username,
     friends: user.friends || [],
     pendingRequests: user.pendingRequests || [],

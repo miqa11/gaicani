@@ -4,6 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
   <script src="/safari-fix.js"></script>
+  <script>
+    // ⚡ Ask for the list right away, while the page is still downloading —
+    // the page uses this answer once it's ready instead of asking again.
+    (function () {
+      try {
+        var t = localStorage.getItem("gaicani_auth_token");
+        if (t) window.__gcEarly = { token: t, answer: fetch("/api/forum/posts?sort=new", { headers: { Authorization: "Bearer " + t } }).then(function (r) { return r.json(); }) };
+      } catch (_) {}
+    })();
+  </script>
   <title>GAICANI – ფორუმი</title>
   <meta name="theme-color" content="#17181d" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -372,8 +382,10 @@
 
   /* ── Feed screen ─────────────────────────────────────────────── */
   function fetchFeed() {
-    fetch(`/api/forum/posts?sort=${currentSort}`, { headers: { Authorization: "Bearer " + token } })
-      .then(r => r.json())
+    const early = window.__gcEarly;
+    window.__gcEarly = null; // only the first time
+    const ask = () => fetch(`/api/forum/posts?sort=${currentSort}`, { headers: { Authorization: "Bearer " + token } }).then(r => r.json());
+    (early && early.token === token && currentSort === "new" ? early.answer.catch(ask) : ask())
       .then(data => {
         if (!data || !Array.isArray(data.posts)) return;
         postsCache = data.posts;
@@ -396,7 +408,7 @@
       card.dataset.postId = p.id;
 
       const vote = buildVoteWidget(p.score, p.myVote, (dir) => {
-        socket.emit("forum:vote", { postId: p.id, direction: dir });
+        emitReady("forum:vote", { postId: p.id, direction: dir });
       });
       card.appendChild(vote);
 
@@ -443,7 +455,7 @@
   $("postSubmitBtn").addEventListener("click", () => {
     const title = $("postTitleInput").value.trim();
     if (!title) { showToast("სათაური სავალდებულოა"); return; }
-    socket.emit("forum:createPost", { title, body: $("postBodyInput").value.trim() });
+    emitReady("forum:createPost", { title, body: $("postBodyInput").value.trim() });
   });
 
   /* ── Post detail screen ──────────────────────────────────────── */
@@ -479,7 +491,7 @@
     const voteWrap = $("postVoteWidget");
     voteWrap.innerHTML = "";
     voteWrap.appendChild(buildVoteWidget(p.score, p.myVote, (dir) => {
-      socket.emit("forum:vote", { postId: p.id, direction: dir });
+      emitReady("forum:vote", { postId: p.id, direction: dir });
     }));
 
     renderComments();
@@ -515,7 +527,7 @@
         del.className = "fo-comment-del";
         del.textContent = "🗑";
         del.addEventListener("click", () => {
-          if (confirm("წავშალო ეს კომენტარი?")) socket.emit("forum:deleteComment", { postId: currentPost.id, commentId: c.id });
+          if (confirm("წავშალო ეს კომენტარი?")) emitReady("forum:deleteComment", { postId: currentPost.id, commentId: c.id });
         });
         meta.appendChild(del);
       }
@@ -526,7 +538,7 @@
       const voteRow = document.createElement("div");
       voteRow.className = "fo-comment-vote";
       voteRow.appendChild(buildVoteWidget(c.score, c.myVote, (dir) => {
-        socket.emit("forum:voteComment", { postId: currentPost.id, commentId: c.id, direction: dir });
+        emitReady("forum:voteComment", { postId: currentPost.id, commentId: c.id, direction: dir });
       }));
 
       main.appendChild(meta); main.appendChild(body); main.appendChild(voteRow);
@@ -547,14 +559,14 @@
   $("deletePostBtn").addEventListener("click", () => {
     if (!currentPost) return;
     if (confirm("ნამდვილად წავშალო ეს პოსტი? ყველა კომენტარი დაიკარგება.")) {
-      socket.emit("forum:deletePost", { postId: currentPost.id });
+      emitReady("forum:deletePost", { postId: currentPost.id });
     }
   });
 
   function sendComment() {
     const val = $("commentInput").value.trim();
     if (!val || !currentPost) return;
-    socket.emit("forum:comment", { postId: currentPost.id, body: val });
+    emitReady("forum:comment", { postId: currentPost.id, body: val });
     $("commentInput").value = "";
     $("commentInput").style.height = "auto";
   }
@@ -568,6 +580,11 @@
   });
 
   /* ── Boot ────────────────────────────────────────────────────── */
+  // The posts can be on screen before the live connection has logged in;
+  // anything done in that moment is sent the moment it has.
+  let authed = false;
+  const waiting = [];
+  function emitReady(ev, data) { if (authed) socket.emit(ev, data); else waiting.push([ev, data]); }
   function init() {
     socket = io(); attachTempBanGuard(socket);
     socket.on("connect", () => {
@@ -576,6 +593,8 @@
     });
 
     socket.on("auth:authenticated", ({ username: authedName, isGuest, guestToken } = {}) => {
+      authed = true;
+      waiting.splice(0).forEach(([ev, data]) => socket.emit(ev, data));
       if (isGuest && authedName) {
         myUsernameLower = authedName.toLowerCase();
         isGuestMode = true;
@@ -588,6 +607,20 @@
       else { showScreen("feed"); fetchFeed(); }
     });
     socket.on("auth:invalid", () => { window.location.href = "/"; });
+
+    // ⚡ The newest posts asked for in <head> are shown as soon as they
+    // arrive, without waiting for the live connection to log in.
+    const early = window.__gcEarly;
+    if (early && early.token === token && !new URLSearchParams(window.location.search).get("post")) {
+      early.answer.then((data) => {
+        if (authed || currentPost || currentSort !== "new" || !data || !Array.isArray(data.posts)) return;
+        postsCache = data.posts;
+        isAdminGlobal = !!data.isAdmin;
+        renderFeed();
+        elLoading.classList.add("hidden");
+        showScreen("feed");
+      }).catch(() => {});
+    }
 
     socket.on("guest:registerRequired", () => {
       showToast("🔒 ფორუმზე წერისთვის საჭიროა რეგისტრაცია — კითხვა შეგიძლიათ სტუმრადაც");

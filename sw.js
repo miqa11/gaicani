@@ -53,18 +53,22 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return; // only handle same-origin
   if (shouldBypass(url)) return; // let Socket.io / API calls go straight through, untouched
 
+  // Files come with a ?v= fingerprint that changes with every update; the
+  // offline copy is kept under the plain address, so old versions don't
+  // pile up in storage.
+  const key = url.searchParams.has("v") ? url.origin + url.pathname : req;
   event.respondWith(
     fetch(req)
       .then((res) => {
         // Network worked — use it, and quietly refresh the cache copy
         // for next time we're offline.
         const copy = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+        caches.open(CACHE_NAME).then((cache) => cache.put(key, copy)).catch(() => {});
         return res;
       })
       .catch(() =>
         // Only reached when the network request itself failed (offline)
-        caches.match(req).then((cached) => cached || caches.match("/dashboard.html"))
+        caches.match(key).then((cached) => cached || caches.match("/dashboard.html"))
       )
   );
 });

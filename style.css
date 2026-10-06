@@ -1368,6 +1368,10 @@ html, body {
   letter-spacing: 0.02em;
 }
 
+/* The logo comes as WebP where the browser can show it (60 KB instead of
+   99 KB); its <picture> wrapper is layout-neutral. */
+.modal-logo-pic { display: contents; }
+
 .modal-logo {
   width: 95%;
   height: 95%;

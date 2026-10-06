@@ -4,6 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <script src="/safari-fix.js"></script>
+  <script>
+    // ⚡ Start checking your login right away, while the rest of the page is
+    // still downloading — init() below uses this answer instead of asking
+    // again, so the dashboard shows sooner.
+    (function () {
+      try {
+        var t = localStorage.getItem("gaicani_auth_token");
+        if (!t) return;
+        window.__gcVerify = { token: t, answer: fetch("/api/auth/verify", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: t }),
+        }).then(function (r) { return r.json(); }) };
+      } catch (_) {}
+    })();
+  </script>
   <title>ჩემი გვერდი – GAICANI</title>
   <meta name="theme-color" content="#130f26" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -1733,19 +1747,19 @@ body.guest-mode .profile-actions { display: none; }
 
     <div class="game-grid" data-view="games">
       <a href="/flappy-bird.html" class="game-tile game-tile--flappy">
-        <div class="game-tile-icon"><img src="/icon-flappybird.jpg" alt="მფრინავი ჩიტი" /></div>
+        <div class="game-tile-icon"><img src="/icon-flappybird.jpg" alt="მფრინავი ჩიტი" loading="lazy" decoding="async" /></div>
         <div class="game-tile-name">მფრინავი ჩიტი</div>
       </a>
       <a href="/draw-guess.html" class="game-tile game-tile--drawguess">
-        <div class="game-tile-icon"><img src="/icon-drawandguess.jpg" alt="დახატე და გამოიცანი" /></div>
+        <div class="game-tile-icon"><img src="/icon-drawandguess.jpg" alt="დახატე და გამოიცანი" loading="lazy" decoding="async" /></div>
         <div class="game-tile-name">დახატე და გამოიცანი</div>
       </a>
       <a href="/poker.html" class="game-tile game-tile--poker">
-        <div class="game-tile-icon"><img src="/icon-poker.jpg" alt="პოკერი" /></div>
+        <div class="game-tile-icon"><img src="/icon-poker.jpg" alt="პოკერი" loading="lazy" decoding="async" /></div>
         <div class="game-tile-name">პოკერი</div>
       </a>
       <a href="/chess.html" class="game-tile game-tile--chess">
-        <div class="game-tile-icon"><img src="/icon-chess.jpg" alt="ჭადრაკი" /></div>
+        <div class="game-tile-icon"><img src="/icon-chess.jpg" alt="ჭადრაკი" loading="lazy" decoding="async" /></div>
         <div class="game-tile-name">ჭადრაკი</div>
       </a>
       <a href="/checkers.html" class="game-tile game-tile--checkers">
@@ -1753,15 +1767,15 @@ body.guest-mode .profile-actions { display: none; }
         <div class="game-tile-name">დამა</div>
       </a>
       <a href="/joker.html" class="game-tile game-tile--joker">
-        <div class="game-tile-icon"><img src="/icon-joker.jpg" alt="ჯოკერი" /></div>
+        <div class="game-tile-icon"><img src="/icon-joker.jpg" alt="ჯოკერი" loading="lazy" decoding="async" /></div>
         <div class="game-tile-name">ჯოკერი</div>
       </a>
       <a href="/imposter.html" class="game-tile game-tile--imposter">
-        <div class="game-tile-icon"><img src="/icon-imposter.jpg" alt="იმპოსტორი" /></div>
+        <div class="game-tile-icon"><img src="/icon-imposter.jpg" alt="იმპოსტორი" loading="lazy" decoding="async" /></div>
         <div class="game-tile-name">იმპოსტორი</div>
       </a>
       <a href="/blackjack.html" class="game-tile game-tile--blackjack">
-        <div class="game-tile-icon"><img src="/icon-blackjack.jpg" alt="ბლექჯეკი" /></div>
+        <div class="game-tile-icon"><img src="/icon-blackjack.jpg" alt="ბლექჯეკი" loading="lazy" decoding="async" /></div>
         <div class="game-tile-name">ბლექჯეკი</div>
       </a>
     </div>
@@ -3062,14 +3076,21 @@ function profileChipsHTML(p) {
 
     /* Fetch real profile pictures for a list of usernames and swap them
        into the letter-circles inside the given container. */
+    const avatarAsks = new Map(); // the same names asked again within 30 s share one answer
     function paintFriendAvatars(usernames, container) {
       if (!usernames || !usernames.length || !container) return;
-      fetch("/api/users/avatars", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usernames }),
-      })
-        .then(r => r.json())
+      const key = usernames.map(u => u.toLowerCase()).sort().join(",");
+      let ask = avatarAsks.get(key);
+      if (!ask || Date.now() - ask.at > 30000) {
+        ask = { at: Date.now(), answer: fetch("/api/users/avatars", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ usernames }),
+        }).then(r => r.json()) };
+        avatarAsks.set(key, ask);
+        ask.answer.catch(() => avatarAsks.delete(key));
+      }
+      ask.answer
         .then(d => {
           const avatars = d?.avatars || {};
           container.querySelectorAll("[data-friend]").forEach(item => {
@@ -3974,13 +3995,15 @@ function profileChipsHTML(p) {
         return;
       }
 
-      // Verify token with the server
+      // Verify token with the server (already asked at the top of the page)
       try {
-        const r = await fetch("/api/auth/verify", {
+        const early = window.__gcVerify;
+        window.__gcVerify = null;
+        const ask = async () => (await fetch("/api/auth/verify", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
-        });
-        const d = await r.json();
+        })).json();
+        const d = early && early.token === token ? await early.answer.catch(ask) : await ask();
         if (!d.ok && !d.success) {
           clearAuth();
           if (loading) loading.style.display = "none";
@@ -3997,6 +4020,7 @@ function profileChipsHTML(p) {
           bio: d.bio || "",
           isPro: !!d.isPro,
         };
+        paintCoins(d.coins);
       } catch (_) {
         // Network error — best-effort: show page with stored username, no friend data yet
         authUser = { username, token, friends: [], pendingRequests: [] };
@@ -4192,6 +4216,14 @@ function profileChipsHTML(p) {
   document.getElementById("topUsername")?.addEventListener("click", () => go("profile"));
   window.GaicaniDashView = go;
   fromUrl();
+
+  // Game pictures wait (loading="lazy") so they don't slow the first screen;
+  // once the page is ready they're fetched quietly, so the games screen
+  // still opens with every picture already there.
+  window.addEventListener("load", () => {
+    const warm = () => page.querySelectorAll('.game-tile-icon img[loading="lazy"]').forEach((img) => { new Image().src = img.src; });
+    if ("requestIdleCallback" in window) requestIdleCallback(warm, { timeout: 2000 }); else setTimeout(warm, 600);
+  });
 
   // 🟢 N on the games tile + "nobody's playing" note — counted from the
   // active-tables lists the page already keeps up to date.

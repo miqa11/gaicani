@@ -4,6 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content, maximum-scale=1, user-scalable=no" />
   <script src="/safari-fix.js"></script>
+  <script>
+    // ⚡ Ask for the list right away, while the page is still downloading —
+    // the page uses this answer once it's ready instead of asking again.
+    (function () {
+      try {
+        var t = localStorage.getItem("gaicani_auth_token");
+        if (t) window.__gcEarly = { token: t, answer: fetch("/api/rooms", { headers: { Authorization: "Bearer " + t } }).then(function (r) { return r.json(); }) };
+      } catch (_) {}
+    })();
+  </script>
   <title>GAICANI – ოთახები</title>
   <meta name="theme-color" content="#17181d" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -530,8 +540,10 @@
 
   /* ── Room list ───────────────────────────────────────────────── */
   function fetchRoomsList() {
-    fetch("/api/rooms", { headers: { Authorization: "Bearer " + token } })
-      .then(r => r.json())
+    const early = window.__gcEarly;
+    window.__gcEarly = null; // only the first time
+    const ask = () => fetch("/api/rooms", { headers: { Authorization: "Bearer " + token } }).then(r => r.json());
+    (early && early.token === token ? early.answer.catch(ask) : ask())
       .then(data => {
         if (!data || !Array.isArray(data.rooms)) return;
         roomsCache = data.rooms;
@@ -590,6 +602,9 @@
   function openRoom(roomId) {
     if (!socket) return;
     history.replaceState(null, "", "/rooms.html?room=" + encodeURIComponent(roomId));
+    // The list can be on screen before the live connection has logged in —
+    // then the room opens the moment it has (auth:authenticated joins it).
+    if (!authed) { currentRoomId = roomId; return; }
     socket.emit("rooms:join", { roomId });
   }
 
@@ -904,6 +919,7 @@
   }
 
   /* ── Boot ────────────────────────────────────────────────────── */
+  let authed = false;
   function init() {
     socket = io(); attachTempBanGuard(socket);
     socket.on("connect", () => {
@@ -912,6 +928,7 @@
     });
 
     socket.on("auth:authenticated", ({ username: authedName, isAdmin, isGuest, guestToken }) => {
+      authed = true;
       amGuest = !!isGuest;
       if (isGuest && authedName) {
         myUsernameLower = authedName.toLowerCase();
@@ -947,6 +964,21 @@
     });
 
     socket.on("rooms:updated", fetchRoomsList);
+
+    // ⚡ The list asked for in <head> is shown as soon as it arrives, without
+    // waiting for the live connection to log in (that refreshes it anyway).
+    const early = window.__gcEarly;
+    if (early && early.token === token && !currentRoomId) {
+      early.answer.then((data) => {
+        if (authed || currentRoomId || !data || !Array.isArray(data.rooms)) return;
+        roomsCache = data.rooms;
+        isAdminGlobal = !!data.isAdmin;
+        $("newRoomBtn").style.display = isAdminGlobal ? "flex" : "none";
+        renderRoomList();
+        elLoading.classList.add("hidden");
+        showScreen("list");
+      }).catch(() => {});
+    }
 
     socket.on("rooms:room", (data) => {
       currentRoomId   = data.room.id;
