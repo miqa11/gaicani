@@ -4183,9 +4183,11 @@ app.get(ROUTE.statsApi, (req, res) => {
   const gender = { male: 0, female: 0 };
   const ageGroups = { "18–20": 0, "21–25": 0, "26–30": 0, "31–40": 0, "41+": 0 };
   const weekAgo = now - 7 * 864e5;
+  const accountsPerIP = new Map(); // last IP each account used → how many accounts
   for (const [, u] of registeredUsers) {
     if (u.isGuest) continue;
     accounts++;
+    if (u.lastIP) accountsPerIP.set(u.lastIP, (accountsPerIP.get(u.lastIP) || 0) + 1);
     if (u.isPro) vip++;
     const t = Date.parse(u.createdAt || ""); if (t && t >= weekAgo) newAccounts7d++;
     friendLinks += Array.isArray(u.friends) ? u.friends.length : 0;
@@ -4226,6 +4228,14 @@ app.get(ROUTE.statsApi, (req, res) => {
       accounts, vip, newAccounts7d, friendships: Math.round(friendLinks / 2), activeStreaks, longestStreak,
       privateConversations: privateRooms.size, privateMessagesStored, rooms: chatRooms.size, roomMessagesStored,
       forumPosts: forumPosts.size, forumComments, profilesFilled, gender, ageGroups,
+      // Counts only — no addresses: how many different IPs the accounts last
+      // used, and how many IPs are shared by 2+ accounts (same person or home).
+      accountIPs: {
+        unique: accountsPerIP.size,
+        accountsWithIP: [...accountsPerIP.values()].reduce((a, b) => a + b, 0),
+        sharedIPs: [...accountsPerIP.values()].filter((n) => n > 1).length,
+        accountsOnSharedIPs: [...accountsPerIP.values()].filter((n) => n > 1).reduce((a, b) => a + b, 0),
+      },
     },
     days,
   });
@@ -4257,6 +4267,10 @@ header { display:flex; align-items:flex-end; justify-content:space-between; gap:
 h1 { margin:0; font-size:1.55em; font-weight:800; }
 h1 .gt { background:linear-gradient(180deg,#fff4d2,#f4d98f 45%,#d6a84f); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .sub { color:var(--muted); font-size:.82em; }
+.hdr-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.refresh-btn { border:1px solid var(--line); background:rgba(214,168,79,.12); color:var(--gold); border-radius:999px; padding:7px 14px; font:inherit; font-size:.85em; font-weight:700; cursor:pointer; }
+.refresh-btn:hover { background:rgba(214,168,79,.22); }
+.refresh-btn:disabled { opacity:.6; cursor:default; }
 .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--c-ret); box-shadow:0 0 8px var(--c-ret); margin-right:6px; vertical-align:middle; }
 h2 { font-size:1.05em; font-weight:800; margin:26px 2px 4px; color:var(--gold); }
 .note { color:var(--muted); font-size:.8em; margin:0 2px 10px; line-height:1.5; }
@@ -4307,7 +4321,7 @@ footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; 
 <div class="wrap">
   <header>
     <div><h1>📊 <span class="gt">GAICANI Statistics</span></h1><div class="sub"><span class="live-dot"></span><span id="updated">loading…</span></div></div>
-    <div class="sub" id="server"></div>
+    <div class="hdr-right"><div class="sub" id="server"></div><button type="button" class="refresh-btn" id="refreshBtn" onclick="refreshNow()">↻ Refresh</button></div>
   </header>
 
   <div class="hero">
@@ -4427,7 +4441,9 @@ function render(d) {
   $("heroPeakSub").innerHTML = (peakTime ? "at " + peakTime + " (Tbilisi)<br>" : "") + "All-time record: " + fmt(d.peakOnline) + (d.peakOnlineAt ? ", " + when(d.peakOnlineAt) : "");
   $("live").innerHTML = kpi(fmt(lv.registered), "registered online") + kpi(fmt(lv.guests), "guests online") +
     kpi(fmt(lv.chatting), "in a random chat", fmt(lv.waiting) + " waiting for a partner");
+  var ai = c.accountIPs || {};
   $("totals").innerHTML = kpi(fmt(d.allTimeUniqueIPs), "visitors ever") + kpi(fmt(c.accounts), "accounts", "+" + fmt(c.newAccounts7d) + " this week") +
+    kpi(fmt(ai.unique), "unique IPs of accounts", fmt(ai.accountsWithIP) + " accounts with a known IP" + (ai.sharedIPs ? " · " + fmt(ai.sharedIPs) + (ai.sharedIPs === 1 ? " IP" : " IPs") + " shared by " + fmt(ai.accountsOnSharedIPs) + " accounts" : "")) +
     kpi(fmt(c.vip), "VIP members") + kpi(fmt(c.friendships), "friendships") + kpi(fmt(c.activeStreaks), "active 🔥 streaks", c.longestStreak ? "longest: " + c.longestStreak + " days" : "") +
     kpi(fmt(d.peakOnline), "most online at once", when(d.peakOnlineAt));
 
@@ -4498,6 +4514,12 @@ function render(d) {
 
 function load() {
   fetch(API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(render).catch(function () { $("updated").textContent = "Could not load — retrying…"; });
+}
+function refreshNow() {
+  var b = $("refreshBtn"); b.disabled = true; b.textContent = "↻ Refreshing…";
+  fetch(API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(render)
+    .catch(function () { $("updated").textContent = "Could not load — try again"; })
+    .then(function () { b.disabled = false; b.textContent = "↻ Refresh"; });
 }
 load(); setInterval(load, 30000);
 </script>
