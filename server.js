@@ -30,7 +30,12 @@ console.log(`[DATA] Persistent files will be stored in: ${DATA_PATH}`);
 // registered_users.json fails to parse on the next start, which looked
 // exactly like a first run — the server came up with no accounts, and the
 // next save overwrote the only copy.
+// A backup restore (server-backup.js) switches saving off right before it
+// puts the restored files in place, so the running server can't write its
+// old data over them before it restarts.
+let dataSavesFrozen = false;
 function writeFileAtomic(file, data) {
+  if (dataSavesFrozen) return;
   const tmp = file + ".tmp";
   fs.writeFileSync(tmp, data, "utf8");
   fs.renameSync(tmp, file);
@@ -565,6 +570,8 @@ const ROUTE = {
   tempBansList: "/j3nc6wp0xz5", // GET: list currently-active 24h blocks
   unbanTemp:    "/k9vd4qz2ym8", // POST: lift a 24h block early
   nameBlock:    "/q3vn8ys5ke1", // POST: block an account for an offensive name (forces a rename)
+  backup:       "/d6mwscjzlh2", // GET: download a backup of all site data (.tar.gz)
+  restore:      "/u8lkwdrjhi5", // POST: upload a backup — replaces the data and restarts
 };
 
 // ── Sensitive-URL visitor log ─────────────────────────────────────────────────
@@ -1625,8 +1632,10 @@ const PUBLIC_FILE_DENY = [
 app.use((req, res, next) => {
   let p;
   try { p = decodeURIComponent(req.path); } catch { return res.status(400).end(); }
-  const base = path.posix.basename(path.posix.normalize(p));
+  const norm = path.posix.normalize(p);
+  const base = path.posix.basename(norm);
   if (base.startsWith(".")) return res.status(404).end();            // .env and other dotfiles
+  if (/(^|\/)_(restore_tmp|before_restore)(\/|$)/.test(norm)) return res.status(404).end(); // backup restore folders
   if (base.toLowerCase() === "manifest.json") return next();         // the PWA manifest is public
   if (PUBLIC_FILE_DENY.some(re => re.test(base))) return res.status(404).end();
   next();
@@ -1982,6 +1991,15 @@ app.post(ROUTE.deleteUser, ownerOnly, (req, res) => {
 // status on a registered account. Pro gets them a visible star badge,
 // exemption from the click-ad system, and photo-sending in private chat
 // with their mutual friends.
+// ── 💾 Backup / restore (admin panel → 💾 Backup) — see server-backup.js ──
+require("./server-backup").mountBackup(app, {
+  routes: { download: ROUTE.backup, restore: ROUTE.restore },
+  guard: ownerOnly,
+  dataPath: DATA_PATH,
+  flush: () => flushAllSaves(),
+  freeze: () => { dataSavesFrozen = true; },
+});
+
 app.post(ROUTE.setPro, ownerOnly, (req, res) => {
   const username = String(req.query.username || "").trim();
   const pro = req.query.pro !== "false"; // default true; explicit "false" revokes
@@ -2315,6 +2333,11 @@ th{color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);whit
 tr:hover td{background:rgba(255,255,255,.03)}
 
 .manual-ban-box{background:var(--surface);border-radius:10px;padding:16px}
+.backup-box label{display:block;font-size:.85em;color:var(--muted);margin:14px 0 6px}
+.backup-box input[type=file]{width:100%;font-size:.9em;margin-bottom:10px;color:var(--text)}
+.backup-dl,.backup-up{display:block;width:100%;text-align:center;border:none;border-radius:8px;padding:11px;font-size:.95em;font-weight:700;cursor:pointer;text-decoration:none;color:#fff;background:#3ba55d}
+.backup-up{background:#5865f2}
+.backup-up:disabled{opacity:.6;cursor:default}
 .manual-ban-box textarea{width:100%;background:var(--bg);border:1px solid #3a3c40;border-radius:6px;color:var(--text);font-family:monospace;font-size:16px;padding:10px 12px;resize:vertical;min-height:72px;outline:none;margin-bottom:10px}
 .manual-ban-box textarea:focus{border-color:var(--accent)}
 .manual-ban-box input[type=text]{width:100%;background:var(--bg);border:1px solid #3a3c40;border-radius:6px;color:var(--text);font-size:16px;padding:10px 12px;outline:none;margin-bottom:10px;min-height:40px}
@@ -2460,6 +2483,45 @@ async function loadOverview() {
   </div>
   </div>
 </details>
+
+<details class="section" open>
+  <summary>💾 Backup &amp; restore</summary>
+  <div class="section-body">
+  <div class="manual-ban-box backup-box">
+    <a class="backup-dl" href="${ROUTE.backup}" download>⬇ Download backup</a>
+    <p class="hint">One file with everything: accounts (with their passwords, scrambled), friends, coins, streaks, profiles, private chats, voice messages, rooms, forum, notifications, stats and bans. Keep it private — it holds everyone's private messages.</p>
+    <label for="restoreFile">Restore from a backup file (.tar.gz)</label>
+    <input type="file" id="restoreFile" accept=".gz,.tgz,application/gzip" />
+    <button class="backup-up" id="restoreBtn" onclick="restoreBackup()">⬆ Restore this backup</button>
+    <div id="restoreMsg" class="hint"></div>
+    <p class="hint">Replaces ALL current data with the backup, then the server restarts by itself (about 30 seconds on Render). Everyone logs in again with their same name and password. The data it replaces is kept on the server in <code>_before_restore/</code>, just in case.</p>
+  </div>
+  </div>
+</details>
+<script>
+async function restoreBackup() {
+  var input = document.getElementById("restoreFile"), msg = document.getElementById("restoreMsg"), btn = document.getElementById("restoreBtn");
+  var file = input.files && input.files[0];
+  if (!file) { msg.textContent = "Choose the backup file first."; return; }
+  if (!confirm("Replace ALL current site data with " + file.name + "?\\n\\nAnything that happened after this backup was made will be lost. The server restarts afterwards.")) return;
+  btn.disabled = true; msg.textContent = "Uploading " + (file.size / 1048576).toFixed(1) + " MB…";
+  try {
+    var r = await fetch(R.restore, { method: "POST", headers: { "Content-Type": "application/gzip" }, body: file });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || !d.success) { msg.textContent = "❌ " + (d.error || ("Restore failed (" + r.status + ")")); btn.disabled = false; return; }
+    msg.textContent = "✅ Restored " + d.users + " accounts and " + d.media + " voice/photo files" + (d.createdAt ? " (backup from " + new Date(d.createdAt).toLocaleString() + ")" : "") + ". Restarting the server…";
+    var tries = 0;
+    (function wait() {
+      setTimeout(function () {
+        fetch(location.pathname, { cache: "no-store" }).then(function (x) {
+          if (x.ok && ++tries > 1) { msg.textContent += " back online ✓"; setTimeout(function () { location.reload(); }, 800); }
+          else wait();
+        }).catch(wait);
+      }, 3000);
+    })();
+  } catch (e) { msg.textContent = "❌ Upload failed: " + e.message; btn.disabled = false; }
+}
+</script>
 
 <details class="section" open>
   <summary>Connected Users</summary>
@@ -13785,8 +13847,9 @@ process.on('unhandledRejection', (reason) => {
   console.error('[UNHANDLED REJECTION] Server stayed alive despite this rejection:', reason);
 });
 
-process.on('SIGTERM', () => {
-  console.log('[SHUTDOWN] Flushing pending saves...');
+// Writes everything still waiting in memory to disk (shutdown, and right
+// before a backup is downloaded so it's up to the second).
+function flushAllSaves() {
   if (authUsersDirty) _saveAuthUsersToDisk();
   if (privMsgsDirty) _savePrivateMsgsToDisk();
   if (statsDirty) _saveStatsToDisk();
@@ -13794,18 +13857,17 @@ process.on('SIGTERM', () => {
   if (forumDirty) _saveForumToDisk();
   if (notifDirty) _saveNotificationsToDisk();
   if (streaksDirty) _saveStreaksToDisk();
+}
+
+process.on('SIGTERM', () => {
+  console.log('[SHUTDOWN] Flushing pending saves...');
+  flushAllSaves();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   console.log('[SHUTDOWN] Flushing pending saves...');
-  if (authUsersDirty) _saveAuthUsersToDisk();
-  if (privMsgsDirty) _savePrivateMsgsToDisk();
-  if (statsDirty) _saveStatsToDisk();
-  if (roomsDirty) _saveChatRoomsToDisk();
-  if (forumDirty) _saveForumToDisk();
-  if (notifDirty) _saveNotificationsToDisk();
-  if (streaksDirty) _saveStreaksToDisk();
+  flushAllSaves();
   process.exit(0);
 });
 
