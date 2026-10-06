@@ -5473,9 +5473,10 @@ function isRoomAdmin(usernameLower) {
 // balance; persists via saveAuthUsers() itself whenever it changes something.
 //
 // A poker or blackjack table holds a copy of your whole balance while you sit
-// at it and writes it back after every hand, so you can sit at one table of
-// either game at a time, and nothing else changes your coins meanwhile (the
-// daily bonus and the shop wait; rewards wait in pendingCoins).
+// at it (the seat's stack) and writes it back after every hand, so you can
+// sit at one table of either game at a time. The shop, the daily bonus and
+// rewards still work meanwhile — they change the seat's stack too (see
+// changeCoins).
 const STARTING_COINS = 1000;
 const COIN_REFILL_MS = 24 * 60 * 60 * 1000;
 function ensureCoins(user) {
@@ -6436,7 +6437,7 @@ app.post("/api/auth/verify", express.json({ limit: "1kb" }), (req, res) => {
 
   res.json({
     success: true,
-    coins: user.isGuest ? undefined : ensureCoins(user),
+    coins: user.isGuest ? undefined : spendableCoins(user, entry.usernameLower),
     username: user.username,
     friends: user.friends || [],
     pendingRequests: user.pendingRequests || [],
@@ -10374,25 +10375,43 @@ function streakUnlocks(before, after) {
   return out;
 }
 
-// ── 🪙 Coins given as rewards (Flappy Bird…) ──────────────────────────────
-// Added to both poker and blackjack, like the daily bonus. A poker or
-// blackjack table keeps its own copy of your balance and writes it back
-// after each hand, so while you sit at one the coins wait in pendingCoins
-// and are added the next time you're not at a table.
-function grantCoins(user, lc, amount) {
-  if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) {
-    user.pendingCoins = (user.pendingCoins || 0) + amount;
-    saveAuthUsers();
-    return false;
+// ── 🪙 Changing your coins from outside a game (shop, bonus, rewards) ──────
+// While you sit at a poker or blackjack table, that seat's stack is your
+// balance — the table writes it back to user.coins after every hand — so a
+// change made meanwhile goes onto the seat too, and the table carries it on
+// from there. Nothing has to wait for the hand to end.
+function coinSeat(lc) {
+  const room = findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc);
+  const seat = room && room.players.find(p => p.lc === lc);
+  return seat ? { room, seat, poker: pokerRooms.get(room.id) === room } : null;
+}
+// What you can spend right now — at a table, the coins that aren't in play
+// in the current hand. (A blackjack bet placed for the next deal only comes
+// off the stack when the cards are dealt, so it's kept aside here.)
+function spendableCoins(user, lc) {
+  const at = coinSeat(lc);
+  if (!at) return ensureCoins(user);
+  const betWaiting = !at.poker && at.room.phase === "betting" ? (at.seat.bet || 0) : 0;
+  return Math.max(0, at.seat.stack - betWaiting);
+}
+function changeCoins(user, lc, delta) {
+  const at = coinSeat(lc);
+  if (!at) ensureCoins(user);
+  user.coins += delta;
+  if (at) {
+    at.seat.stack += delta;
+    if (at.poker) broadcastPokerRoom(at.room); else broadcastBjRoom(at.room);
   }
-  ensureCoins(user);
-  user.coins += amount;
   saveAuthUsers();
+}
+function grantCoins(user, lc, amount) {
+  changeCoins(user, lc, amount);
   return true;
 }
+// Rewards that were held back while someone sat at a table (before coins
+// could be added there directly) are added now.
 function settlePendingCoins(user, lc) {
   if (!user || !user.pendingCoins) return;
-  if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return;
   const n = user.pendingCoins;
   user.pendingCoins = 0;
   grantCoins(user, lc, n);
@@ -10716,17 +10735,12 @@ io.on("connection", (socket) => {
     const lc = socket._regUser.usernameLower;
     const st = dailyState(me);
     if (!st.canClaim) return ack({ error: "დღევანდელი ბონუსი უკვე აღებულია", ...st });
-    // A table keeps its own copy of your balance and writes it back at the end
-    // of a hand — a bonus added now would be overwritten.
-    if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return ack({ error: "ჯერ დაასრულე მიმდინარე თამაში (პოკერი/ბლექჯეკი), მერე აიღე ბონუსი" });
-    ensureCoins(me);
-    me.coins += st.reward;
     const bestBefore = bestStreak(me);
     me.daily = { last: georgiaDay(), streak: st.streak + 1, best: Math.max(bestBefore, st.streak + 1) };
-    saveAuthUsers();
+    changeCoins(me, lc, st.reward); // also onto your seat if you're at a table
     // granted = what you just got; reward = tomorrow's (from dailyState);
     // unlocked = pictures / profile styles this streak just opened
-    ack({ ...dailyState(me), ok: true, granted: st.reward, streak: me.daily.streak, coins: me.coins,
+    ack({ ...dailyState(me), ok: true, granted: st.reward, streak: me.daily.streak, coins: spendableCoins(me, lc),
       unlocked: streakUnlocks(bestBefore, me.daily.best) });
   });
 
@@ -10741,7 +10755,7 @@ io.on("connection", (socket) => {
       themePrice: THEME_PRICE,
       shopAvatars: SHOP_AVATARS,
       ownedAvatars: me.ownedAvatars || [],
-      coins: ensureCoins(me),
+      coins: spendableCoins(me, socket._regUser.usernameLower),
       bestStreak: bestStreak(me),
       avatarLocks: STREAK_AVATARS,
     });
@@ -10765,12 +10779,18 @@ io.on("connection", (socket) => {
       if (!price) return reply({ error: "ეს სურათი არ იყიდება" });
       if (avatarUnlocked(me, id)) return reply({ error: "ეს სურათი უკვე შენია" });
     } else return reply({ error: "არასწორი მოთხოვნა" });
-    // A table writes its own copy of your balance back after each hand.
-    if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return reply({ error: "ჯერ დაასრულე მიმდინარე თამაში (პოკერი/ბლექჯეკი), მერე იყიდე" });
+    // At a table you pay from the coins that aren't in the current hand.
     settlePendingCoins(me, lc);
-    const balance = ensureCoins(me);
+    const balance = spendableCoins(me, lc);
     if (balance < price) return reply({ error: `საკმარისი მონეტა არ გაქვს — საჭიროა ${price.toLocaleString("en-US")}, გაქვს ${balance.toLocaleString("en-US")}` });
-    me.coins -= price;
+    // A poker player still in a hand keeps at least one coin, so the hand
+    // can play on normally (with none they'd be all-in without saying so).
+    const at = coinSeat(lc);
+    if (at && at.poker && balance === price && !at.seat.folded && !at.seat.allIn &&
+        at.room.stage && at.room.stage !== "waiting" && at.room.stage !== "showdown") {
+      return reply({ error: "ამ ხელში ჩართული ხარ — ყველა მონეტას ახლა ვერ დახარჯავ. ხელი რომ დასრულდება, მაშინ იყიდე" });
+    }
+    changeCoins(me, lc, -price); // also off your seat if you're at a table
     if (kind === "theme") {
       me.ownedThemes = [...(me.ownedThemes || []), id];
       me.profileTheme = id;
@@ -10781,7 +10801,7 @@ io.on("connection", (socket) => {
     saveAuthUsers();
     console.log(`[SHOP] ${me.username} bought ${kind} ${id} for ${price} coins`);
     for (const f of [lc, ...(me.friends || [])]) io.to(`user:${f}`).emit("friends:changed");
-    reply({ ok: true, kind, id, price, coins: me.coins });
+    reply({ ok: true, kind, id, price, coins: spendableCoins(me, lc) });
   });
   socket.on("profile:setTheme", (data, ack) => {
     const me = regMe(); if (!me) return;
@@ -12394,7 +12414,7 @@ io.on("connection", (socket) => {
     const user = socket._regUser && registeredUsers.get(socket._regUser.usernameLower);
     if (!user || user.isGuest) return ack({ error: "registered-only" });
     settlePendingCoins(user, socket._regUser.usernameLower);
-    ack({ coins: ensureCoins(user) });
+    ack({ coins: spendableCoins(user, socket._regUser.usernameLower) });
   });
 
   socket.on("poker:declineInvite", ({ roomId }) => {
