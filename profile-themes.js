@@ -1,8 +1,8 @@
 // ── Profile styles: the ring around your picture and your card's glow ───────
 // Picked on the dashboard (👤 → 🎨 პროფილის სტილი) and shown wherever your
 // picture is: your card, your profile card, friends' lists and chat headers.
-// The default one is free; every other style is bought once with poker or
-// blackjack coins (PRICE each) and stays yours. The server keeps the same
+// The default one is free; every other style is bought once with coins
+// (PRICE each — the same coins as poker and blackjack) and stays yours. The server keeps the same
 // ids and checks ownership (PROFILE_THEME_IDS / THEME_PRICE / "shop:buy").
 (function () {
   "use strict";

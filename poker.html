@@ -702,7 +702,8 @@
 
   function setCoinsDisplay(v) {
     myCoins = v;
-    ["setupCoins", "lobbyCoins", "tableCoins"].forEach(id => { const el = $(id); if (el) el.textContent = v; });
+    const shown = typeof v === "number" ? v.toLocaleString("en-US") : v;
+    ["setupCoins", "lobbyCoins", "tableCoins"].forEach(id => { const el = $(id); if (el) el.textContent = shown; });
   }
 
   /* ── State ───────────────────────────────────────────────────── */

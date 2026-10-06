@@ -1214,6 +1214,14 @@ body.guest-mode .profile-actions { display: none; }
   background: rgba(240,185,58,.12); border: 1px solid rgba(240,185,58,.40);
 }
 .streak-chip[hidden] { display: none; }
+/* 🪙 your coins — one balance for poker, blackjack and the shop */
+.coin-chip {
+  display: inline-flex; align-items: center; gap: 4px; margin: 7px 0 0 4px; min-height: 28px;
+  padding: 3px 11px; border-radius: 999px; cursor: pointer; font: inherit;
+  font-size: .76em; font-weight: 800; color: #f4d98f;
+  background: rgba(214,168,79,.12); border: 1px solid rgba(214,168,79,.45);
+}
+.coin-chip[hidden] { display: none; }
 .streak-chip.tier-warm { color: #fff1c7; background: linear-gradient(135deg, rgba(255,152,0,.35), rgba(255,87,34,.25)); border-color: rgba(255,152,0,.7); }
 .streak-chip.tier-fire, .streak-chip.tier-blue {
   color: #fff; border-color: transparent; text-shadow: 0 1px 2px rgba(0,0,0,.45);
@@ -1498,6 +1506,7 @@ body.guest-mode .profile-actions { display: none; }
         <div class="user-meta" id="userMeta">რეგისტრირებული მომხმარებელი</div>
         <div class="user-bio-display" id="userBioDisplay" style="display:none"></div>
         <button type="button" class="streak-chip" id="dailyStreakChip" hidden></button>
+        <button type="button" class="coin-chip" id="coinChip" hidden title="შენი მონეტები — პოკერი, ბლექჯეკი და მაღაზია">🪙 <span id="coinChipN">—</span></button>
         <button class="btn-change-name-guest" id="changeGuestNameBtn" style="display:none">✏️ სახელის შეცვლა</button>
       </div>
     </div>
@@ -1507,7 +1516,7 @@ body.guest-mode .profile-actions { display: none; }
       <div class="dc-gift" aria-hidden="true">🎁</div>
       <div class="dc-text">
         <b>დღის ბონუსი</b>
-        <small id="dailySub">მონეტები პოკერსა და ბლექჯეკში</small>
+        <small id="dailySub">მონეტები პოკერისთვის, ბლექჯეკისა და მაღაზიისთვის</small>
         <div class="dc-week" id="dailyWeek" aria-hidden="true"></div>
       </div>
       <button type="button" class="dc-claim" id="dailyClaimBtn">აიღე</button>
@@ -1554,7 +1563,7 @@ body.guest-mode .profile-actions { display: none; }
       </button>
       <div class="pa-panel" id="themePickerSection" hidden>
         <div class="pa-panel-head">
-          <span>ყველა ხედავს · 🪙 თითო სტილი 5,000 მონეტა (პოკერი ან ბლექჯეკი)</span>
+          <span>ყველა ხედავს · 🪙 თითო სტილი 5,000 მონეტა</span>
           <button class="pa-close" type="button" data-close="changeThemeBtn">დახურვა ✕</button>
         </div>
         <div class="theme-grid" id="themePickerGrid"></div>
@@ -2017,7 +2026,7 @@ body.guest-mode .profile-actions { display: none; }
       }
     }
 
-    // shop: { owned: [...], pokerCoins, bjCoins } from "profile:themes" — the
+    // shop: { ownedAvatars: [...], coins } from "profile:themes" — the
     // pictures for sale show their price, and tapping one opens the buy window.
     function renderAvatarGrid(containerEl, selected, onPick, shop) {
       if (!containerEl) return;
@@ -2031,7 +2040,7 @@ body.guest-mode .profile-actions { display: none; }
           if (!containerEl.querySelector(".ap-shop-head")) {
             const head = document.createElement("div");
             head.className = "ap-shop-head";
-            head.textContent = "🪙 იყიდე პოკერის ან ბლექჯეკის მონეტებით";
+            head.textContent = "🪙 იყიდე მონეტებით (პოკერის, ბლექჯეკის და მფრინავი ჩიტის)";
             containerEl.appendChild(head);
           }
           const mine = owned.has(file) || file === selected;
@@ -2187,7 +2196,7 @@ body.guest-mode .profile-actions { display: none; }
     }
     document.getElementById("changeThemeBtn")?.addEventListener("click", () => {
       if (!paToggle("changeThemeBtn") || !socket) return;
-      socket.emit("profile:themes", null, (r) => { if (r && !r.error) renderThemeGrid(r); });
+      socket.emit("profile:themes", null, (r) => { if (r && !r.error) { renderThemeGrid(r); paintCoins(r.coins); } });
     });
 
     document.getElementById("changeAvatarBtn")?.addEventListener("click", () => {
@@ -2196,7 +2205,7 @@ body.guest-mode .profile-actions { display: none; }
       const draw = (shop) => renderAvatarGrid(grid, authUser?.avatar, pickAvatar, shop);
       draw(null);
       // Prices, what you own and your coins — then the 🪙 pictures appear.
-      socket?.emit("profile:themes", null, (r) => { if (r && !r.error) draw(r); });
+      socket?.emit("profile:themes", null, (r) => { if (r && !r.error) { draw(r); paintCoins(r.coins); } });
     });
     async function pickAvatar(file) {
       if (!authUser) return;
@@ -2220,25 +2229,24 @@ body.guest-mode .profile-actions { display: none; }
       }
     }
 
-    /* ── 🛒 Buy window: a profile style or picture, paid with poker or
-       blackjack coins (server: "shop:buy"). ─────────────────────────── */
+    /* ── 🛒 Buy window: a profile style or picture, paid with your coins
+       (one balance with poker and blackjack; server: "shop:buy"). ────── */
     let shopOv = null;
     function closeShop() { if (shopOv) { shopOv.remove(); shopOv = null; document.removeEventListener("keydown", shopKey); } }
     function shopKey(e) { if (e.key === "Escape") closeShop(); }
-    // item: { kind, id, price, title, preview }, wallet: { pokerCoins, bjCoins }
+    // item: { kind, id, price, title, preview }, wallet: { coins }
     function openShop(item, wallet, onBought) {
       closeShop();
-      const poker = wallet.pokerCoins || 0, bj = wallet.bjCoins || 0, price = item.price;
+      const coins = wallet.coins || 0, price = item.price;
       shopOv = document.createElement("div");
       shopOv.className = "shop-ov";
       shopOv.innerHTML = `<div class="shop-sheet" role="dialog" aria-modal="true" aria-label="ყიდვა">
           <div class="shop-preview">${item.preview}</div>
           <div class="shop-title">${esc(item.title)}</div>
           <div class="shop-price">🪙 ${fmtCoins(price)} მონეტა</div>
-          <div class="shop-sub">რომელი მონეტებით გადაიხდი?</div>
-          <button type="button" class="shop-pay" data-pay="poker"${poker < price ? " disabled" : ""}><span>🃏 პოკერის მონეტებით</span><small>გაქვს ${fmtCoins(poker)}</small></button>
-          <button type="button" class="shop-pay" data-pay="bj"${bj < price ? " disabled" : ""}><span>🂡 ბლექჯეკის მონეტებით</span><small>გაქვს ${fmtCoins(bj)}</small></button>
-          ${poker < price && bj < price ? `<div class="shop-note">საკმარისი მონეტა არ გაქვს — მოიგე პოკერში ან ბლექჯეკში, ან 🐦 მფრინავ ჩიტში 30-ზე მეტი ქულით მიიღე 10,000.</div>` : ""}
+          <div class="shop-sub">შენ გაქვს 🪙 ${fmtCoins(coins)}${coins >= price ? ` — დაგრჩება ${fmtCoins(coins - price)}` : ""}</div>
+          <button type="button" class="shop-pay"${coins < price ? " disabled" : ""}><span>🛒 ყიდვა</span><small>🪙 ${fmtCoins(price)}</small></button>
+          ${coins < price ? `<div class="shop-note">საკმარისი მონეტა არ გაქვს — მოიგე პოკერში ან ბლექჯეკში, ან 🐦 მფრინავ ჩიტში 30-ზე მეტი ქულით მიიღე 10,000.</div>` : ""}
           <button type="button" class="shop-cancel">გაუქმება</button>
         </div>`;
       document.body.appendChild(shopOv);
@@ -2248,13 +2256,14 @@ body.guest-mode .profile-actions { display: none; }
       shopOv.querySelectorAll(".shop-pay").forEach(b => b.addEventListener("click", () => {
         if (!socket) return;
         shopOv.querySelectorAll("button").forEach(x => { x.disabled = true; });
-        socket.emit("shop:buy", { kind: item.kind, id: item.id, pay: b.dataset.pay }, (r) => {
+        socket.emit("shop:buy", { kind: item.kind, id: item.id }, (r) => {
           if (!r || r.error) {
             showToast(`⚠️ ${(r && r.error) || "ყიდვა ვერ მოხერხდა"}`, 4500);
             closeShop();
             return;
           }
-          wallet.pokerCoins = r.pokerCoins; wallet.bjCoins = r.bjCoins;
+          wallet.coins = r.coins;
+          paintCoins(r.coins);
           closeShop();
           onBought(r);
         });
@@ -3235,7 +3244,21 @@ function profileChipsHTML(p) {
     function loadDaily() {
       if (!socket || !authUser || authUser.isGuest) return;
       socket.emit("daily:state", null, (st) => { if (st && !st.error) paintDaily(st); });
+      socket.emit("coins:get", null, (r) => { if (r && !r.error) paintCoins(r.coins); });
     }
+    // 🪙 One coin balance for the whole site (poker, blackjack, the shop).
+    function paintCoins(n) {
+      if (typeof n !== "number") return;
+      const chip = document.getElementById("coinChip");
+      if (!chip) return;
+      chip.hidden = false;
+      document.getElementById("coinChipN").textContent = fmtCoins(n);
+    }
+    document.getElementById("coinChip")?.addEventListener("click", () => {
+      window.GaicaniDashView?.("profile");
+      const b = document.getElementById("changeThemeBtn");
+      if (b && b.getAttribute("aria-expanded") !== "true") b.click();
+    });
     function paintDaily(st) {
       dailySt = st;
       const chip = document.getElementById("dailyStreakChip");
@@ -3255,7 +3278,7 @@ function profileChipsHTML(p) {
       card.hidden = !st.canClaim;
       if (!st.canClaim) return;
       const day = st.streak + 1;
-      document.getElementById("dailySub").textContent = `+${st.reward} მონეტა პოკერსა და ბლექჯეკში · ${day}-ე დღე ზედიზედ`;
+      document.getElementById("dailySub").textContent = `+${st.reward} მონეტა · ${day}-ე დღე ზედიზედ`;
       const pos = Math.min(day, 7);
       document.getElementById("dailyWeek").innerHTML =
         Array.from({ length: 7 }, (_, i) => `<span class="${i < pos - 1 ? "done" : i === pos - 1 ? "today" : ""}"></span>`).join("");
@@ -3269,6 +3292,7 @@ function profileChipsHTML(p) {
         if (!r) return;
         if (r.error) { showToast(`⚠️ ${r.error}`, 4500); if (typeof r.canClaim === "boolean") paintDaily(r); return; }
         paintDaily(r);
+        paintCoins(r.coins);
         showToast(`🎁 +${r.granted} მონეტა! 🔥 ${r.streak} დღე ზედიზედ — ხვალ +${r.reward}`, 4500);
         // 🔓 What coming back today unlocked: pictures and profile styles.
         (r.unlocked || []).forEach((u, i) => setTimeout(() => {

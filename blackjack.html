@@ -937,6 +937,13 @@
   $("doubleBtn").addEventListener("click", () => socket.emit("blackjack:action", { roomId: currentRoomId, action: "double" }));
   $("splitBtn").addEventListener("click", () => socket.emit("blackjack:action", { roomId: currentRoomId, action: "split" }));
 
+  // 🪙 Your coins — one balance with poker, Flappy Bird and the shop.
+  function loadSetupCoins() {
+    socket.emit("coins:get", null, (r) => {
+      if (r && typeof r.coins === "number") $("setupCoins").textContent = r.coins.toLocaleString("en-US");
+    });
+  }
+
   /* ── Navigation ──────────────────────────────────────────────── */
   function backToSetup() {
     currentRoomId = null;
@@ -949,6 +956,7 @@
     history.replaceState(null, "", "/blackjack.html");
     showScreen("setup");
     socket.emit("blackjack:listPublicRooms");
+    loadSetupCoins();
   }
   $("lobbyBackBtn").addEventListener("click", () => { socket.emit("blackjack:leave"); backToSetup(); });
   $("lobbyLeaveBtn").addEventListener("click", () => { socket.emit("blackjack:leave"); backToSetup(); });
@@ -973,6 +981,7 @@
       socket.emit("blackjack:listPublicRooms");
       if (currentRoomId) socket.emit("blackjack:join", { roomId: currentRoomId });
       else showScreen("setup");
+      loadSetupCoins();
     });
     socket.on("auth:invalid", () => { window.location.href = "/"; });
 

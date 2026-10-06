@@ -513,9 +513,10 @@
 
     socket.on("flappy:scoreResult", ({ accepted, personalBest, isNewBest, coinsGranted, coinsPending } = {}) => {
       if (!accepted) return; // rejected by anti-cheat — leaderboard/best simply won't move
-      // 🪙 Past 30 → 10,000 coins in poker and blackjack (once a day).
+      // 🪙 Past 30 → 10,000 coins (once a day) — the same coins as poker,
+      // blackjack and the shop.
       if (coinsGranted) {
-        showToast(`🪙 +${Number(coinsGranted).toLocaleString("en-US")} მონეტა პოკერსა და ბლექჯეკში!` +
+        showToast(`🪙 +${Number(coinsGranted).toLocaleString("en-US")} მონეტა!` +
           (coinsPending ? " (დაგერიცხება, როცა მიმდინარე თამაშს დაასრულებ)" : ""), 5000);
       }
       if (typeof personalBest === "number") {

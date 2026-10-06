@@ -5460,33 +5460,39 @@ function isRoomAdmin(usernameLower) {
   return !!(u && u.isAdmin);
 }
 
-// ── Poker coins ─────────────────────────────────────────────────────────────
-// Lazily initializes a user's poker balance to POKER_STARTING_COINS on first
-// contact, and — only once their stack has actually hit 0 — refills it back
-// to POKER_STARTING_COINS, but no more than once per POKER_COIN_REGEN_MS.
-// Always returns the up-to-date balance; persists via saveAuthUsers() itself
-// whenever it changes something so callers don't have to remember to.
-function ensurePokerCoins(user) {
-  if (typeof user.pokerCoins !== "number") {
-    user.pokerCoins = POKER_STARTING_COINS;
-    // Starts the 24h clock from their very first grant too — otherwise a
-    // user's FIRST-EVER bust would see no pokerCoinsLastRefillAt yet, read
-    // as "last refill was infinitely long ago", and grant an instant free
-    // refill instead of making them wait like every refill after it does.
-    user.pokerCoinsLastRefillAt = new Date().toISOString();
+// ── 🪙 Coins — one balance for the whole site ──────────────────────────────
+// Poker, blackjack, the daily bonus, Flappy Bird rewards and the shop all
+// use the same user.coins: what you win in poker you can bet in blackjack or
+// spend on a profile style. Lazily starts at STARTING_COINS on first contact
+// and — only once it has actually hit 0 — refills back to STARTING_COINS, but
+// no more than once per COIN_REFILL_MS. Always returns the up-to-date
+// balance; persists via saveAuthUsers() itself whenever it changes something.
+//
+// A poker or blackjack table holds a copy of your whole balance while you sit
+// at it and writes it back after every hand, so you can sit at one table of
+// either game at a time, and nothing else changes your coins meanwhile (the
+// daily bonus and the shop wait; rewards wait in pendingCoins).
+const STARTING_COINS = 1000;
+const COIN_REFILL_MS = 24 * 60 * 60 * 1000;
+function ensureCoins(user) {
+  if (typeof user.coins !== "number") {
+    user.coins = STARTING_COINS;
+    // The first grant starts the refill clock too — otherwise a first-ever
+    // bust would read as "last refill was infinitely long ago" and refill
+    // instantly instead of waiting like every later refill does.
+    user.coinsRefilledAt = Date.now();
     saveAuthUsers();
-    return user.pokerCoins;
+    return user.coins;
   }
-  if (user.pokerCoins <= 0) {
-    const last = user.pokerCoinsLastRefillAt ? new Date(user.pokerCoinsLastRefillAt).getTime() : 0;
-    if (Date.now() - last >= POKER_COIN_REGEN_MS) {
-      user.pokerCoins = POKER_STARTING_COINS;
-      user.pokerCoinsLastRefillAt = new Date().toISOString();
-      saveAuthUsers();
-    }
+  if (user.coins <= 0 && Date.now() - (user.coinsRefilledAt || 0) >= COIN_REFILL_MS) {
+    user.coins = STARTING_COINS;
+    user.coinsRefilledAt = Date.now();
+    saveAuthUsers();
   }
-  return user.pokerCoins;
+  return user.coins;
 }
+// You can't sit at a poker and a blackjack table at the same time (see above).
+const AT_OTHER_TABLE_MSG = "ჯერ დაასრულე მეორე თამაში — მონეტები პოკერსა და ბლექჯეკში ერთია, ორივე მაგიდასთან ერთდროულად ვერ დაჯდები.";
 
 function makeRoomId() {
   return `room_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -6895,8 +6901,6 @@ const POKER_MIN_PLAYERS  = 2;
 const POKER_MAX_PLAYERS  = 6;
 const POKER_SMALL_BLIND  = 10;
 const POKER_BIG_BLIND    = 20;
-const POKER_STARTING_COINS = 1000;
-const POKER_COIN_REGEN_MS  = 24 * 60 * 60 * 1000; // once your stack hits 0, refills after this long
 const POKER_ACTION_TTL_MS  = 25_000; // time to act before an auto-fold/check
 const POKER_INVITE_TTL_MS  = 60_000;
 const POKER_ROOM_TTL_MS    = 30_000; // grace period after a table empties before it's dropped
@@ -8140,7 +8144,7 @@ function pokerFinishHand(room, result) {
   // sync it back the moment the hand resolves, regardless of reveal timing.
   for (const p of room.players) {
     const user = registeredUsers.get(p.lc);
-    if (user) { user.pokerCoins = p.stack; saveAuthUsers(); }
+    if (user) { user.coins = p.stack; saveAuthUsers(); }
   }
 
   // At a real showdown, broadcast the card reveal FIRST — room.stage is
@@ -9748,8 +9752,6 @@ const BJ_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K
 const BJ_SUITS = ["s", "h", "d", "c"];
 const BJ_MIN_PLAYERS = 1;
 const BJ_MAX_PLAYERS = 5;
-const BJ_STARTING_COINS = 1000;
-const BJ_COIN_REGEN_MS = 24 * 60 * 60 * 1000;
 const BJ_MIN_BET = 10;
 const BJ_MAX_BET = 500;
 const BJ_BET_TTL_MS = parseInt(process.env.BJ_BET_TTL_MS, 10) || 30_000;
@@ -9787,15 +9789,6 @@ function bjNewHand(bet) {
   return { cards: [], bet, status: "playing", doubled: false, fromSplit: false, result: null, payout: 0 };
 }
 
-function bjEnsureCoins(user) {
-  if (user.bjCoins === undefined || user.bjCoins === null) user.bjCoins = BJ_STARTING_COINS;
-  if (user.bjLastCoinGrant === undefined) user.bjLastCoinGrant = Date.now();
-  if (user.bjCoins <= 0 && Date.now() - user.bjLastCoinGrant >= BJ_COIN_REGEN_MS) {
-    user.bjCoins = BJ_STARTING_COINS;
-    user.bjLastCoinGrant = Date.now();
-  }
-  return user.bjCoins;
-}
 
 // Dealer draws from room.deck until standing on all 17s or busting.
 // Mutates room.deck and room.dealerCards in place.
@@ -10098,7 +10091,7 @@ function bjSettleRound(room) {
   // Sync every seated player's persistent balance now that the round is over.
   for (const p of room.players) {
     const user = registeredUsers.get(p.lc);
-    if (user) { user.bjCoins = p.stack; user.bjLastCoinGrant = user.bjLastCoinGrant || Date.now(); saveAuthUsers(); }
+    if (user) { user.coins = p.stack; saveAuthUsers(); }
   }
 
   room.phase = "roundEnd";
@@ -10384,8 +10377,8 @@ function grantCoins(user, lc, amount) {
     saveAuthUsers();
     return false;
   }
-  ensurePokerCoins(user); bjEnsureCoins(user);
-  user.pokerCoins += amount; user.bjCoins += amount;
+  ensureCoins(user);
+  user.coins += amount;
   saveAuthUsers();
   return true;
 }
@@ -10718,14 +10711,14 @@ io.on("connection", (socket) => {
     // A table keeps its own copy of your balance and writes it back at the end
     // of a hand — a bonus added now would be overwritten.
     if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return ack({ error: "ჯერ დაასრულე მიმდინარე თამაში (პოკერი/ბლექჯეკი), მერე აიღე ბონუსი" });
-    ensurePokerCoins(me); bjEnsureCoins(me);
-    me.pokerCoins += st.reward; me.bjCoins += st.reward;
+    ensureCoins(me);
+    me.coins += st.reward;
     const bestBefore = bestStreak(me);
     me.daily = { last: georgiaDay(), streak: st.streak + 1, best: Math.max(bestBefore, st.streak + 1) };
     saveAuthUsers();
     // granted = what you just got; reward = tomorrow's (from dailyState);
     // unlocked = pictures / profile styles this streak just opened
-    ack({ ...dailyState(me), ok: true, granted: st.reward, streak: me.daily.streak, pokerCoins: me.pokerCoins, bjCoins: me.bjCoins,
+    ack({ ...dailyState(me), ok: true, granted: st.reward, streak: me.daily.streak, coins: me.coins,
       unlocked: streakUnlocks(bestBefore, me.daily.best) });
   });
 
@@ -10740,20 +10733,20 @@ io.on("connection", (socket) => {
       themePrice: THEME_PRICE,
       shopAvatars: SHOP_AVATARS,
       ownedAvatars: me.ownedAvatars || [],
-      pokerCoins: ensurePokerCoins(me), bjCoins: bjEnsureCoins(me),
+      coins: ensureCoins(me),
       bestStreak: bestStreak(me),
       avatarLocks: STREAK_AVATARS,
     });
   });
-  // 🛒 Buy a profile style or a picture with poker or blackjack coins.
-  // { kind: "theme" | "avatar", id, pay: "poker" | "bj" } → it's yours for
-  // good and put on straight away.
+  // 🛒 Buy a profile style or a picture with your coins.
+  // { kind: "theme" | "avatar", id } → it's yours for good and put on
+  // straight away.
   socket.on("shop:buy", (data, ack) => {
     const reply = (x) => { if (typeof ack === "function") ack(x); };
     const me = regMe(); if (!me) return reply({ error: "მხოლოდ რეგისტრირებულებს შეუძლიათ" });
     if (mediaRateLimited(socket, "shopBuy", 10, 60_000)) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან" });
     const lc = socket._regUser.usernameLower;
-    const kind = data && data.kind, id = String((data && data.id) || ""), pay = data && data.pay;
+    const kind = data && data.kind, id = String((data && data.id) || "");
     let price = 0;
     if (kind === "theme") {
       if (!isThemeId(id) || id === "default") return reply({ error: "ასეთი სტილი არ არსებობს" });
@@ -10764,13 +10757,12 @@ io.on("connection", (socket) => {
       if (!price) return reply({ error: "ეს სურათი არ იყიდება" });
       if (avatarUnlocked(me, id)) return reply({ error: "ეს სურათი უკვე შენია" });
     } else return reply({ error: "არასწორი მოთხოვნა" });
-    if (pay !== "poker" && pay !== "bj") return reply({ error: "აირჩიე, რომელი მონეტებით გადაიხდი" });
     // A table writes its own copy of your balance back after each hand.
     if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return reply({ error: "ჯერ დაასრულე მიმდინარე თამაში (პოკერი/ბლექჯეკი), მერე იყიდე" });
     settlePendingCoins(me, lc);
-    const balance = pay === "poker" ? ensurePokerCoins(me) : bjEnsureCoins(me);
+    const balance = ensureCoins(me);
     if (balance < price) return reply({ error: `საკმარისი მონეტა არ გაქვს — საჭიროა ${price.toLocaleString("en-US")}, გაქვს ${balance.toLocaleString("en-US")}` });
-    if (pay === "poker") me.pokerCoins -= price; else me.bjCoins -= price;
+    me.coins -= price;
     if (kind === "theme") {
       me.ownedThemes = [...(me.ownedThemes || []), id];
       me.profileTheme = id;
@@ -10779,9 +10771,9 @@ io.on("connection", (socket) => {
       me.avatar = id;
     }
     saveAuthUsers();
-    console.log(`[SHOP] ${me.username} bought ${kind} ${id} for ${price} ${pay} coins`);
+    console.log(`[SHOP] ${me.username} bought ${kind} ${id} for ${price} coins`);
     for (const f of [lc, ...(me.friends || [])]) io.to(`user:${f}`).emit("friends:changed");
-    reply({ ok: true, kind, id, price, pokerCoins: me.pokerCoins, bjCoins: me.bjCoins });
+    reply({ ok: true, kind, id, price, coins: me.coins });
   });
   socket.on("profile:setTheme", (data, ack) => {
     const me = regMe(); if (!me) return;
@@ -12294,9 +12286,9 @@ io.on("connection", (socket) => {
   // Poker (Texas Hold'em) — invite-based tables, same shape as Draw & Guess:
   // one active table per user, no-approval-needed accept/decline with a
   // cooldown on repeat invites after a decline, plus a public "active
-  // tables" browser. Coins are the user's persistent pokerCoins balance —
-  // ensurePokerCoins() lazily starts everyone at 1000 and refills once a
-  // day, but only once their stack has actually hit 0.
+  // tables" browser. Coins are the user's site-wide balance (user.coins,
+  // shared with blackjack and the shop) — ensureCoins() lazily starts
+  // everyone at 1000 and refills once a day, but only once it has hit 0.
   // ══════════════════════════════════════════════════════════════════════
 
   socket.on("poker:invite", ({ toUsernames }) => {
@@ -12310,6 +12302,7 @@ io.on("connection", (socket) => {
       socket.emit("poker:error", { message: "თქვენ უკვე ხართ სხვა პოკერის მაგიდასთან — ჯერ დატოვეთ ან დაასრულეთ ის, სანამ ახალს შექმნით." });
       return;
     }
+    if (!room && findActiveBjRoomForUser(hostLc)) { socket.emit("poker:error", { message: AT_OTHER_TABLE_MSG }); return; }
 
     if (room) {
       const hostPlayer = room.players.find(p => p.lc === hostLc);
@@ -12317,7 +12310,7 @@ io.on("connection", (socket) => {
       pokerRoomBySocket.set(socket.id, room.id);
     } else {
       settlePendingCoins(hostUser, hostUser.username.toLowerCase()); // coins won while away (Flappy…)
-      const startingStack = ensurePokerCoins(hostUser);
+      const startingStack = ensureCoins(hostUser);
       if (startingStack <= 0) {
         socket.emit("poker:error", { message: "დღეს უკვე გამოიყენე უფასო მონეტების შევსება — დაბრუნდი ხვალ." });
         return;
@@ -12378,14 +12371,22 @@ io.on("connection", (socket) => {
 
   // Lets the setup screen show a coin balance before the user has created
   // or joined any table — lazily grants/refills via the same rules as
-  // actually sitting down (ensurePokerCoins), so the number shown here is
+  // actually sitting down (ensureCoins), so the number shown here is
   // always exactly what they'd bring to a table right now.
   socket.on("poker:getBalance", () => {
     if (!socket._regUser) return;
     const user = registeredUsers.get(socket._regUser.usernameLower);
     if (!user) return;
     settlePendingCoins(user, socket._regUser.usernameLower);
-    socket.emit("poker:balance", { coins: ensurePokerCoins(user) });
+    socket.emit("poker:balance", { coins: ensureCoins(user) });
+  });
+  // 🪙 Your site-wide coin balance (blackjack lobby, dashboard).
+  socket.on("coins:get", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const user = socket._regUser && registeredUsers.get(socket._regUser.usernameLower);
+    if (!user || user.isGuest) return ack({ error: "registered-only" });
+    settlePendingCoins(user, socket._regUser.usernameLower);
+    ack({ coins: ensureCoins(user) });
   });
 
   socket.on("poker:declineInvite", ({ roomId }) => {
@@ -12432,9 +12433,10 @@ io.on("connection", (socket) => {
     }
 
     if (room.players.length >= POKER_MAX_PLAYERS) { socket.emit("poker:error", { message: "მაგიდა სავსეა." }); return; }
+    if (findActiveBjRoomForUser(lc)) { socket.emit("poker:error", { message: AT_OTHER_TABLE_MSG }); return; }
 
     settlePendingCoins(user, user.username.toLowerCase()); // coins won while away (Flappy…)
-    const startingStack = ensurePokerCoins(user);
+    const startingStack = ensureCoins(user);
     if (startingStack <= 0) {
       socket.emit("poker:error", { message: "დღეს უკვე გამოიყენე უფასო მონეტების შევსება — დაბრუნდი ხვალ." });
       return;
@@ -13367,6 +13369,7 @@ io.on("connection", (socket) => {
       socket.emit("blackjack:error", { message: "თქვენ უკვე ხართ სხვა მაგიდაზე — ჯერ დატოვეთ ან დაასრულეთ ის, სანამ ახალს შექმნით." });
       return;
     }
+    if (!room && findActivePokerRoomForUser(hostLc)) { socket.emit("blackjack:error", { message: AT_OTHER_TABLE_MSG }); return; }
 
     if (room) {
       const hostPlayer = room.players.find(p => p.lc === hostLc);
@@ -13374,12 +13377,12 @@ io.on("connection", (socket) => {
       bjRoomBySocket.set(socket.id, room.id);
     } else {
       settlePendingCoins(hostUser, hostUser.username.toLowerCase()); // coins won while away (Flappy…)
-      bjEnsureCoins(hostUser);
+      ensureCoins(hostUser);
       room = {
         id: makeBjRoomId(),
         hostLc,
         status: "lobby",
-        players: [{ lc: hostLc, username: hostUser.username, socketId: socket.id, connected: true, seat: 0, stack: hostUser.bjCoins, bet: null, hands: [] }],
+        players: [{ lc: hostLc, username: hostUser.username, socketId: socket.id, connected: true, seat: 0, stack: hostUser.coins, bet: null, hands: [] }],
         pendingInvites: new Map(),
         deck: [], dealerCards: [], dealerHoleRevealed: false,
         phase: null, turnSeat: null, turnHandIdx: 0, actionDeadline: null,
@@ -13468,15 +13471,16 @@ io.on("connection", (socket) => {
     }
 
     if (room.players.length >= BJ_MAX_PLAYERS) { socket.emit("blackjack:error", { message: "მაგიდა სავსეა." }); return; }
+    if (findActivePokerRoomForUser(lc)) { socket.emit("blackjack:error", { message: AT_OTHER_TABLE_MSG }); return; }
 
     const invite = room.pendingInvites.get(lc);
     if (invite) clearTimeout(invite.timeoutHandle);
     room.pendingInvites.delete(lc);
 
     settlePendingCoins(user, user.username.toLowerCase()); // coins won while away (Flappy…)
-    bjEnsureCoins(user);
+    ensureCoins(user);
     const seat = room.players.length;
-    room.players.push({ lc, username: user.username, socketId: socket.id, connected: true, seat, stack: user.bjCoins, bet: null, hands: [] });
+    room.players.push({ lc, username: user.username, socketId: socket.id, connected: true, seat, stack: user.coins, bet: null, hands: [] });
     bjRoomBySocket.set(socket.id, room.id);
     socket.join(`bjroom:${room.id}`);
 
@@ -14047,6 +14051,20 @@ process.on('SIGINT', () => {
   flushAllSaves();
   process.exit(0);
 });
+
+// One coin balance for the whole site — it used to be separate poker and
+// blackjack balances: add the two together, so nobody loses a coin.
+for (const [, u] of registeredUsers) {
+  const had = typeof u.pokerCoins === "number" || typeof u.bjCoins === "number";
+  if (typeof u.coins !== "number" && had) {
+    u.coins = Math.max(0, u.pokerCoins || 0) + Math.max(0, u.bjCoins || 0);
+    u.coinsRefilledAt = Math.max(Date.parse(u.pokerCoinsLastRefillAt || "") || 0, u.bjLastCoinGrant || 0) || Date.now();
+  }
+  if (had || "pokerCoinsLastRefillAt" in u || "bjLastCoinGrant" in u) {
+    delete u.pokerCoins; delete u.bjCoins; delete u.pokerCoinsLastRefillAt; delete u.bjLastCoinGrant;
+    saveAuthUsers();
+  }
+}
 
 // Profile styles became a coin purchase: anyone already wearing one keeps it.
 for (const [, u] of registeredUsers) {
