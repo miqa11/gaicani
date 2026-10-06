@@ -511,8 +511,13 @@
       }
     });
 
-    socket.on("flappy:scoreResult", ({ accepted, personalBest, isNewBest } = {}) => {
+    socket.on("flappy:scoreResult", ({ accepted, personalBest, isNewBest, coinsGranted, coinsPending } = {}) => {
       if (!accepted) return; // rejected by anti-cheat — leaderboard/best simply won't move
+      // 🪙 Past 30 → 10,000 coins in poker and blackjack (once a day).
+      if (coinsGranted) {
+        showToast(`🪙 +${Number(coinsGranted).toLocaleString("en-US")} მონეტა პოკერსა და ბლექჯეკში!` +
+          (coinsPending ? " (დაგერიცხება, როცა მიმდინარე თამაშს დაასრულებ)" : ""), 5000);
+      }
       if (typeof personalBest === "number") {
         myBest = personalBest;
         elBestScoreChip.textContent = String(myBest);

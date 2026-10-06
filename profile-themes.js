@@ -1,13 +1,14 @@
 // ── Profile styles: the ring around your picture and your card's glow ───────
 // Picked on the dashboard (👤 → 🎨 პროფილის სტილი) and shown wherever your
 // picture is: your card, your profile card, friends' lists and chat headers.
-// The rare ones are rewards for coming back: they unlock with your best
-// daily-bonus streak (VIP accounts get gold and diamond straight away).
-// The server keeps the same ids and checks the locks (PROFILE_THEMES there).
+// The default one is free; every other style is bought once with poker or
+// blackjack coins (PRICE each) and stays yours. The server keeps the same
+// ids and checks ownership (PROFILE_THEME_IDS / THEME_PRICE / "shop:buy").
 (function () {
   "use strict";
 
   const conic = (...c) => `conic-gradient(${c.join(",")})`;
+  const PRICE = 5000; // coins — same as THEME_PRICE in server.js
   const LIST = [
     { id: "default",  label: "მინანქარი", solid: "#4f6cff", tint: "rgba(79,108,255,.32)",
       ring: conic("#4f6cff", "#1fc18a", "#f4d98f", "#e33b5f", "#9d5cff", "#4f6cff") },
@@ -20,18 +21,18 @@
     { id: "amethyst", label: "ამეთვისტო", solid: "#9d5cff", tint: "rgba(157,92,255,.36)",
       ring: conic("#9d5cff", "#e0c8ff", "#6326c9", "#9d5cff") },
     { id: "sunset",   label: "დაისი",     solid: "#ff7a59", tint: "rgba(255,122,89,.32)",
-      ring: conic("#ffb347", "#ff5f80", "#9d5cff", "#ff5f80", "#ffb347"), lock: { days: 3 } },
+      ring: conic("#ffb347", "#ff5f80", "#9d5cff", "#ff5f80", "#ffb347") },
     { id: "ocean",    label: "ზღვა",      solid: "#19b3a6", tint: "rgba(25,179,166,.32)",
-      ring: conic("#19b3a6", "#7fe3ff", "#4f6cff", "#7fe3ff", "#19b3a6"), lock: { days: 5 } },
+      ring: conic("#19b3a6", "#7fe3ff", "#4f6cff", "#7fe3ff", "#19b3a6") },
     { id: "fire",     label: "ცეცხლი",    solid: "#ff6d00", tint: "rgba(255,109,0,.34)", glow: "rgba(255,109,0,.75)",
       ring: conic("#fff176", "#ff9800", "#ff3d00", "#d50000", "#ff9800", "#fff176"),
-      lock: { days: 7 }, badge: "🔥 ცეცხლის ჩარჩო", fire: true },
+      badge: "🔥 ცეცხლის ჩარჩო", fire: true },
     { id: "gold",     label: "ოქრო",      solid: "#d6a84f", tint: "rgba(214,168,79,.36)", glow: "rgba(244,217,143,.7)",
       ring: conic("#fff4d2", "#d6a84f", "#f4d98f", "#a87a25", "#fff4d2"),
-      lock: { days: 14, vip: true }, badge: "👑 ოქროს ჩარჩო" },
+      badge: "👑 ოქროს ჩარჩო" },
     { id: "diamond",  label: "ბრილიანტი", solid: "#9be7ff", tint: "rgba(155,231,255,.28)", glow: "rgba(155,231,255,.75)",
       ring: conic("#ffffff", "#9be7ff", "#e0c3ff", "#ffffff", "#7fd3ff", "#ffffff"),
-      lock: { days: 30, vip: true }, badge: "💎 ბრილიანტის ჩარჩო" },
+      badge: "💎 ბრილიანტის ჩარჩო" },
   ];
   const BY_ID = Object.fromEntries(LIST.map((t) => [t.id, t]));
 
@@ -93,8 +94,9 @@
   window.GaicaniThemes = {
     list: LIST,
     get: (id) => BY_ID[id] || null,
-    // "🔥 7 დღე ზედიზედ" — how to unlock a locked style.
-    lockHint: (t) => (t && t.lock ? `🔥 ${t.lock.days} დღე ზედიზედ${t.lock.vip ? " ან VIP" : ""}` : ""),
+    price: PRICE,
+    // "🪙 5,000 მონეტა" — what a style you don't have yet costs.
+    lockHint: (t) => (t && t.id !== "default" ? `🪙 ${PRICE.toLocaleString("en-US")} მონეტა` : ""),
     vars,
     apply,
     // "👑 ოქროს ჩარჩო" under the picture on a profile card, for the rare ones.

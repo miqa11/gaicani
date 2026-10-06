@@ -1237,6 +1237,30 @@ body.guest-mode .profile-actions { display: none; }
   background: linear-gradient(135deg, #ff6d00, #d50000); box-shadow: 0 2px 6px rgba(0,0,0,.5);
 }
 .avatar-picker-option.locked .ap-streak { background: rgba(20,16,40,.9); border: 1px solid rgba(255,152,0,.7); color: #ffcc80; }
+/* 🪙 pictures for sale */
+.ap-shop-head { grid-column: 1 / -1; margin: 8px 0 2px; padding: 8px 10px; border-radius: 12px; font-size: .78em; font-weight: 800;
+  color: #f4d98f; background: linear-gradient(135deg, rgba(214,168,79,.2), rgba(214,168,79,.06)); border: 1px solid rgba(214,168,79,.45); }
+.avatar-picker-option.shop-pic { box-shadow: 0 0 0 2px rgba(214,168,79,.7); }
+.ap-price { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); white-space: nowrap; padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 900; color: #1c1408; background: linear-gradient(135deg, #f4d98f, #d6a84f); box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+/* 🛒 buy window */
+.shop-ov { position: fixed; inset: 0; z-index: 1200; background: rgba(0,0,0,.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 20px; }
+.shop-sheet { width: 100%; max-width: 320px; background: var(--raised, #221d3d); border: 1px solid rgba(214,168,79,.45); border-radius: 18px;
+  padding: 20px 16px 14px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,.6); display: flex; flex-direction: column; gap: 8px; }
+.shop-preview { display: flex; justify-content: center; margin-bottom: 4px; }
+.shop-pic-img { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 3px rgba(214,168,79,.8); }
+.shop-swatch { width: 96px; height: 96px; padding: 6px; }
+.shop-title { font-weight: 800; color: #fff; font-size: 1.02em; }
+.shop-price { font-weight: 900; color: #f4d98f; font-size: 1.15em; }
+.shop-sub { font-size: .8em; color: var(--text-dim, #b5bac1); margin-top: 4px; }
+.shop-pay { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12); background: linear-gradient(135deg, #5865f2, #4348d4); color: #fff; font: inherit; font-weight: 800;
+  font-size: .9em; cursor: pointer; }
+.shop-pay small { font-weight: 700; opacity: .85; font-size: .82em; white-space: nowrap; }
+.shop-pay:disabled { background: rgba(255,255,255,.06); color: var(--text-dim, #8e8aa8); cursor: not-allowed; }
+.shop-note { font-size: .76em; line-height: 1.45; color: #ffcc80; background: rgba(255,152,0,.08); border: 1px solid rgba(255,152,0,.3); border-radius: 10px; padding: 8px 10px; }
+.shop-cancel { margin-top: 2px; padding: 9px; border: none; background: none; color: var(--text-dim, #b5bac1); font: inherit; font-size: .85em; cursor: pointer; text-decoration: underline; }
 .streak-chip.at-risk { color: #ff9fb3; background: rgba(227,59,95,.12); border-color: rgba(227,59,95,.45); }
 
 /* ── Daily bonus ───────────────────────────────────────────────────────── */
@@ -1530,7 +1554,7 @@ body.guest-mode .profile-actions { display: none; }
       </button>
       <div class="pa-panel" id="themePickerSection" hidden>
         <div class="pa-panel-head">
-          <span>ყველა ხედავს · 🔒 იშვიათები იხსნება, როცა ყოველდღე შემოდიხარ</span>
+          <span>ყველა ხედავს · 🪙 თითო სტილი 5,000 მონეტა (პოკერი ან ბლექჯეკი)</span>
           <button class="pa-close" type="button" data-close="changeThemeBtn">დახურვა ✕</button>
         </div>
         <div class="theme-grid" id="themePickerGrid"></div>
@@ -1972,10 +1996,15 @@ body.guest-mode .profile-actions { display: none; }
       "avatar17.jpg", "avatar18.jpg", "avatar19.jpg", "avatar20.jpg",
       "avatar21.jpg", "avatar22.jpg", "avatar23.jpg", "avatar24.jpg",
       "avatar25.jpg", "avatar26.jpg", "avatar27.jpg", "avatar28.jpg",
+      "avatar29.jpg", "avatar30.jpg", "avatar31.jpg", "avatar32.jpg",
     ];
     // 🔒 Pictures you unlock by coming back every day (best daily-bonus
     // streak, in days) — same numbers as STREAK_AVATARS in server.js.
     const STREAK_AVATARS = { "avatar25.jpg": 7, "avatar26.jpg": 10, "avatar27.jpg": 14, "avatar28.jpg": 21 };
+    // 🪙 Pictures bought with coins — same prices as SHOP_AVATARS in server.js.
+    const SHOP_AVATARS = { "avatar29.jpg": 5000, "avatar30.jpg": 10000, "avatar31.jpg": 15000, "avatar32.jpg": 20000 };
+    const fmtCoins = (n) => Number(n || 0).toLocaleString("en-US");
+    const shortCoins = (n) => (n >= 1000 && n % 1000 === 0 ? n / 1000 + "k" : fmtCoins(n));
     const AVATAR_DIR = "/";
 
     function paintUserAvatar() {
@@ -1988,11 +2017,49 @@ body.guest-mode .profile-actions { display: none; }
       }
     }
 
-    function renderAvatarGrid(containerEl, selected, onPick) {
+    // shop: { owned: [...], pokerCoins, bjCoins } from "profile:themes" — the
+    // pictures for sale show their price, and tapping one opens the buy window.
+    function renderAvatarGrid(containerEl, selected, onPick, shop) {
       if (!containerEl) return;
       containerEl.innerHTML = "";
       const best = (dailySt && dailySt.best) || 0;
+      const owned = new Set((shop && shop.ownedAvatars) || []);
       AVAILABLE_AVATARS.forEach(file => {
+        const price = SHOP_AVATARS[file];
+        if (price) {
+          if (!shop) return; // prices not loaded yet
+          if (!containerEl.querySelector(".ap-shop-head")) {
+            const head = document.createElement("div");
+            head.className = "ap-shop-head";
+            head.textContent = "🪙 იყიდე პოკერის ან ბლექჯეკის მონეტებით";
+            containerEl.appendChild(head);
+          }
+          const mine = owned.has(file) || file === selected;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "avatar-picker-option shop-pic" + (file === selected ? " selected" : "") + (mine ? "" : " locked");
+          btn.innerHTML = `<img src="${AVATAR_DIR}${file}" alt="avatar" loading="lazy" />` +
+            (mine ? "" : `<span class="ap-price">🪙 ${shortCoins(price)}</span>`);
+          if (!mine) btn.setAttribute("aria-label", `იყიდება — ${fmtCoins(price)} მონეტა`);
+          btn.addEventListener("click", () => {
+            if (!mine) {
+              openShop({ kind: "avatar", id: file, price, title: "პროფილის სურათი",
+                preview: `<img class="shop-pic-img" src="${AVATAR_DIR}${file}" alt="" />` }, shop, (r) => {
+                authUser.avatar = file;
+                paintUserAvatar();
+                shop.ownedAvatars = [...(shop.ownedAvatars || []), file];
+                renderAvatarGrid(containerEl, file, onPick, shop);
+                showToast("✅ შენია! ახალი სურათი დაყენდა");
+              });
+              return;
+            }
+            containerEl.querySelectorAll(".avatar-picker-option").forEach(b => b.classList.remove("selected"));
+            btn.classList.add("selected");
+            onPick(file);
+          });
+          containerEl.appendChild(btn);
+          return;
+        }
         const need = STREAK_AVATARS[file];
         if (need && !containerEl.querySelector(".ap-streak-head")) {
           const head = document.createElement("div");
@@ -2092,13 +2159,20 @@ body.guest-mode .profile-actions { display: none; }
           aria-pressed="${t.id === state.current}" aria-label="${esc(t.label)}${unlocked.has(t.id) ? "" : " — " + esc(T.lockHint(t))}">
           <span class="theme-swatch" style="background:${t.ring}"><span>${pic}</span></span>
           <span class="theme-name">${esc(t.label)}</span>
-          ${t.lock ? `<span class="theme-tag">🔥 ${t.lock.days} დღე</span>` : ""}
+          ${unlocked.has(t.id) ? "" : `<span class="theme-tag">🪙 ${fmtCoins(state.themePrice || T.price)}</span>`}
           ${unlocked.has(t.id) ? "" : '<span class="theme-lock" aria-hidden="true">🔒</span>'}
         </button>`).join("");
       grid.querySelectorAll(".theme-opt").forEach(b => b.addEventListener("click", () => {
         const t = T.get(b.dataset.theme);
         if (!unlocked.has(t.id)) {
-          showToast(`🔒 გაიხსნება, როცა ${t.lock.days} დღე ზედიზედ შემოხვალ და აიღებ დღის ბონუსს${t.lock.vip ? " (VIP-ს უკვე აქვს)" : ""} — შენი რეკორდი: ${state.bestStreak || 0} დღე`, 4500);
+          openShop({ kind: "theme", id: t.id, price: state.themePrice || T.price, title: `სტილი „${t.label}“`,
+            preview: `<span class="theme-swatch shop-swatch" style="background:${t.ring}"><span>${pic}</span></span>` }, state, () => {
+            state.unlocked = [...(state.unlocked || []), t.id];
+            state.current = t.id;
+            paintMyTheme(t.id);
+            renderThemeGrid(state);
+            showToast(`✅ შენია! სტილი „${t.label}“ ჩაირთო`);
+          });
           return;
         }
         if (t.id === myTheme) return;
@@ -2118,29 +2192,75 @@ body.guest-mode .profile-actions { display: none; }
 
     document.getElementById("changeAvatarBtn")?.addEventListener("click", () => {
       if (!paToggle("changeAvatarBtn")) return;
-
-      renderAvatarGrid(document.getElementById("avatarPickerGrid"), authUser?.avatar, async (file) => {
-        if (!authUser) return;
-        const prev = authUser.avatar;
-        authUser.avatar = file;
-        paintUserAvatar(); // optimistic update
-
-        try {
-          const r = await fetch("/api/auth/avatar", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authUser.token}` },
-            body: JSON.stringify({ avatar: file }),
-          });
-          const d = await r.json();
-          if (!r.ok) throw new Error(d.error || "შეცდომა");
-          showToast("✅ პროფილის სურათი განახლდა");
-        } catch (e) {
-          authUser.avatar = prev; // revert on failure
-          paintUserAvatar();
-          showToast(`⚠️ ${e.message && e.message.startsWith("🔒") ? e.message : "სურათის შენახვა ვერ მოხერხდა"}`);
-        }
-      });
+      const grid = document.getElementById("avatarPickerGrid");
+      const draw = (shop) => renderAvatarGrid(grid, authUser?.avatar, pickAvatar, shop);
+      draw(null);
+      // Prices, what you own and your coins — then the 🪙 pictures appear.
+      socket?.emit("profile:themes", null, (r) => { if (r && !r.error) draw(r); });
     });
+    async function pickAvatar(file) {
+      if (!authUser) return;
+      const prev = authUser.avatar;
+      authUser.avatar = file;
+      paintUserAvatar(); // optimistic update
+
+      try {
+        const r = await fetch("/api/auth/avatar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authUser.token}` },
+          body: JSON.stringify({ avatar: file }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "შეცდომა");
+        showToast("✅ პროფილის სურათი განახლდა");
+      } catch (e) {
+        authUser.avatar = prev; // revert on failure
+        paintUserAvatar();
+        showToast(`⚠️ ${e.message && e.message.startsWith("🔒") ? e.message : "სურათის შენახვა ვერ მოხერხდა"}`);
+      }
+    }
+
+    /* ── 🛒 Buy window: a profile style or picture, paid with poker or
+       blackjack coins (server: "shop:buy"). ─────────────────────────── */
+    let shopOv = null;
+    function closeShop() { if (shopOv) { shopOv.remove(); shopOv = null; document.removeEventListener("keydown", shopKey); } }
+    function shopKey(e) { if (e.key === "Escape") closeShop(); }
+    // item: { kind, id, price, title, preview }, wallet: { pokerCoins, bjCoins }
+    function openShop(item, wallet, onBought) {
+      closeShop();
+      const poker = wallet.pokerCoins || 0, bj = wallet.bjCoins || 0, price = item.price;
+      shopOv = document.createElement("div");
+      shopOv.className = "shop-ov";
+      shopOv.innerHTML = `<div class="shop-sheet" role="dialog" aria-modal="true" aria-label="ყიდვა">
+          <div class="shop-preview">${item.preview}</div>
+          <div class="shop-title">${esc(item.title)}</div>
+          <div class="shop-price">🪙 ${fmtCoins(price)} მონეტა</div>
+          <div class="shop-sub">რომელი მონეტებით გადაიხდი?</div>
+          <button type="button" class="shop-pay" data-pay="poker"${poker < price ? " disabled" : ""}><span>🃏 პოკერის მონეტებით</span><small>გაქვს ${fmtCoins(poker)}</small></button>
+          <button type="button" class="shop-pay" data-pay="bj"${bj < price ? " disabled" : ""}><span>🂡 ბლექჯეკის მონეტებით</span><small>გაქვს ${fmtCoins(bj)}</small></button>
+          ${poker < price && bj < price ? `<div class="shop-note">საკმარისი მონეტა არ გაქვს — მოიგე პოკერში ან ბლექჯეკში, ან 🐦 მფრინავ ჩიტში 30-ზე მეტი ქულით მიიღე 10,000.</div>` : ""}
+          <button type="button" class="shop-cancel">გაუქმება</button>
+        </div>`;
+      document.body.appendChild(shopOv);
+      document.addEventListener("keydown", shopKey);
+      shopOv.addEventListener("click", (e) => { if (e.target === shopOv) closeShop(); });
+      shopOv.querySelector(".shop-cancel").addEventListener("click", closeShop);
+      shopOv.querySelectorAll(".shop-pay").forEach(b => b.addEventListener("click", () => {
+        if (!socket) return;
+        shopOv.querySelectorAll("button").forEach(x => { x.disabled = true; });
+        socket.emit("shop:buy", { kind: item.kind, id: item.id, pay: b.dataset.pay }, (r) => {
+          if (!r || r.error) {
+            showToast(`⚠️ ${(r && r.error) || "ყიდვა ვერ მოხერხდა"}`, 4500);
+            closeShop();
+            return;
+          }
+          wallet.pokerCoins = r.pokerCoins; wallet.bjCoins = r.bjCoins;
+          closeShop();
+          onBought(r);
+        });
+      }));
+      shopOv.querySelector(".shop-pay:not([disabled])")?.focus();
+    }
 
     /* ── Interests / bio ─────────────────────────────────────────── */
     function paintUserBio() {

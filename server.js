@@ -4749,6 +4749,8 @@ const AVAILABLE_AVATARS = [
   "avatar21.jpg", "avatar22.jpg", "avatar23.jpg", "avatar24.jpg",
   // 🔒 rewards for coming back every day — see STREAK_AVATARS
   "avatar25.jpg", "avatar26.jpg", "avatar27.jpg", "avatar28.jpg",
+  // 🪙 bought with coins — see SHOP_AVATARS
+  "avatar29.jpg", "avatar30.jpg", "avatar31.jpg", "avatar32.jpg",
 ];
 const DEFAULT_AVATAR = AVAILABLE_AVATARS[0];
 // Pictures that unlock with your best daily-bonus streak (days in a row).
@@ -4758,7 +4760,12 @@ function bestStreak(u) {
   const d = (u && u.daily) || {};
   return Math.max(d.best || 0, d.streak || 0);
 }
+// 🛒 Pictures bought with poker or blackjack coins (price in coins), and the
+// price of every profile style except the free default. See "shop:buy".
+const SHOP_AVATARS = { "avatar29.jpg": 5000, "avatar30.jpg": 10000, "avatar31.jpg": 15000, "avatar32.jpg": 20000 };
+const THEME_PRICE = 5000;
 function avatarUnlocked(u, file) {
+  if (SHOP_AVATARS[file]) return !!(u && (u.ownedAvatars || []).includes(file));
   return !STREAK_AVATARS[file] || bestStreak(u) >= STREAK_AVATARS[file];
 }
 
@@ -5297,6 +5304,9 @@ function publicProfileOf(u) {
 // flappy anti-cheat) gets this long without ads, site-wide.
 const FLAPPY_ADFREE_SCORE = 20;
 const FLAPPY_ADFREE_MS    = 24 * 60 * 60 * 1000;
+// Going past this score earns coins (poker + blackjack), once a Georgian day.
+const FLAPPY_COIN_SCORE   = 30;
+const FLAPPY_COIN_REWARD  = 10000;
 
 // ── Guest names ──────────────────────────────────────────────────────────
 // Anyone without a real registered account is always "სტუმარი" + 4 digits.
@@ -6125,7 +6135,7 @@ app.post("/api/auth/register", authLimiter, express.json({ limit: "5kb" }), asyn
   if (registeredUsers.has(lc) || isRetiredName(lc))
     return res.status(409).json({ error: "ეს სახელი უკვე დაკავებულია" });
 
-  const chosenAvatar = (typeof avatar === "string" && AVAILABLE_AVATARS.includes(avatar) && !STREAK_AVATARS[avatar])
+  const chosenAvatar = (typeof avatar === "string" && AVAILABLE_AVATARS.includes(avatar) && !STREAK_AVATARS[avatar] && !SHOP_AVATARS[avatar])
     ? avatar
     : DEFAULT_AVATAR;
 
@@ -6188,7 +6198,9 @@ app.post("/api/auth/avatar", express.json({ limit: "1kb" }), (req, res) => {
   const user = registeredUsers.get(entry.usernameLower);
   if (!user) return res.status(401).json({ error: "User not found" });
   if (!avatarUnlocked(user, avatar)) {
-    return res.status(403).json({ error: `🔒 ეს სურათი გაიხსნება, როცა ${STREAK_AVATARS[avatar]} დღე ზედიზედ შემოხვალ და აიღებ დღის ბონუსს` });
+    return res.status(403).json({ error: SHOP_AVATARS[avatar]
+      ? `🔒 ეს სურათი იყიდება — ${SHOP_AVATARS[avatar].toLocaleString("en-US")} მონეტა`
+      : `🔒 ეს სურათი გაიხსნება, როცა ${STREAK_AVATARS[avatar]} დღე ზედიზედ შემოხვალ და აიღებ დღის ბონუსს` });
   }
 
   user.avatar = avatar;
@@ -10345,28 +10357,44 @@ function friendDetails(me) {
 }
 
 // ── Profile styles (ring around your picture) ─────────────────────────────
-// Same ids as profile-themes.js. Rare ones are rewards: VIP, or a 7-day
-// daily-bonus streak (best streak ever, so missing a day later keeps it).
-// null = free; days = unlocks at that best daily-bonus streak; vip = VIP
-// accounts get it straight away too.
-const PROFILE_THEMES = {
-  default: null, cobalt: null, emerald: null, ruby: null, amethyst: null,
-  sunset: { days: 3 }, ocean: { days: 5 }, fire: { days: 7 },
-  gold: { days: 14, vip: true }, diamond: { days: 30, vip: true },
-};
-const isThemeId = (id) => Object.prototype.hasOwnProperty.call(PROFILE_THEMES, id);
+// Same ids as profile-themes.js. The default one is free; every other style
+// is bought once with poker or blackjack coins (THEME_PRICE, "shop:buy")
+// and stays yours (user.ownedThemes).
+const PROFILE_THEME_IDS = ["default", "cobalt", "emerald", "ruby", "amethyst", "sunset", "ocean", "fire", "gold", "diamond"];
+const isThemeId = (id) => PROFILE_THEME_IDS.includes(id);
 function themeUnlocked(u, id) {
   if (!isThemeId(id)) return false;
-  const lock = PROFILE_THEMES[id];
-  if (!lock) return true;
-  return bestStreak(u) >= lock.days || (lock.vip && !!u.isPro);
+  return id === "default" || !!(u && (u.ownedThemes || []).includes(id));
 }
 // What a claim pushing the best streak from `before` to `after` just unlocked.
 function streakUnlocks(before, after) {
   const out = [];
   for (const [file, days] of Object.entries(STREAK_AVATARS)) if (before < days && after >= days) out.push({ type: "avatar", file, days });
-  for (const [id, lock] of Object.entries(PROFILE_THEMES)) if (lock && before < lock.days && after >= lock.days) out.push({ type: "theme", id, days: lock.days });
   return out;
+}
+
+// ── 🪙 Coins given as rewards (Flappy Bird…) ──────────────────────────────
+// Added to both poker and blackjack, like the daily bonus. A poker or
+// blackjack table keeps its own copy of your balance and writes it back
+// after each hand, so while you sit at one the coins wait in pendingCoins
+// and are added the next time you're not at a table.
+function grantCoins(user, lc, amount) {
+  if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) {
+    user.pendingCoins = (user.pendingCoins || 0) + amount;
+    saveAuthUsers();
+    return false;
+  }
+  ensurePokerCoins(user); bjEnsureCoins(user);
+  user.pokerCoins += amount; user.bjCoins += amount;
+  saveAuthUsers();
+  return true;
+}
+function settlePendingCoins(user, lc) {
+  if (!user || !user.pendingCoins) return;
+  if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return;
+  const n = user.pendingCoins;
+  user.pendingCoins = 0;
+  grantCoins(user, lc, n);
 }
 // What others see: a VIP style stops showing if VIP ends.
 function effectiveTheme(u) {
@@ -10678,6 +10706,7 @@ io.on("connection", (socket) => {
   socket.on("daily:state", (_d, ack) => {
     if (typeof ack !== "function") return;
     const me = regMe(); if (!me) return ack({ error: "registered-only" });
+    settlePendingCoins(me, socket._regUser.usernameLower);
     ack(dailyState(me));
   });
   socket.on("daily:claim", (_d, ack) => {
@@ -10704,12 +10733,55 @@ io.on("connection", (socket) => {
   socket.on("profile:themes", (_d, ack) => {
     if (typeof ack !== "function") return;
     const me = regMe(); if (!me) return ack({ error: "registered-only" });
+    settlePendingCoins(me, socket._regUser.usernameLower);
     ack({
       current: effectiveTheme(me) || "default",
-      unlocked: Object.keys(PROFILE_THEMES).filter((id) => themeUnlocked(me, id)),
+      unlocked: PROFILE_THEME_IDS.filter((id) => themeUnlocked(me, id)),
+      themePrice: THEME_PRICE,
+      shopAvatars: SHOP_AVATARS,
+      ownedAvatars: me.ownedAvatars || [],
+      pokerCoins: ensurePokerCoins(me), bjCoins: bjEnsureCoins(me),
       bestStreak: bestStreak(me),
       avatarLocks: STREAK_AVATARS,
     });
+  });
+  // 🛒 Buy a profile style or a picture with poker or blackjack coins.
+  // { kind: "theme" | "avatar", id, pay: "poker" | "bj" } → it's yours for
+  // good and put on straight away.
+  socket.on("shop:buy", (data, ack) => {
+    const reply = (x) => { if (typeof ack === "function") ack(x); };
+    const me = regMe(); if (!me) return reply({ error: "მხოლოდ რეგისტრირებულებს შეუძლიათ" });
+    if (mediaRateLimited(socket, "shopBuy", 10, 60_000)) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან" });
+    const lc = socket._regUser.usernameLower;
+    const kind = data && data.kind, id = String((data && data.id) || ""), pay = data && data.pay;
+    let price = 0;
+    if (kind === "theme") {
+      if (!isThemeId(id) || id === "default") return reply({ error: "ასეთი სტილი არ არსებობს" });
+      if (themeUnlocked(me, id)) return reply({ error: "ეს სტილი უკვე შენია" });
+      price = THEME_PRICE;
+    } else if (kind === "avatar") {
+      price = SHOP_AVATARS[id] || 0;
+      if (!price) return reply({ error: "ეს სურათი არ იყიდება" });
+      if (avatarUnlocked(me, id)) return reply({ error: "ეს სურათი უკვე შენია" });
+    } else return reply({ error: "არასწორი მოთხოვნა" });
+    if (pay !== "poker" && pay !== "bj") return reply({ error: "აირჩიე, რომელი მონეტებით გადაიხდი" });
+    // A table writes its own copy of your balance back after each hand.
+    if (findActivePokerRoomForUser(lc) || findActiveBjRoomForUser(lc)) return reply({ error: "ჯერ დაასრულე მიმდინარე თამაში (პოკერი/ბლექჯეკი), მერე იყიდე" });
+    settlePendingCoins(me, lc);
+    const balance = pay === "poker" ? ensurePokerCoins(me) : bjEnsureCoins(me);
+    if (balance < price) return reply({ error: `საკმარისი მონეტა არ გაქვს — საჭიროა ${price.toLocaleString("en-US")}, გაქვს ${balance.toLocaleString("en-US")}` });
+    if (pay === "poker") me.pokerCoins -= price; else me.bjCoins -= price;
+    if (kind === "theme") {
+      me.ownedThemes = [...(me.ownedThemes || []), id];
+      me.profileTheme = id;
+    } else {
+      me.ownedAvatars = [...(me.ownedAvatars || []), id];
+      me.avatar = id;
+    }
+    saveAuthUsers();
+    console.log(`[SHOP] ${me.username} bought ${kind} ${id} for ${price} ${pay} coins`);
+    for (const f of [lc, ...(me.friends || [])]) io.to(`user:${f}`).emit("friends:changed");
+    reply({ ok: true, kind, id, price, pokerCoins: me.pokerCoins, bjCoins: me.bjCoins });
   });
   socket.on("profile:setTheme", (data, ack) => {
     const me = regMe(); if (!me) return;
@@ -10717,7 +10789,7 @@ io.on("connection", (socket) => {
     if (mediaRateLimited(socket, "profileTheme", 20, 60_000)) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან" });
     const id = String((data && data.theme) || "");
     if (!isThemeId(id)) return reply({ error: "ასეთი სტილი არ არსებობს" });
-    if (!themeUnlocked(me, id)) return reply({ error: `🔒 გაიხსნება, როცა ${PROFILE_THEMES[id].days} დღე ზედიზედ აიღებ დღის ბონუსს` });
+    if (!themeUnlocked(me, id)) return reply({ error: `🔒 ეს სტილი იყიდება — ${THEME_PRICE.toLocaleString("en-US")} მონეტა` });
     me.profileTheme = id === "default" ? null : id;
     saveAuthUsers();
     for (const f of [socket._regUser.usernameLower, ...(me.friends || [])]) io.to(`user:${f}`).emit("friends:changed");
@@ -11240,6 +11312,7 @@ io.on("connection", (socket) => {
       socket.emit("flappy:registerRequired");
       return;
     }
+    settlePendingCoins(registeredUsers.get(socket._regUser.usernameLower), socket._regUser.usernameLower);
     const sessionId = flappyGenSessionId();
     flappySessions.set(sessionId, {
       usernameLower: socket._regUser.usernameLower,
@@ -11316,6 +11389,17 @@ io.on("connection", (socket) => {
       io.to(`user:${socket._regUser.usernameLower}`).emit("ads:adFreeUntil", { adFreeUntil: user.adFreeUntil });
     }
 
+    // ── Reward: 10,000 coins for going past 30, once a day ─────────────────
+    // Same anti-cheat as above. Once a day, because the anti-cheat can only
+    // check that a score wasn't faster than physically possible.
+    let coinsGranted = 0, coinsPending = false;
+    if (numScore > FLAPPY_COIN_SCORE && user.flappyCoinDay !== georgiaDay()) {
+      user.flappyCoinDay = georgiaDay();
+      coinsGranted = FLAPPY_COIN_REWARD;
+      coinsPending = !grantCoins(user, socket._regUser.usernameLower, FLAPPY_COIN_REWARD);
+      console.log(`[FLAPPY] ${user.username} scored ${numScore} — +${FLAPPY_COIN_REWARD} coins${coinsPending ? " (held until they leave the table)" : ""}`);
+    }
+
     socket.emit("flappy:scoreResult", {
       accepted: true,
       score: numScore,
@@ -11323,6 +11407,8 @@ io.on("connection", (socket) => {
       isNewBest,
       adFreeGranted,
       adFreeUntil: user.adFreeUntil || 0,
+      coinsGranted, coinsPending,
+      coinRewardToday: user.flappyCoinDay === georgiaDay(),
     });
 
     if (isNewBest) {
@@ -12230,6 +12316,7 @@ io.on("connection", (socket) => {
       if (hostPlayer) { hostPlayer.socketId = socket.id; hostPlayer.connected = true; }
       pokerRoomBySocket.set(socket.id, room.id);
     } else {
+      settlePendingCoins(hostUser, hostUser.username.toLowerCase()); // coins won while away (Flappy…)
       const startingStack = ensurePokerCoins(hostUser);
       if (startingStack <= 0) {
         socket.emit("poker:error", { message: "დღეს უკვე გამოიყენე უფასო მონეტების შევსება — დაბრუნდი ხვალ." });
@@ -12297,6 +12384,7 @@ io.on("connection", (socket) => {
     if (!socket._regUser) return;
     const user = registeredUsers.get(socket._regUser.usernameLower);
     if (!user) return;
+    settlePendingCoins(user, socket._regUser.usernameLower);
     socket.emit("poker:balance", { coins: ensurePokerCoins(user) });
   });
 
@@ -12345,6 +12433,7 @@ io.on("connection", (socket) => {
 
     if (room.players.length >= POKER_MAX_PLAYERS) { socket.emit("poker:error", { message: "მაგიდა სავსეა." }); return; }
 
+    settlePendingCoins(user, user.username.toLowerCase()); // coins won while away (Flappy…)
     const startingStack = ensurePokerCoins(user);
     if (startingStack <= 0) {
       socket.emit("poker:error", { message: "დღეს უკვე გამოიყენე უფასო მონეტების შევსება — დაბრუნდი ხვალ." });
@@ -13284,6 +13373,7 @@ io.on("connection", (socket) => {
       if (hostPlayer) { hostPlayer.socketId = socket.id; hostPlayer.connected = true; }
       bjRoomBySocket.set(socket.id, room.id);
     } else {
+      settlePendingCoins(hostUser, hostUser.username.toLowerCase()); // coins won while away (Flappy…)
       bjEnsureCoins(hostUser);
       room = {
         id: makeBjRoomId(),
@@ -13383,6 +13473,7 @@ io.on("connection", (socket) => {
     if (invite) clearTimeout(invite.timeoutHandle);
     room.pendingInvites.delete(lc);
 
+    settlePendingCoins(user, user.username.toLowerCase()); // coins won while away (Flappy…)
     bjEnsureCoins(user);
     const seat = room.players.length;
     room.players.push({ lc, username: user.username, socketId: socket.id, connected: true, seat, stack: user.bjCoins, bet: null, hands: [] });
@@ -13956,6 +14047,14 @@ process.on('SIGINT', () => {
   flushAllSaves();
   process.exit(0);
 });
+
+// Profile styles became a coin purchase: anyone already wearing one keeps it.
+for (const [, u] of registeredUsers) {
+  if (u.profileTheme && u.profileTheme !== "default" && isThemeId(u.profileTheme) && !(u.ownedThemes || []).includes(u.profileTheme)) {
+    u.ownedThemes = [...(u.ownedThemes || []), u.profileTheme];
+    saveAuthUsers();
+  }
+}
 
 adminSeedPromise.then(() => {
   server.listen(PORT, () => {
