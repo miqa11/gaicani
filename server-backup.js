@@ -98,7 +98,9 @@ function rmrf(p) { try { fs.rmSync(p, { recursive: true, force: true }); } catch
 // flush() → writes everything still in memory to disk,
 // freeze() → stops all further data saves (the restored files must not be
 // overwritten by the running server before it restarts).
-function mountBackup(app, { routes, guard, dataPath, flush, freeze, log = console }) {
+// checkChats(text) → { encrypted, ok, code }: can this server open an
+// encrypted private-chat file (server-chatcrypt.js)?
+function mountBackup(app, { routes, guard, dataPath, flush, freeze, checkChats = () => ({ ok: true }), log = console }) {
   const stamp = () => new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", ""); // 2026-10-06-1432
 
   app.get(routes.download, guard, async (req, res) => {
@@ -201,10 +203,17 @@ function mountBackup(app, { routes, guard, dataPath, flush, freeze, log = consol
         // 2. Check it's a whole GAICANI backup before touching anything.
         if (!manifest || manifest.app !== "gaicani") throw new Error("This isn't a GAICANI backup file");
         if (!got.includes("registered_users.json")) throw new Error("The backup has no accounts file");
-        let users = 0;
+        let users = 0, chats = null;
         for (const f of got) {
           if (!f.endsWith(".json")) continue;
-          const v = JSON.parse(fs.readFileSync(path.join(work, "files", f), "utf8")); // throws if damaged
+          const text = fs.readFileSync(path.join(work, "files", f), "utf8");
+          if (f === "private_messages.json") {
+            // May be encrypted. One locked with another key is still restored
+            // (everything else works); the server sets it aside on start.
+            chats = checkChats(text);
+            if (chats.encrypted) { if (chats.code === "DAMAGED") throw new Error("The private chats file is damaged"); continue; }
+          }
+          const v = JSON.parse(text); // throws if damaged
           if (f === "registered_users.json") {
             if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error("The accounts file is damaged");
             users = Object.keys(v).length;
@@ -238,7 +247,8 @@ function mountBackup(app, { routes, guard, dataPath, flush, freeze, log = consol
         rmrf(work);
 
         log.log(`[BACKUP] Restored: ${users} accounts, ${media} voice/photo files (from ${manifest.createdAt}). Restarting…`);
-        res.json({ success: true, users, media, createdAt: manifest.createdAt || null });
+        res.json({ success: true, users, media, createdAt: manifest.createdAt || null,
+          chatsLocked: chats && chats.encrypted && !chats.ok ? chats.code : null });
         // Restart so the server loads the restored data (Render starts it again by itself).
         setTimeout(() => process.exit(0), 1500);
       } catch (e) {

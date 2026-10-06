@@ -62,6 +62,12 @@ function readJsonFile(file) {
   }
 }
 const crypto     = require("crypto");
+// 🔒 Private chats and voice/photo files are stored encrypted when the
+// CHAT_KEY environment variable is set — see server-chatcrypt.js.
+const chatCrypt  = require("./server-chatcrypt");
+if (chatCrypt.enabled) console.log(`[CHATS] Private chats are stored encrypted (key ${chatCrypt.keyId})`);
+else if (chatCrypt.keyTooShort) console.warn(`[CHATS] CHAT_KEY is too short (needs ${chatCrypt.minLength}+ characters) — private chats are NOT encrypted`);
+else console.warn("[CHATS] CHAT_KEY is not set — private chats are stored unencrypted");
 // sharp is OPTIONAL. It ships a native library; if it isn't installed on
 // the host, or its binary fails to load there, a plain require() would
 // crash the ENTIRE server at startup. Instead we fall back to saving photos
@@ -1657,14 +1663,42 @@ app.use("/api", (req, res, next) => {
 // dashboard alone shows dozens. HTML/JS/CSS keep revalidating every time so
 // site updates show up immediately.
 const LONG_CACHE_EXT = /\.(png|jpe?g|gif|webp|svg|ico)$/i;
+// Private-chat voice messages and photos live outside __dirname (see
+// PRIVATE_PHOTOS_DIR above). They may be stored encrypted (server-chatcrypt.js),
+// so they're unlocked here on the way out. Byte ranges are supported — Safari
+// won't play audio from a server that can't send a part of the file.
+const PRIVATE_MEDIA_TYPES = { m4a: "audio/mp4", mp4: "audio/mp4", webm: "audio/webm", ogg: "audio/ogg",
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
+app.get("/private-photos/:file", async (req, res) => {
+  const name = req.params.file;
+  if (!/^[A-Za-z0-9_-]{8,100}\.[A-Za-z0-9]{2,5}$/.test(name)) return res.status(404).end();
+  let data;
+  try { data = chatCrypt.decryptFile(await fs.promises.readFile(path.join(PRIVATE_PHOTOS_DIR, name))); }
+  catch (e) { return res.status(e.code === "ENOENT" ? 404 : 410).end(); } // 410: locked with another key
+  res.setHeader("Content-Type", PRIVATE_MEDIA_TYPES[name.split(".").pop().toLowerCase()] || "application/octet-stream");
+  res.setHeader("Cache-Control", "private, max-age=604800, immutable");
+  res.setHeader("Accept-Ranges", "bytes");
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+  if (m && (m[1] || m[2])) {
+    const size = data.length;
+    let start = m[1] ? +m[1] : Math.max(0, size - +m[2]);
+    let end = m[1] && m[2] ? Math.min(+m[2], size - 1) : size - 1;
+    if (start > end || start >= size) { res.setHeader("Content-Range", `bytes */${size}`); return res.status(416).end(); }
+    res.status(206);
+    res.setHeader("Content-Range", `bytes ${start}-${end}/${size}`);
+    res.setHeader("Content-Length", end - start + 1);
+    return res.end(data.subarray(start, end + 1));
+  }
+  res.setHeader("Content-Length", data.length);
+  res.end(data);
+});
+
 app.use(express.static(path.join(__dirname), {
   setHeaders(res, filePath) {
     if (LONG_CACHE_EXT.test(filePath)) res.setHeader("Cache-Control", "public, max-age=86400");
   },
 }));
-// Uploaded private-chat photos live outside __dirname (see PRIVATE_PHOTOS_DIR
-// above), so they need their own explicit static route to be reachable.
-app.use("/private-photos", express.static(PRIVATE_PHOTOS_DIR, { maxAge: "7d" }));
+
 
 // (captcha gate was previously here — moved above static)
 
@@ -1998,6 +2032,7 @@ require("./server-backup").mountBackup(app, {
   dataPath: DATA_PATH,
   flush: () => flushAllSaves(),
   freeze: () => { dataSavesFrozen = true; },
+  checkChats: (text) => chatCrypt.checkText(text),
 });
 
 app.post(ROUTE.setPro, ownerOnly, (req, res) => {
@@ -2337,6 +2372,9 @@ tr:hover td{background:rgba(255,255,255,.03)}
 .backup-box input[type=file]{width:100%;font-size:.9em;margin-bottom:10px;color:var(--text)}
 .backup-dl,.backup-up{display:block;width:100%;text-align:center;border:none;border-radius:8px;padding:11px;font-size:.95em;font-weight:700;cursor:pointer;text-decoration:none;color:#fff;background:#3ba55d}
 .backup-up{background:#5865f2}
+.crypt-on{color:#3ba55d;font-size:.85em;line-height:1.5;margin-bottom:12px}
+.crypt-off{background:rgba(242,201,76,.1);border:1px solid rgba(242,201,76,.45);color:#f2c94c;border-radius:8px;padding:10px 12px;font-size:.85em;line-height:1.5;margin-bottom:12px}
+.crypt-key{display:block;margin-top:8px;padding:8px;background:var(--bg);border-radius:6px;color:#fff;font-size:1.05em;word-break:break-all;user-select:all;-webkit-user-select:all}
 .backup-up:disabled{opacity:.6;cursor:default}
 .manual-ban-box textarea{width:100%;background:var(--bg);border:1px solid #3a3c40;border-radius:6px;color:var(--text);font-family:monospace;font-size:16px;padding:10px 12px;resize:vertical;min-height:72px;outline:none;margin-bottom:10px}
 .manual-ban-box textarea:focus{border-color:var(--accent)}
@@ -2488,6 +2526,10 @@ async function loadOverview() {
   <summary>💾 Backup &amp; restore</summary>
   <div class="section-body">
   <div class="manual-ban-box backup-box">
+    ${chatCrypt.enabled
+      ? `<p class="crypt-on">🔒 Private chats and voice messages are stored encrypted (key fingerprint <code>${chatCrypt.keyId}</code>). Keep your CHAT_KEY safe and separate from the backups — a backup's chats only open on a server with the same key.</p>`
+      : `<div class="crypt-off">⚠️ Private chats are <b>not encrypted</b> yet${chatCrypt.keyTooShort ? " (CHAT_KEY is too short — it needs " + chatCrypt.minLength + "+ characters)" : ""}. To turn it on: Render → your service → <b>Environment</b> → add <b>CHAT_KEY</b> with the value below → Save (the server restarts by itself). Save the same value in a safe place too.<code class="crypt-key">${crypto.randomBytes(32).toString("base64url")}</code></div>`}
+    ${privMsgsLocked ? `<div class="crypt-off">⚠️ The saved private chats couldn't be opened — ${privMsgsLocked.code === "NO_KEY" ? "CHAT_KEY isn't set on this server" : privMsgsLocked.code === "WRONG_KEY" ? "they were locked with a different CHAT_KEY" : "the file is damaged"}. They were kept aside as <code>${privMsgsLocked.file}</code>. Set the right CHAT_KEY, then restore your backup to bring them back.</div>` : ""}
     <a class="backup-dl" href="${ROUTE.backup}" download>⬇ Download backup</a>
     <p class="hint">One file with everything: accounts (with their passwords, scrambled), friends, coins, streaks, profiles, private chats, voice messages, rooms, forum, notifications, stats and bans. Keep it private — it holds everyone's private messages.</p>
     <label for="restoreFile">Restore from a backup file (.tar.gz)</label>
@@ -2509,7 +2551,9 @@ async function restoreBackup() {
     var r = await fetch(R.restore, { method: "POST", headers: { "Content-Type": "application/gzip" }, body: file });
     var d = await r.json().catch(function () { return {}; });
     if (!r.ok || !d.success) { msg.textContent = "❌ " + (d.error || ("Restore failed (" + r.status + ")")); btn.disabled = false; return; }
-    msg.textContent = "✅ Restored " + d.users + " accounts and " + d.media + " voice/photo files" + (d.createdAt ? " (backup from " + new Date(d.createdAt).toLocaleString() + ")" : "") + ". Restarting the server…";
+    msg.textContent = "✅ Restored " + d.users + " accounts and " + d.media + " voice/photo files" + (d.createdAt ? " (backup from " + new Date(d.createdAt).toLocaleString() + ")" : "") + "." +
+      (d.chatsLocked ? " ⚠️ The private chats in this backup are locked with " + (d.chatsLocked === "NO_KEY" ? "a CHAT_KEY this server doesn't have" : "a different CHAT_KEY") + " — set the same CHAT_KEY on this server and restore again to get them back." : "") +
+      " Restarting the server…";
     var tries = 0;
     (function wait() {
       setTimeout(function () {
@@ -5757,7 +5801,7 @@ function _savePrivateMsgsToDisk() {
   const obj = {};
   for (const [id, r] of privateRooms) obj[id] = r;
   try {
-    writeFileAtomic(PRIV_MSGS_FILE, JSON.stringify(obj));
+    writeFileAtomic(PRIV_MSGS_FILE, chatCrypt.encryptText(JSON.stringify(obj)));
     privMsgsDirty = false;
   } catch (e) {
     console.error("[PRIV] save failed:", e.message);
@@ -5796,9 +5840,29 @@ function saveAuthUsers() {
   authUsersDirty = true;
   scheduleSave();
 }
+// Set when the saved private chats are locked with a key this server doesn't
+// have (CHAT_KEY missing or different) — shown in the admin panel.
+let privMsgsLocked = null;
 function loadPrivateMsgs() {
   try {
-    const obj = readJsonFile(PRIV_MSGS_FILE);
+    let obj;
+    let raw = null;
+    try { raw = fs.readFileSync(PRIV_MSGS_FILE, "utf8"); } catch (e) { if (e.code !== "ENOENT") throw e; }
+    if (raw && chatCrypt.isEncryptedText(raw)) {
+      try { obj = JSON.parse(chatCrypt.decryptText(raw)); }
+      catch (e) {
+        // Can't open them: keep the file aside untouched (never overwrite it)
+        // and start without old chats. With the right CHAT_KEY they can be
+        // brought back by restoring a backup.
+        const aside = `${PRIV_MSGS_FILE}.locked-${Date.now()}`;
+        try { fs.renameSync(PRIV_MSGS_FILE, aside); } catch { /* best effort */ }
+        privMsgsLocked = { code: e.code || "DAMAGED", file: path.basename(aside) };
+        console.error(`[PRIV] Saved private chats are ${e.message} — kept aside as ${path.basename(aside)}`);
+        return;
+      }
+    } else {
+      obj = readJsonFile(PRIV_MSGS_FILE);
+    }
     const now = Date.now();
     for (const [id, room] of Object.entries(obj)) {
       if (room.expiresAt && now < room.expiresAt) privateRooms.set(id, room);
@@ -11507,7 +11571,7 @@ io.on("connection", (socket) => {
     if (!ext) return reply({ success: false, error: "ჩანაწერის ფორმატი ვერ ამოვიცანი" });
 
     const filename = crypto.randomBytes(20).toString("hex") + "." + ext;
-    try { fs.writeFileSync(path.join(PRIVATE_PHOTOS_DIR, filename), buf); }
+    try { fs.writeFileSync(path.join(PRIVATE_PHOTOS_DIR, filename), chatCrypt.encryptFile(buf)); }
     catch (e) { console.error("[VOICE] Failed to save:", e.message); return reply({ success: false, error: "შენახვა ვერ მოხერხდა" }); }
     const voiceUrl = "/private-photos/" + filename;
     const secs = Math.max(1, Math.min(VOICE_MAX_SECONDS, Math.round(Number(duration) || 1)));
@@ -11652,7 +11716,7 @@ io.on("connection", (socket) => {
     // both to avoid path-traversal and so filenames can't collide.
     const filename = crypto.randomBytes(20).toString("hex") + "." + outExt;
     try {
-      fs.writeFileSync(path.join(PRIVATE_PHOTOS_DIR, filename), processedBuffer);
+      fs.writeFileSync(path.join(PRIVATE_PHOTOS_DIR, filename), chatCrypt.encryptFile(processedBuffer));
     } catch (e) {
       console.error("[PHOTOS] Failed to save:", e.message);
       socket.emit("privateMsg:photoSent", { success: false, messageId, error: "შენახვა ვერ მოხერხდა" });
