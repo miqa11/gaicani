@@ -1422,82 +1422,34 @@ app.use((req, res, next) => {
 //   1. Per-IP short-window rate limiting — an IP sending an abusive number of
 //      requests gets an instant 429 instead of being allowed to burn CPU on
 //      full route handling.
-//   2. Every 10s, appends a one-line summary of that window (total requests +
-//      top offending IPs) to a log file on the persistent disk — ALWAYS,
-//      not just during spikes, so you have a continuous, permanent traffic
-//      record to look back through after any crash/restart. Appending one
-//      line (instead of rewriting a whole JSON file) keeps this cheap even
-//      under heavy load.
+//   2. Every 10s, a busy window (a spike) is reported in the server console.
+//      Nothing is written to disk: the traffic record that used to be
+//      appended to traffic-flood-log.jsonl was switched off on purpose.
 const FLOOD_WINDOW_MS   = 10_000;  // sliding window used for rate limiting
 const FLOOD_MAX_PER_IP  = 150;     // requests/10s from one IP before it's throttled
-const FLOOD_LOG_FILE    = path.join(DATA_PATH, "traffic-flood-log.jsonl"); // JSON-lines, append-only
-
-// Bucket every request path into a small fixed set of categories (NOT the
-// raw path) so memory stays bounded no matter how many distinct URLs get
-// hit. This is what answers "was it real page traffic or API abuse?" after
-// the fact, without storing full URLs for every single request.
-function categorizePath(p) {
-  if (p.startsWith("/socket.io")) return "socket.io";
-  if (p.startsWith("/api/"))      return "api";
-  if (Object.values(ROUTE).some(r => p.startsWith(r))) return "admin";
-  if (/\.(js|css|png|jpe?g|gif|svg|ico|woff2?|ttf|map)$/i.test(p)) return "asset";
-  return "page";
-}
 
 let floodWindowStart = Date.now();
 let floodTotalReqs   = 0;
 const floodIpCounts     = new Map(); // ip → total count in current window
-const floodIpCategories = new Map(); // ip → { category → count } in current window
-const floodCategoryTotals = new Map(); // category → total count in current window (all IPs)
 
-function floodTick(ip, reqPath) {
+function floodTick(ip) {
   const now = Date.now();
   if (now - floodWindowStart >= FLOOD_WINDOW_MS) {
-    // window rolled over — write it to disk before resetting
+    // window rolled over — report a spike in the console, then reset
     if (floodTotalReqs > 0) {
-      const topIps = [...floodIpCounts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 15)
-        .map(([ip, count]) => ({
-          ip,
-          count,
-          byCategory: floodIpCategories.get(ip)
-            ? Object.fromEntries(floodIpCategories.get(ip))
-            : {},
-        }));
-      const line = JSON.stringify({
-        time:            new Date(floodWindowStart).toISOString(),
-        windowSec:       Math.round((now - floodWindowStart) / 1000),
-        totalReqs:       floodTotalReqs,
-        uniqueIps:       floodIpCounts.size,
-        categoryTotals:  Object.fromEntries(floodCategoryTotals),
-        topIps,
-      });
-      try {
-        fs.appendFileSync(FLOOD_LOG_FILE, line + "\n");
-      } catch (e) {
-        console.error("[FLOOD] Failed to write flood log:", e.message);
-      }
-      if (floodTotalReqs > 500 || (topIps[0] && topIps[0].count > 100)) {
-        console.warn(`[FLOOD] Spike window: ${floodTotalReqs} reqs, top IP ${topIps[0]?.ip} (${topIps[0]?.count})`);
+      let topIp = null, topCount = 0;
+      for (const [ip, count] of floodIpCounts) if (count > topCount) { topIp = ip; topCount = count; }
+      if (floodTotalReqs > 500 || topCount > 100) {
+        console.warn(`[FLOOD] Spike window: ${floodTotalReqs} reqs, top IP ${topIp} (${topCount})`);
       }
     }
     floodWindowStart = now;
     floodTotalReqs = 0;
     floodIpCounts.clear();
-    floodIpCategories.clear();
-    floodCategoryTotals.clear();
   }
   floodTotalReqs++;
   const c = (floodIpCounts.get(ip) || 0) + 1;
   floodIpCounts.set(ip, c);
-
-  const category = categorizePath(reqPath);
-  floodCategoryTotals.set(category, (floodCategoryTotals.get(category) || 0) + 1);
-  if (!floodIpCategories.has(ip)) floodIpCategories.set(ip, new Map());
-  const catMap = floodIpCategories.get(ip);
-  catMap.set(category, (catMap.get(category) || 0) + 1);
-
   return c;
 }
 
@@ -1512,7 +1464,7 @@ const FLOOD_AUTOBAN_STREAK = 3;
 
 app.use((req, res, next) => {
   const ip = getClientIP(req);
-  const countThisWindow = floodTick(ip, req.path || "/");
+  const countThisWindow = floodTick(ip);
   if (countThisWindow > FLOOD_MAX_PER_IP) {
     const streak = (floodOffenseStreak.get(ip) || 0) + 1;
     floodOffenseStreak.set(ip, streak);
