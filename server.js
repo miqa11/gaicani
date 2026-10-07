@@ -174,16 +174,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Temporary escape hatch for testing a fresh deploy on its raw .onrender.com
+// URL before Cloudflare/DNS is pointed at it (e.g. during a Render account
+// migration). Set ALLOW_DIRECT_ONRENDER=true in the service's environment
+// variables to open this up, then remove it once you've cut over — leaving
+// it on permanently defeats the whole point of this block.
+function isDirectRenderHost(req) {
+  if (process.env.ALLOW_DIRECT_ONRENDER === "true") return false;
+  return String(req.headers.host || "").toLowerCase().split(":")[0].endsWith(".onrender.com");
+}
 app.use((req, res, next) => {
-  // Temporary escape hatch for testing a fresh deploy on its raw .onrender.com
-  // URL before Cloudflare/DNS is pointed at it (e.g. during a Render account
-  // migration). Set ALLOW_DIRECT_ONRENDER=true in the service's environment
-  // variables to open this up, then remove it once you've cut over — leaving
-  // it on permanently defeats the whole point of this block.
-  if (process.env.ALLOW_DIRECT_ONRENDER === "true") return next();
-
   const host = (req.headers.host || "").toLowerCase();
-  if (host.endsWith(".onrender.com")) {
+  if (isDirectRenderHost(req)) {
     console.warn(`[BYPASS-BLOCKED] Direct onrender.com access rejected — host="${host}" ip="${getClientIP(req)}" path="${req.path}"`);
     res.status(403).end();
     return;
@@ -225,7 +227,22 @@ const io     = new Server(server, {
   // in the 8-20MB range at full resolution, which is what this is for —
   // they get resized down server-side after upload, not rejected outright.
   maxHttpBufferSize: 30 * 1024 * 1024,
+  // The live connection (/socket.io/) never passes through Express, so the
+  // *.onrender.com block above didn't cover it: a bot could connect straight
+  // to the Render address and skip Cloudflare — and every Cloudflare rule —
+  // completely. Refused here too, the same way.
+  allowRequest: (req, callback) => {
+    if (!isDirectRenderHost(req)) return callback(null, true);
+    const ip = getClientIP(req), now = Date.now();
+    if (now - (bypassLogAt.get(ip) || 0) > 60_000) { // a reconnecting bot logs once a minute, not on every try
+      bypassLogAt.set(ip, now);
+      if (bypassLogAt.size > 5000) bypassLogAt.clear();
+      console.warn(`[BYPASS-BLOCKED] Direct onrender.com live connection rejected — host="${req.headers.host}" ip="${ip}"`);
+    }
+    callback(null, false);
+  },
 });
+const bypassLogAt = new Map(); // ip → when its last direct-connection attempt was logged
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const GIPHY_KEY           = process.env.GIPHY_KEY || "UFauF9jrzjxyDsxqXi7rVnfRdvmuMmsL";
