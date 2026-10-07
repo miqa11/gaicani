@@ -558,6 +558,35 @@
       padding: 24px 0;
     }
 
+    /* ── 🔐 End-to-end encryption: note at the top of the chat, unlock card ── */
+    .fc-e2ee-note {
+      align-self: center; max-width: 92%; margin: 6px auto 10px; padding: 7px 12px;
+      border-radius: 12px; font-size: 0.74em; line-height: 1.45; text-align: center;
+      color: #e9dcb8; background: rgba(214,168,79,0.10); border: 1px solid rgba(214,168,79,0.22);
+    }
+    #fc-e2ee-unlock {
+      flex-shrink: 0; padding: 10px 12px 8px; border-top: 1px solid rgba(214,168,79,.24);
+      background: rgba(214,168,79,0.08);
+    }
+    #fc-e2ee-unlock[hidden] { display: none; }
+    .fc-e2ee-unlock-text { font-size: 0.8em; line-height: 1.4; color: #e9dcb8; margin-bottom: 8px; }
+    .fc-e2ee-unlock-row { display: flex; gap: 8px; align-items: center; }
+    .fc-e2ee-unlock-row input[type=password] {
+      flex: 1; min-width: 0; height: 40px; padding: 0 14px; border-radius: 20px; font-size: 16px;
+      color: #fff; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); outline: none;
+    }
+    .fc-e2ee-open {
+      height: 40px; padding: 0 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: 700;
+      color: #1a1405; background: linear-gradient(135deg, #f0c76a, #d6a84f);
+    }
+    .fc-e2ee-open:disabled { opacity: .6; cursor: default; }
+    .fc-e2ee-later { width: 34px; height: 34px; border: none; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; flex-shrink: 0; }
+    .fc-e2ee-err { font-size: 0.76em; color: #f0a0a0; min-height: 0; margin-top: 4px; }
+    .fc-e2ee-err:empty { display: none; }
+    .fc-bubble-locked { font-style: italic; opacity: .75; }
+    .fc-photo-loading { min-width: 160px; min-height: 120px; background: rgba(255,255,255,0.06); }
+    .fc-voice.locked .fc-voice-play { opacity: .4; }
+
     /* ── Reply preview bar (above input) ── */
     #fc-reply-preview {
       display: none;
@@ -1059,6 +1088,18 @@ button, textarea, input { font-family: inherit; }
     <small style="color:var(--muted);font-size:0.8em">შეტყობინებები ავტომატურად წაიშლება 30 საათში</small>
   </div>
 
+  <!-- 🔐 UNLOCK END-TO-END ENCRYPTED CHATS ON THIS DEVICE (see e2ee.js) -->
+  <div id="fc-e2ee-unlock" hidden>
+    <div class="fc-e2ee-unlock-text">🔒 დაშიფრული ჩატისთვის ამ მოწყობილობაზე ერთხელ შეიყვანე შენი პაროლი</div>
+    <form class="fc-e2ee-unlock-row" autocomplete="on">
+      <input type="text" name="username" autocomplete="username" hidden />
+      <input type="password" id="fc-e2ee-pass" autocomplete="current-password" placeholder="პაროლი" aria-label="პაროლი" />
+      <button type="submit" class="fc-e2ee-open">გახსნა</button>
+      <button type="button" class="fc-e2ee-later" aria-label="მოგვიანებით" title="მოგვიანებით">✕</button>
+    </form>
+    <div class="fc-e2ee-err" aria-live="polite"></div>
+  </div>
+
   <!-- REPLY PREVIEW -->
   <div id="fc-reply-preview">
     <div class="fc-reply-preview-inner">
@@ -1121,6 +1162,7 @@ button, textarea, input { font-family: inherit; }
 <script src="/ban-notice.js"></script>
 <script src="/profile-themes.js"></script>
 <script src="/stickers.js"></script>
+<script src="/e2ee.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
   // Keep --app-height in sync with the real visible viewport, so the
@@ -1443,6 +1485,148 @@ button, textarea, input { font-family: inherit; }
   let fcMsgSeq   = 0;
   function fcGenId() { return `fc_${myUsername}_${Date.now()}_${++fcMsgSeq}`; }
 
+  /* ── 🔐 End-to-end encryption (see e2ee.js) ──────────────────────
+     Between two people who both have keys, everything in this chat —
+     text and reply quotes, stickers, GIFs, voice messages, photos — is
+     locked here before it's sent and opened only in the other person's
+     browser. With someone who has no key yet it goes the old way. */
+  const E2EE = window.GaicaniE2EE || null;
+  const friendLc = friendName.toLowerCase();
+  const GIPHY_RE = /^https:\/\/(?:[a-z0-9-]+\.)?giphy\.com\//i;
+  const LOCKED_SEND_MSG = "🔒 ჯერ გახსენი დაშიფრული ჩატი ამ მოწყობილობაზე — შეიყვანე პაროლი ქვემოთ";
+  const e2eKind = (type) => type === "sticker" ? "sticker" : type === "gif" ? "gif" : "text";
+
+  // A locked text / sticker / GIF message → opened in place, or marked as
+  // one this device can't open.
+  async function openSealed(msg) {
+    if (!msg.e2e || msg.type === "photo" || msg.type === "voice") return msg;
+    const kind = e2eKind(msg.type);
+    const o = E2EE ? await E2EE.openJSON(friendLc, msg.from, kind, msg.e2e).catch(() => null) : null;
+    msg.locked = !o;
+    if (!o) return msg;
+    if (kind === "text") {
+      msg.text = String(o.text || "").slice(0, 2000);
+      const q = o.replyTo;
+      msg.replyTo = q && typeof q.text === "string"
+        ? { text: q.text.slice(0, 100), senderName: String(q.senderName || "").slice(0, 30), messageId: String(q.messageId || "").slice(0, 100) }
+        : null;
+    } else if (kind === "sticker") {
+      msg.sticker = String(o.sticker || "");
+    } else if (typeof o.url === "string" && o.url.length <= 500 && GIPHY_RE.test(o.url)) {
+      msg.url = o.url; // only GIPHY links, as the server checks for unlocked ones
+    } else {
+      msg.locked = true;
+    }
+    return msg;
+  }
+
+  // Photos and voice messages are fetched locked and opened here into a
+  // local blob: address (kept for the visit).
+  const mediaUrls = new Map(); // server address → Promise<blob: URL | null>
+  function sniffType(bytes, type) {
+    const b = new Uint8Array(bytes, 0, Math.min(12, bytes.byteLength));
+    const s = String.fromCharCode.apply(null, b);
+    if (type === "photo") return b[0] === 0x89 && s.slice(1, 4) === "PNG" ? "image/png" : "image/jpeg";
+    if (b[0] === 0x1A && b[1] === 0x45 && b[2] === 0xDF && b[3] === 0xA3) return "audio/webm";
+    if (s.slice(0, 4) === "OggS") return "audio/ogg";
+    return "audio/mp4";
+  }
+  function sealedMediaUrl(msg) {
+    if (msg.localUrl) return Promise.resolve(msg.localUrl);
+    const src = msg.type === "photo" ? msg.photoUrl : msg.voiceUrl;
+    if (!src || !E2EE) return Promise.resolve(null);
+    if (!mediaUrls.has(src)) mediaUrls.set(src, (async () => {
+      const r = await fetch(src);
+      if (!r.ok) return null;
+      const plain = await E2EE.openFile(friendLc, msg.from, msg.type, msg.e2e, await r.arrayBuffer());
+      return plain ? URL.createObjectURL(new Blob([plain], { type: sniffType(plain, msg.type) })) : null;
+    })().catch(() => null));
+    return mediaUrls.get(src);
+  }
+  const blobBytes = (blob) => blob.arrayBuffer ? blob.arrayBuffer() : new Response(blob).arrayBuffer();
+
+  // The note at the top of the chat, and the unlock card above the input.
+  let unlockDismissed = false;
+  function e2eeNoteText() {
+    if (!E2EE) return null;
+    const fk = E2EE.friendKeyId(friendLc);
+    if (E2EE.status === "ready" && fk) return `🔒 ეს ჩატი ბოლომდე დაშიფრულია — შეტყობინებებს, ფოტოებსა და ხმოვანებს მხოლოდ შენ და ${friendName} ხედავთ. ვერავინ სხვა, საიტის ჩათვლით.`;
+    if (E2EE.status === "unsupported") return "🔓 ეს ბრაუზერი დაშიფვრას ვერ უჭერს მხარს — განაახლე ან სხვა ბრაუზერი სცადე.";
+    if (!fk && E2EE.status === "ready") return `🔓 ${friendName}-ს დაშიფვრა ჯერ არ ჩართვია — ჩაირთვება, როცა ის საიტზე ხელახლა შევა. მანამდე შეტყობინებები ძველებურად იგზავნება.`;
+    return null; // this device isn't unlocked yet — the card below says what to do
+  }
+  function buildE2eeNote() {
+    const t = e2eeNoteText();
+    if (!t) return null;
+    const d = document.createElement("div");
+    d.className = "fc-e2ee-note"; d.id = "fcE2eeNote"; d.textContent = t;
+    return d;
+  }
+  function paintE2ee() {
+    $("fcE2eeNote")?.remove();
+    const note = buildE2eeNote();
+    if (note) elMessages.insertBefore(note, elMessages.firstChild);
+    const card = $("fc-e2ee-unlock");
+    if (card) card.hidden = !(E2EE && E2EE.status === "locked" && !unlockDismissed);
+  }
+  function showUnlock(focus) {
+    unlockDismissed = false;
+    paintE2ee();
+    if (focus) $("fc-e2ee-pass")?.focus();
+  }
+
+  // Sending: locked end-to-end when you both have keys, the old way
+  // otherwise. Each message is kept until the server confirms it, and sent
+  // once more if the server knew newer keys than this page.
+  const outbox = new Map(); // messageId → { kind, payload, retried }
+  let sendChain = Promise.resolve();
+  let lastGifId = null;
+  function sendOut(kind, messageId, payload) {
+    outbox.set(messageId, { kind, payload, retried: false });
+    sendChain = sendChain.then(() => emitOut(messageId)).catch(() => {});
+  }
+  function dropOptimistic(messageId, o) {
+    const i = messages.findIndex((m) => m.id === messageId);
+    if (i >= 0) messages.splice(i, 1);
+    document.querySelector(`.fc-row[data-msgid="${CSS.escape(messageId)}"]`)?.remove();
+    if (o && o.kind === "text" && !elInput.value) { elInput.value = o.payload.text; updateFCCharCount(); updateFCSendButtonMode(); }
+  }
+  async function emitOut(messageId) {
+    const o = outbox.get(messageId);
+    if (!o || !socket) return;
+    const ev = o.kind === "text" ? "privateMsg:send" : o.kind === "sticker" ? "privateMsg:sendSticker" : "friendChat:gif";
+    if (E2EE && E2EE.canSeal(friendLc)) {
+      socket.emit(ev, { toUsername: friendName, messageId, e2e: await E2EE.sealJSON(friendLc, o.kind, o.payload) });
+    } else if (E2EE && E2EE.mustSeal(friendLc)) {
+      outbox.delete(messageId);
+      dropOptimistic(messageId, o);
+      showToast(LOCKED_SEND_MSG, 4500);
+      showUnlock(true);
+      return;
+    } else if (o.kind === "text") {
+      socket.emit(ev, { toUsername: friendName, message: o.payload.text, messageId, replyTo: o.payload.replyTo });
+    } else if (o.kind === "sticker") {
+      socket.emit(ev, { toUsername: friendName, sticker: o.payload.sticker, messageId });
+    } else {
+      socket.emit(ev, { toUsername: friendName, url: o.payload.url });
+    }
+    if (o.kind === "gif") { lastGifId = messageId; setTimeout(() => outbox.delete(messageId), 20000); }
+  }
+  async function refreshKeys() {
+    if (!E2EE) return;
+    await E2EE.open({ token, username: myUsername }).catch(() => {});
+    await E2EE.refreshFriend(friendLc).catch(() => {});
+    paintE2ee();
+  }
+  async function retryOut(messageId) {
+    const o = outbox.get(messageId);
+    if (!o || o.retried) { outbox.delete(messageId); return false; }
+    o.retried = true;
+    await refreshKeys();
+    sendChain = sendChain.then(() => emitOut(messageId)).catch(() => {});
+    return true;
+  }
+
   const REACTION_EMOJIS = ["❤️","😂","😢"];
   let activeReactionPicker = null;
 
@@ -1533,7 +1717,12 @@ button, textarea, input { font-family: inherit; }
       bubble.appendChild(quote);
     }
 
-    if (msg.type === "gif") {
+    if (msg.locked) {
+      bubble.classList.add("fc-bubble-locked");
+      bubble.textContent = E2EE && E2EE.status === "locked"
+        ? "🔒 დაშიფრული შეტყობინება — გასახსნელად შეიყვანე პაროლი ქვემოთ"
+        : "🔒 ამ შეტყობინების გახსნა ამ მოწყობილობაზე ვერ ხერხდება";
+    } else if (msg.type === "gif") {
       const img = document.createElement("img");
       img.src = msg.url;
       img.className = "fc-gif-img";
@@ -1546,9 +1735,22 @@ button, textarea, input { font-family: inherit; }
       if (img) bubble.appendChild(img); else bubble.textContent = "🙂";
     } else if (msg.type === "photo") {
       const img = document.createElement("img");
-      img.src = msg.photoUrl;
       img.className = "fc-gif-img";
       img.loading = "lazy";
+      if (msg.e2e && !msg.localUrl) {
+        // 🔐 fetched locked, opened here
+        img.classList.add("fc-photo-loading");
+        sealedMediaUrl(msg).then((u) => {
+          img.classList.remove("fc-photo-loading");
+          if (u) { img.src = u; return; }
+          const note = document.createElement("span");
+          note.className = "fc-bubble-locked";
+          note.textContent = "🔒 ფოტოს გახსნა ამ მოწყობილობაზე ვერ ხერხდება";
+          (img.closest(".fc-photo-wrap") || img).replaceWith(note);
+        });
+      } else {
+        img.src = msg.localUrl || msg.photoUrl;
+      }
 
       // Only photos RECEIVED from the other person start blurred — the
       // sender already knows what they sent, no need to hide it from them.
@@ -1616,6 +1818,8 @@ button, textarea, input { font-family: inherit; }
         if (msg.type === "gif")   previewText = "GIF";
         else if (msg.type === "sticker") previewText = "სტიკერი " + (window.GaicaniStickers?.get(msg.sticker)?.label || "");
         else if (msg.type === "voice") previewText = "🎤 ხმოვანი შეტყობინება";
+        else if (msg.type === "photo") previewText = "📷 ფოტო";
+        else if (msg.locked)       previewText = "🔒";
         else                       previewText = msg.text || "";
         setFCReplyTo({
           text:       previewText,
@@ -1666,6 +1870,8 @@ button, textarea, input { font-family: inherit; }
   /* ── Render all messages (initial load) ───────────────────────── */
   function renderMessages() {
     elMessages.innerHTML = "";
+    const e2eeNote = buildE2eeNote();
+    if (e2eeNote) elMessages.appendChild(e2eeNote);
     if (!messages.length) {
       // Shown INSIDE the message area, not under it — as a sibling it took
       // half the screen and the chat wallpaper stopped halfway down.
@@ -1934,15 +2140,9 @@ button, textarea, input { font-family: inherit; }
     const msgId = fcGenId();
     const currentReply = fcReplyTo ? { ...fcReplyTo } : null;
 
-    socket.emit("privateMsg:send", {
-      toUsername: friendName,
-      message: text,
-      messageId: msgId,
-      replyTo: currentReply
-    });
-
-    /* Optimistic local append */
+    /* Optimistic local append, then out (locked end-to-end when it can be) */
     appendMessage({ id: msgId, from: myUsername, text, ts: new Date().toISOString(), replyTo: currentReply });
+    sendOut("text", msgId, { text, replyTo: currentReply });
 
     clearFCReplyTo();
     updateFCCharCount();
@@ -1956,15 +2156,19 @@ button, textarea, input { font-family: inherit; }
   }
 
   /* ── Load history ────────────────────────────────────────────── */
-  async function loadHistory() {
+  async function fetchHistory() {
+    const r = await fetch(
+      `/api/priv/history?username=${encodeURIComponent(myUsername)}&friend=${encodeURIComponent(friendName)}`,
+      { headers: { "Authorization": `Bearer ${token}` } }
+    );
+    if (!r.ok) throw new Error("not ok");
+    return r.json();
+  }
+  async function loadHistory(pending) {
     try {
-      const r = await fetch(
-        `/api/priv/history?username=${encodeURIComponent(myUsername)}&friend=${encodeURIComponent(friendName)}`,
-        { headers: { "Authorization": `Bearer ${token}` } }
-      );
-      if (!r.ok) throw new Error("not ok");
-      const d = await r.json();
-      messages = (d.messages || []).map(m => ({
+      const d = await (pending || fetchHistory());
+      if (E2EE) E2EE.learnFriend(friendLc, d.e2ee && d.e2ee.friend);
+      messages = await Promise.all((d.messages || []).map(m => openSealed({
         id:        m.messageId || fcGenId(),
         from:      m.from,
         text:      m.text,
@@ -1975,9 +2179,10 @@ button, textarea, input { font-family: inherit; }
         duration:  m.duration || null,
         ts:        m.ts,
         replyTo:   m.replyTo || null,
+        e2e:       m.e2e || null,
         reactions: m.reactions || null,
         expiresAt: m.expiresAt || null
-      }));
+      })));
       fcApplyTheme(d.theme || "default"); // the shared, synced background this conversation has (or the default if nobody's set one yet)
     } catch (_) {
       messages = [];
@@ -2012,8 +2217,12 @@ button, textarea, input { font-family: inherit; }
       return;
     }
 
-    /* 3. Load chat history */
-    await loadHistory();
+    /* 3. Load chat history — meanwhile, see whether this device holds the
+          key for encrypted chats (one more request, side by side) */
+    const historyReq = fetchHistory();
+    historyReq.catch(() => {});
+    if (E2EE) await E2EE.open({ token, username: myUsername }).catch(() => {});
+    await loadHistory(historyReq);
 
     /* 4. Show UI */
     elLoading.classList.add("hidden");
@@ -2021,6 +2230,7 @@ button, textarea, input { font-family: inherit; }
     elMessages.style.flexDirection = "column";
     elInputBar.style.display = "flex";
     renderMessages();
+    paintE2ee();
 
     /* 5. Connect socket */
     socket = io({
@@ -2029,11 +2239,21 @@ button, textarea, input { font-family: inherit; }
     attachTempBanGuard(socket);
 
 
-    socket.on("friendChat:gif", ({ fromUsername, url, timestamp }) => {
+    // Incoming messages are opened one after another, so they keep their order.
+    let recvChain = Promise.resolve();
+    const inOrder = (fn) => (p) => { recvChain = recvChain.then(() => fn(p || {})).catch(() => {}); };
+
+    socket.on("friendChat:gif", inOrder(async ({ fromUsername, url, timestamp, e2e }) => {
       if (!fromUsername || fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
       hideTyping();
-      appendMessage({ from: fromUsername, type: "gif", url, ts: timestamp });
+      appendMessage(await openSealed({ from: fromUsername, type: "gif", url, ts: timestamp, e2e: e2e || null }));
       incUnread();
+    }));
+
+    // Someone in this chat turned encryption on (or unlocked a new device).
+    socket.on("e2ee:changed", ({ username: who } = {}) => {
+      const lc = String(who || "").toLowerCase();
+      if (lc === friendLc || lc === String(myUsername).toLowerCase()) refreshKeys();
     });
 
     socket.on("connect", () => {
@@ -2088,30 +2308,39 @@ button, textarea, input { font-family: inherit; }
     });
 
     /* Incoming message for THIS friend conversation */
-    socket.on("privateMsg:received", ({ fromUsername, message, timestamp, type, url, photoUrl, sticker, voiceUrl, duration, messageId, replyTo }) => {
+    socket.on("privateMsg:received", inOrder(async ({ fromUsername, message, timestamp, type, url, photoUrl, sticker, voiceUrl, duration, messageId, replyTo, e2e }) => {
       /* Only process messages from our specific friend */
-      if (fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
-      hideTyping();
+      if (!fromUsername || fromUsername.toLowerCase() !== friendName.toLowerCase()) return;
+      e2e = e2e || null;
       if (type === "gif") {
-        appendMessage({ from: fromUsername, type: "gif", url, ts: timestamp });
+        hideTyping();
+        appendMessage(await openSealed({ from: fromUsername, type: "gif", url, ts: timestamp, e2e }));
       } else if (type === "photo") {
-        appendMessage({ id: messageId, from: fromUsername, type: "photo", photoUrl, ts: timestamp });
+        hideTyping();
+        appendMessage({ id: messageId, from: fromUsername, type: "photo", photoUrl, ts: timestamp, e2e });
       } else if (type === "sticker") {
-        const newId = appendMessage({ id: messageId, from: fromUsername, type: "sticker", sticker, ts: timestamp });
+        const m = await openSealed({ id: messageId, from: fromUsername, type: "sticker", sticker, ts: timestamp, e2e });
+        hideTyping();
+        const newId = appendMessage(m);
         if (!document.hidden) markFCSeen(newId);
       } else if (type === "voice") {
-        const newId = appendMessage({ id: messageId, from: fromUsername, type: "voice", voiceUrl, duration, ts: timestamp });
+        hideTyping();
+        const newId = appendMessage({ id: messageId, from: fromUsername, type: "voice", voiceUrl, duration, ts: timestamp, e2e });
         if (!document.hidden) markFCSeen(newId);
       } else {
-        const newId = appendMessage({ id: messageId, from: fromUsername, text: message, ts: timestamp, replyTo: replyTo || null });
+        const m = await openSealed({ id: messageId, from: fromUsername, text: message, ts: timestamp, replyTo: replyTo || null, e2e });
+        hideTyping();
+        const newId = appendMessage(m);
         if (!document.hidden) markFCSeen(newId);
       }
       incUnread();
-    });
+    }));
 
     // Response to sending a photo — mirrors the text privateMsg:sent pattern.
     socket.on("privateMsg:photoSent", ({ success, error, messageId } = {}) => {
-      if (success === false) showToast("⚠️ " + (error || "ფოტო ვერ გაიგზავნა"));
+      if (success !== false) return;
+      if (String(error || "").startsWith("e2ee-")) { refreshKeys(); showToast("⚠️ ფოტო ვერ გაიგზავნა — სცადე თავიდან"); return; }
+      showToast("⚠️ " + (error || "ფოტო ვერ გაიგზავნა"));
     });
     socket.on("privateMsg:voiceSent", (r = {}) => voiceSentResult(r));
 
@@ -2119,8 +2348,16 @@ button, textarea, input { font-family: inherit; }
        appended), but if it failed (e.g. a block on either side), let the
        sender know without revealing why, since server-side this is
        deliberately vague to avoid confirming a block exists. */
-    socket.on("privateMsg:sent", ({ success } = {}) => {
-      if (success === false) showToast("⚠️ შეტყობინება ვერ გაიგზავნა");
+    socket.on("privateMsg:sent", ({ success, messageId, error, kind } = {}) => {
+      if (success !== false) { if (messageId) outbox.delete(messageId); return; }
+      // The server knew newer keys than this page — learn them, send once more.
+      if (String(error || "").startsWith("e2ee-")) {
+        const id = kind === "gif" ? lastGifId : messageId;
+        if (id) retryOut(id).then((again) => { if (!again) showToast("⚠️ შეტყობინება ვერ გაიგზავნა"); });
+        return;
+      }
+      if (messageId) outbox.delete(messageId);
+      showToast("⚠️ შეტყობინება ვერ გაიგზავნა");
     });
 
     /* Friend reacted to one of our messages */
@@ -2408,6 +2645,7 @@ button, textarea, input { font-family: inherit; }
         showToast("⚠️ კავშირი არ არის");
         return;
       }
+      if (E2EE && (E2EE.canSeal(friendLc) || E2EE.mustSeal(friendLc))) { sendSealedPhoto(file); return; }
 
       const reader = new FileReader();
       reader.onload = () => {
@@ -2435,6 +2673,41 @@ button, textarea, input { font-family: inherit; }
     });
   }
 
+
+  // 🔐 A photo for an end-to-end chat is prepared here, since the server
+  // can't open it: turned upright, at most 2000px, saved as JPEG — which
+  // also drops its hidden details (where and when it was taken) — then
+  // locked and sent.
+  async function shrinkPhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const w0 = img.naturalWidth, h0 = img.naturalHeight;
+      if (!w0 || !h0) throw new Error("empty");
+      const k = Math.min(1, 2000 / Math.max(w0, h0));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(w0 * k)); c.height = Math.max(1, Math.round(h0 * k));
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); // see-through parts → white, like a JPEG would
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.85));
+      if (!blob) throw new Error("encode");
+      return blob;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function sendSealedPhoto(file) {
+    if (!E2EE.canSeal(friendLc)) { showToast(LOCKED_SEND_MSG, 4500); showUnlock(true); return; }
+    let blob;
+    try { blob = await shrinkPhoto(file); }
+    catch (_) { showToast("⚠️ ეს ფოტო ვერ გაიხსნა — სცადე JPG ან PNG"); return; }
+    const msgId = fcGenId();
+    const localUrl = URL.createObjectURL(blob);
+    appendMessage({ id: msgId, from: myUsername, type: "photo", photoUrl: localUrl, localUrl, ts: new Date().toISOString() });
+    try {
+      const { env, data } = await E2EE.sealFile(friendLc, "photo", await blobBytes(blob));
+      socket.emit("privateMsg:sendPhoto", { toUsername: friendName, photoData: data, mimeType: "image/jpeg", messageId: msgId, e2e: env });
+    } catch (_) { showToast("⚠️ ფოტო ვერ გაიგზავნა"); }
+  }
 
   /* ── 🎤 Voice messages ─────────────────────────────────────────
      Tap 🎤 → recording bar (🗑️ cancel · time · ➤ send), up to 60 s. Sent as
@@ -2502,7 +2775,17 @@ button, textarea, input { font-family: inherit; }
     if (blob.size > 3 * 1024 * 1024) { showToast("⚠️ ჩანაწერი ზედმეტად დიდია"); return; }
     if (!socket?.connected) { showToast("⚠️ კავშირი არ არის"); return; }
     const messageId = fcGenId();
-    appendMessage({ id: messageId, from: myUsername, type: "voice", voiceUrl: URL.createObjectURL(blob), duration: Math.round(dur), pending: true, ts: new Date().toISOString() });
+    if (E2EE && E2EE.mustSeal(friendLc) && !E2EE.canSeal(friendLc)) { showToast(LOCKED_SEND_MSG, 4500); showUnlock(true); return; }
+    const localUrl = URL.createObjectURL(blob);
+    appendMessage({ id: messageId, from: myUsername, type: "voice", voiceUrl: localUrl, localUrl, duration: Math.round(dur), pending: true, ts: new Date().toISOString() });
+    if (E2EE && E2EE.canSeal(friendLc)) {
+      // 🔐 locked here; the server only keeps the locked file
+      try {
+        const { env, data } = await E2EE.sealFile(friendLc, "voice", await blobBytes(blob));
+        socket.emit("privateMsg:sendVoice", { toUsername: friendName, audioData: data, duration: dur, messageId, e2e: env });
+      } catch (_) { voiceSentResult({ success: false, messageId }); }
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const b64 = String(reader.result).split(",")[1] || "";
@@ -2517,6 +2800,7 @@ button, textarea, input { font-family: inherit; }
       if (m) { m.pending = false; if (voiceUrl) m.voiceUrl = voiceUrl; }
       row?.querySelector(".fc-voice")?.classList.remove("pending");
     } else {
+      if (String(error || "").startsWith("e2ee-")) { refreshKeys(); error = "ხმოვანი შეტყობინება ვერ გაიგზავნა — სცადე თავიდან"; }
       showToast("⚠️ " + (error || "ხმოვანი შეტყობინება ვერ გაიგზავნა"), 4500);
       if (m) messages.splice(messages.indexOf(m), 1);
       row?.remove();
@@ -2550,6 +2834,20 @@ button, textarea, input { font-family: inherit; }
     time.textContent = fmtSecs(total);
     box.append(btn, wave, time);
 
+    // 🔐 A locked voice message is fetched and opened as soon as it's shown,
+    // so a tap can start it straight away (phones only allow sound right
+    // after a tap).
+    let src = msg.e2e && !msg.localUrl ? null : (msg.localUrl || msg.voiceUrl);
+    let opening = null;
+    if (!src) {
+      box.classList.add("pending");
+      opening = sealedMediaUrl(msg).then((u) => {
+        src = u; box.classList.remove("pending");
+        if (!u) { box.classList.add("locked"); time.textContent = "🔒"; }
+        return u;
+      });
+    }
+
     let audio = null;
     const paint = () => {
       const d = (audio && isFinite(audio.duration) && audio.duration) || total || 1;
@@ -2558,10 +2856,12 @@ button, textarea, input { font-family: inherit; }
       time.textContent = fmtSecs(audio && !audio.paused ? audio.currentTime : total);
     };
     const stop = () => { if (audio) { audio.pause(); audio.currentTime = 0; } btn.textContent = "▶"; paint(); };
-    function toggle(e) {
+    async function toggle(e) {
       e.stopPropagation();
       if (!audio) {
-        audio = new Audio(msg.voiceUrl);
+        if (!src && opening) await opening;
+        if (!src) { showToast("🔒 ამ ხმოვანის გახსნა ამ მოწყობილობაზე ვერ ხერხდება", 4000); return; }
+        audio = new Audio(src);
         audio.preload = "auto";
         audio.addEventListener("timeupdate", paint);
         audio.addEventListener("ended", () => { playingVoice = null; stop(); });
@@ -2689,15 +2989,16 @@ button, textarea, input { font-family: inherit; }
   function sendFCSticker(id) {
     if (!socket?.connected) return;
     const messageId = fcGenId();
-    socket.emit("privateMsg:sendSticker", { toUsername: friendName, sticker: id, messageId });
     appendMessage({ id: messageId, from: myUsername, type: "sticker", sticker: id, ts: new Date().toISOString() });
+    sendOut("sticker", messageId, { sticker: id });
     closeGifPicker();
   }
 
   function sendFCGif(url) {
     if (!socket?.connected) return;
-    socket.emit("friendChat:gif", { toUsername: friendName, url });
-    appendMessage({ from: myUsername, type: "gif", url, ts: new Date().toISOString() });
+    const messageId = fcGenId();
+    appendMessage({ id: messageId, from: myUsername, type: "gif", url, ts: new Date().toISOString() });
+    sendOut("gif", messageId, { url });
     closeGifPicker();
   }
 
@@ -2724,6 +3025,29 @@ button, textarea, input { font-family: inherit; }
     clearTimeout(gifSearchTimer);
     gifSearchTimer = setTimeout(() => fetchGifs(elGifSearch.value.trim()), 350);
   });
+
+  /* ── 🔐 Unlock card ────────────────────────────────────────────── */
+  $("fc-e2ee-unlock")?.querySelector("form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const card = $("fc-e2ee-unlock"), inp = $("fc-e2ee-pass");
+    const btn = card.querySelector(".fc-e2ee-open"), err = card.querySelector(".fc-e2ee-err");
+    if (!inp.value || btn.disabled) return;
+    btn.disabled = true; err.textContent = "⏳ იხსნება…";
+    try {
+      await E2EE.unlock(inp.value);
+      inp.value = ""; err.textContent = "";
+      inp.blur();
+      await E2EE.refreshFriend(friendLc).catch(() => {});
+      mediaUrls.clear();
+      await loadHistory();
+      renderMessages();
+      paintE2ee();
+      showToast("🔒 დაშიფრული ჩატი გაიხსნა");
+    } catch (x) {
+      err.textContent = "⚠️ " + ((x && x.message) || "ვერ მოხერხდა");
+    } finally { btn.disabled = false; }
+  });
+  $("fc-e2ee-unlock")?.querySelector(".fc-e2ee-later")?.addEventListener("click", () => { unlockDismissed = true; paintE2ee(); });
 
   /* ── Start ───────────────────────────────────────────────────── */
   init();

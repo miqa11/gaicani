@@ -2531,7 +2531,7 @@ async function loadOverview() {
   <div class="section-body">
   <div class="manual-ban-box backup-box">
     ${chatCrypt.enabled
-      ? `<p class="crypt-on">🔒 Private chats and voice messages are stored encrypted (key fingerprint <code>${chatCrypt.keyId}</code>). Keep your CHAT_KEY safe and separate from the backups — a backup's chats only open on a server with the same key.</p>`
+      ? `<p class="crypt-on">🔐 Private chats between two people who both have a chat key are <b>end-to-end encrypted</b> in their browsers — nobody can read them, including this panel. 🔒 On top of that, the chat file and photo/voice files are stored encrypted with CHAT_KEY (key fingerprint <code>${chatCrypt.keyId}</code>) — this also covers older messages and chats with someone who has no key yet. Keep your CHAT_KEY safe and separate from the backups — a backup's chats only open on a server with the same key.</p>`
       : `<div class="crypt-off">⚠️ Private chats are <b>not encrypted</b> yet${chatCrypt.keyTooShort ? " (CHAT_KEY is too short — it needs " + chatCrypt.minLength + "+ characters)" : ""}. To turn it on: Render → your service → <b>Environment</b> → add <b>CHAT_KEY</b> with the value below → Save (the server restarts by itself). Save the same value in a safe place too.<code class="crypt-key">${crypto.randomBytes(32).toString("base64url")}</code></div>`}
     ${privMsgsLocked ? `<div class="crypt-off">⚠️ The saved private chats couldn't be opened — ${privMsgsLocked.code === "NO_KEY" ? "CHAT_KEY isn't set on this server" : privMsgsLocked.code === "WRONG_KEY" ? "they were locked with a different CHAT_KEY" : "the file is damaged"}. They were kept aside as <code>${privMsgsLocked.file}</code>. Set the right CHAT_KEY, then restore your backup to bring them back.</div>` : ""}
     <a class="backup-dl" href="${ROUTE.backup}" download>⬇ Download backup</a>
@@ -6171,7 +6171,7 @@ app.post("/api/auth/register", authLimiter, express.json({ limit: "5kb" }), asyn
   const token = authToken();
   authTokens.set(token, { usernameLower: lc, expiry: Date.now() + AUTH_TOKEN_TTL });
 
-  res.status(201).json({ success: true, token, username: user.username, avatar: user.avatar, bio: user.bio });
+  res.status(201).json({ success: true, token, username: user.username, avatar: user.avatar, bio: user.bio, e2ee: null });
 });
 
 // GET /api/flappy/leaderboard — public, no auth: anyone can see the top 3.
@@ -6300,7 +6300,8 @@ app.post("/api/auth/login", authLimiter, express.json({ limit: "5kb" }), async (
     pendingRequests: user.pendingRequests || [],
     avatar: user.avatar || DEFAULT_AVATAR,
     bio: user.bio || "",
-    isAdmin: !!user.isAdmin
+    isAdmin: !!user.isAdmin,
+    e2ee: e2eeBundle(user), // your locked chat key — the page unlocks it with the password just typed
   });
 });
 
@@ -6741,6 +6742,129 @@ app.post("/api/friends/decline", express.json({ limit: "2kb" }), (req, res) => {
   res.json({ success: true });
 });
 
+// ── 🔐 End-to-end encrypted private chats ──────────────────────────────────
+// Every account gets a key pair made in the user's own browser (P-256, see
+// e2ee.js). The server keeps only:
+//   * the PUBLIC half — friends use it to lock messages for this person;
+//   * a copy of the PRIVATE half that the browser locked with the user's
+//     password (PBKDF2 → AES-GCM) before sending it — so the same account
+//     can unlock its chats on another phone by typing its password. The
+//     server can't open it without the password.
+// Between two people who both have keys, every message, sticker, GIF, voice
+// message and photo is locked in the sender's browser and only opened in
+// the receiver's; here it's stored and passed on as an unreadable envelope
+// { v, s, r, iv, ct } (s / r = the sender's / receiver's key ids). Older
+// messages, and chats with someone who has no key yet, work as before.
+const E2EE_B64 = /^[A-Za-z0-9+/]+={0,2}$/;
+const E2EE_KEYID = /^[0-9a-f]{16}$/;
+const b64Bytes = (s, n) => typeof s === "string" && E2EE_B64.test(s) && Buffer.from(s, "base64").length === n;
+const hasE2ee = (u) => !!(u && u.e2ee && u.e2ee.keyId);
+function e2eeKeyId(pubB64) {
+  return crypto.createHash("sha256").update(Buffer.from(pubB64, "base64")).digest("hex").slice(0, 16);
+}
+// A public key must be a real P-256 point (raw, uncompressed: 65 bytes).
+function validE2eePub(pub) {
+  if (!b64Bytes(pub, 65)) return false;
+  const raw = Buffer.from(pub, "base64");
+  if (raw[0] !== 4) return false;
+  try {
+    crypto.createPublicKey({ key: { kty: "EC", crv: "P-256", x: raw.subarray(1, 33).toString("base64url"), y: raw.subarray(33).toString("base64url") }, format: "jwk" });
+    return true;
+  } catch { return false; }
+}
+function cleanWrapped(w) {
+  if (!w || typeof w !== "object") return null;
+  const iter = Number(w.iter);
+  if (!b64Bytes(w.salt, 16) || !b64Bytes(w.iv, 12) || !Number.isInteger(iter) || iter < 100000 || iter > 5000000) return null;
+  if (typeof w.ct !== "string" || !E2EE_B64.test(w.ct) || w.ct.length < 40 || w.ct.length > 2000) return null;
+  return { salt: w.salt, iter, iv: w.iv, ct: w.ct };
+}
+const e2eeBundle = (u) => hasE2ee(u) ? { keyId: u.e2ee.keyId, pub: u.e2ee.pub, wrapped: u.e2ee.wrapped } : null;
+// What a friend may know: the current public key, plus earlier ones so
+// messages locked with those still open.
+const e2eePublic = (u) => hasE2ee(u)
+  ? { keyId: u.e2ee.keyId, pub: u.e2ee.pub, old: (u.e2eeOld || []).map((k) => ({ keyId: k.keyId, pub: k.pub })) }
+  : null;
+// The envelope of an end-to-end message from one user to another, checked
+// for shape only (the server can't — and shouldn't — read it). Media send
+// their locked bytes separately, so their envelope has no ct.
+function cleanEnvelope(e, withCt, maxCt) {
+  if (!e || typeof e !== "object" || e.v !== 1) return null;
+  if (!E2EE_KEYID.test(String(e.s)) || !E2EE_KEYID.test(String(e.r)) || !b64Bytes(e.iv, 12)) return null;
+  const out = { v: 1, s: e.s, r: e.r, iv: e.iv };
+  if (withCt) {
+    if (typeof e.ct !== "string" || !E2EE_B64.test(e.ct) || e.ct.length < 24 || e.ct.length > maxCt) return null;
+    out.ct = e.ct;
+  }
+  return out;
+}
+// Which way must this message go? Between two people who both have keys it
+// has to be end-to-end (an unencrypted one is refused — e.g. from a page
+// opened before the update); otherwise the old way. → { e2e: envelope|null }
+// or { error } — "e2ee-required" / "e2ee-stale" tell the page to refresh
+// the keys it knows and send again.
+function e2eeRoute(fromUser, toUser, e2e, withCt, maxCt) {
+  const both = hasE2ee(fromUser) && hasE2ee(toUser);
+  if (!both) return e2e ? { error: "e2ee-stale" } : { e2e: null };
+  if (!e2e) return { error: "e2ee-required" };
+  const env = cleanEnvelope(e2e, withCt, maxCt);
+  if (!env) return { error: "e2ee-bad" };
+  if (env.s !== fromUser.e2ee.keyId || env.r !== toUser.e2ee.keyId) return { error: "e2ee-stale" };
+  return { e2e: env };
+}
+function e2eeTokenUser(req) {
+  const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
+  const entry = token && authTokens.get(token);
+  if (!entry || Date.now() >= entry.expiry) return null;
+  const user = registeredUsers.get(entry.usernameLower);
+  return user && !user.isGuest ? { user, lc: entry.usernameLower } : null;
+}
+function e2eeTellFriends(user, lc) {
+  for (const f of [lc, ...(user.friends || [])]) io.to(`user:${f}`).emit("e2ee:changed", { username: user.username });
+}
+
+// GET /api/e2ee/keys?user=name — the public key of yourself or a friend.
+app.get("/api/e2ee/keys", (req, res) => {
+  const me = e2eeTokenUser(req);
+  if (!me) return res.status(401).json({ error: "Unauthorized" });
+  const lc = String(req.query.user || "").toLowerCase().trim();
+  if (lc !== me.lc && !(me.user.friends || []).includes(lc)) return res.status(403).json({ error: "Not friends" });
+  res.json({ key: e2eePublic(registeredUsers.get(lc)) });
+});
+// POST /api/e2ee/unlock { password } — your locked private key, for a device
+// that doesn't have it yet. Needs the password (like logging in), so a
+// stolen session alone can't fetch it.
+app.post("/api/e2ee/unlock", authLimiter, express.json({ limit: "2kb" }), async (req, res) => {
+  const me = e2eeTokenUser(req);
+  if (!me) return res.status(401).json({ error: "Unauthorized" });
+  const { password } = req.body || {};
+  if (typeof password !== "string" || !(await authVerifyPassword(password, me.user.passwordHash)))
+    return res.status(401).json({ error: "არასწორი პაროლი" });
+  res.json({ key: e2eeBundle(me.user) });
+});
+// POST /api/e2ee/key { password, pub, wrapped, replace? } — publish your
+// key (made in the browser). Only when you have none yet — or, with
+// replace, when the one on file can't be opened with your password any more.
+app.post("/api/e2ee/key", authLimiter, express.json({ limit: "4kb" }), async (req, res) => {
+  const me = e2eeTokenUser(req);
+  if (!me) return res.status(401).json({ error: "Unauthorized" });
+  const { password, pub, wrapped, replace } = req.body || {};
+  if (typeof password !== "string" || !(await authVerifyPassword(password, me.user.passwordHash)))
+    return res.status(401).json({ error: "არასწორი პაროლი" });
+  if (hasE2ee(me.user) && !replace) return res.status(409).json({ error: "exists", key: e2eeBundle(me.user) });
+  const w = cleanWrapped(wrapped);
+  if (!validE2eePub(pub) || !w) return res.status(400).json({ error: "bad key" });
+  const keyId = e2eeKeyId(pub);
+  if (hasE2ee(me.user) && me.user.e2ee.keyId !== keyId) {
+    me.user.e2eeOld = [{ keyId: me.user.e2ee.keyId, pub: me.user.e2ee.pub }, ...(me.user.e2eeOld || [])].slice(0, 5);
+  }
+  me.user.e2ee = { keyId, pub, wrapped: w, at: Date.now() };
+  saveAuthUsers();
+  console.log(`[E2EE] ${me.user.username} ${replace ? "replaced" : "published"} key ${keyId}`);
+  e2eeTellFriends(me.user, me.lc);
+  res.json({ ok: true, key: e2eeBundle(me.user) });
+});
+
 // GET /api/priv/history — Friend chat message history
 // Auth: Bearer token in Authorization header.
 // Returns messages for the private room between the caller and friend.
@@ -6767,7 +6891,8 @@ app.get("/api/priv/history", (req, res) => {
   const roomId = privRoomId(myLc, friendLc);
   const room   = privateRooms.get(roomId);
 
-  if (!room) return res.json({ messages: [], theme: null });
+  const e2ee = { me: hasE2ee(myUser) ? myUser.e2ee.keyId : null, friend: e2eePublic(registeredUsers.get(friendLc)) };
+  if (!room) return res.json({ messages: [], theme: null, e2ee });
 
   // Opening the chat / fetching history marks it as read up to now
   room.lastRead = room.lastRead || {};
@@ -6785,11 +6910,12 @@ app.get("/api/priv/history", (req, res) => {
     ts:        m.ts,
     messageId: m.id || null,
     replyTo:   m.replyTo || null,
+    e2e:       m.e2e || null,
     reactions: m.reactions || null,
     expiresAt: room.expiresAt ? new Date(room.expiresAt).toISOString() : null
   }));
 
-  res.json({ messages: msgs, theme: room.theme || null });
+  res.json({ messages: msgs, theme: room.theme || null, e2ee });
 });
 
 // GET /api/priv/unread — which friends have unread messages waiting
@@ -11549,8 +11675,8 @@ io.on("connection", (socket) => {
   });
 
   // ── Private message request ──────────────────────────────────────────────
-  socket.on("privateMsg:send", ({ toUsername, message, messageId, replyTo }) => {
-    if (!socket._regUser || !toUsername || !message) return;
+  socket.on("privateMsg:send", ({ toUsername, message, messageId, replyTo, e2e }) => {
+    if (!socket._regUser || !toUsername || (!message && !e2e)) return;
     if (socket._regUser.isGuest) { socket.emit("guest:registerRequired", { feature: "privateChat" }); return; }
     // Private messages are persisted to disk, so unlimited sending is both a
     // harassment vector and a way to grow the stored message file without
@@ -11582,6 +11708,10 @@ io.on("connection", (socket) => {
       socket.emit("privateMsg:sent", { success: false, messageId: messageId || null });
       return;
     }
+    // 🔐 Both have keys → it must come locked (the reply quote is inside).
+    const route = e2eeRoute(myUser, toUser, e2e, true, 12000);
+    if (route.error) { socket.emit("privateMsg:sent", { success: false, messageId: messageId || null, error: route.error }); return; }
+    if (!route.e2e && !message) return;
 
     const roomId = privRoomId(socket._regUser.usernameLower, toLc);
     let room = privateRooms.get(roomId);
@@ -11592,7 +11722,7 @@ io.on("connection", (socket) => {
     }
 
     let safeReplyTo = null;
-    if (replyTo && typeof replyTo.text === "string") {
+    if (!route.e2e && replyTo && typeof replyTo.text === "string") {
       safeReplyTo = {
         text:       replyTo.text.slice(0, 100).replace(/<[^>]*>/g, "").trim(),
         senderName: String(replyTo.senderName || "").slice(0, 30).replace(/<[^>]*>/g, "").trim(),
@@ -11603,10 +11733,11 @@ io.on("connection", (socket) => {
     const msg = {
       id: String(messageId || "").slice(0, 100) || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       from: socket._regUser.usernameLower,
-      text: String(message).slice(0, MSG_MAX),
+      text: route.e2e ? "" : String(message).slice(0, MSG_MAX),
       ts: new Date().toISOString(),
       replyTo: safeReplyTo
     };
+    if (route.e2e) msg.e2e = route.e2e;
 
     room.messages.push(msg);
     bumpStat("msgPrivate");
@@ -11620,7 +11751,8 @@ io.on("connection", (socket) => {
       message: msg.text,
       timestamp: msg.ts,
       messageId: msg.id,
-      replyTo: msg.replyTo
+      replyTo: msg.replyTo,
+      e2e: msg.e2e || null,
     });
 
     socket.emit("privateMsg:sent", { success: true, messageId: msg.id });
@@ -11634,16 +11766,19 @@ io.on("connection", (socket) => {
 
   // ── privateMsg:sendSticker — a sticker from the pack, stored like a message
   // (same rules as text: friends only, blocks respected, same rate limit).
-  socket.on("privateMsg:sendSticker", ({ toUsername, sticker, messageId } = {}) => {
+  socket.on("privateMsg:sendSticker", ({ toUsername, sticker, messageId, e2e } = {}) => {
     if (!socket._regUser || socket._regUser.isGuest || !toUsername) return;
-    const fail = () => socket.emit("privateMsg:sent", { success: false, messageId: messageId || null });
-    if (!STICKER_IDS.has(sticker)) return fail();
+    const fail = (error) => socket.emit("privateMsg:sent", { success: false, messageId: messageId || null, error });
     if (mediaRateLimited(socket, "privateMsg", 15, 10_000)) return fail();
     const myLc = socket._regUser.usernameLower;
     const toLc = String(toUsername).toLowerCase().trim();
     const myUser = registeredUsers.get(myLc), toUser = registeredUsers.get(toLc);
     if (!toUser || (toUser.blockedUsers || []).includes(myLc) || (myUser?.blockedUsers || []).includes(toLc)) return fail();
     if (!(myUser?.friends || []).includes(toLc)) return fail();
+    // 🔐 Locked, the sticker's name travels inside (the page checks it).
+    const route = e2eeRoute(myUser, toUser, e2e, true, 2000);
+    if (route.error) return fail(route.error);
+    if (!route.e2e && !STICKER_IDS.has(sticker)) return fail();
 
     const roomId = privRoomId(myLc, toLc);
     let room = privateRooms.get(roomId);
@@ -11653,8 +11788,9 @@ io.on("connection", (socket) => {
     }
     const msg = {
       id: String(messageId || "").slice(0, 100) || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      from: myLc, type: "sticker", sticker, text: "", ts: new Date().toISOString(),
+      from: myLc, type: "sticker", sticker: route.e2e ? null : sticker, text: "", ts: new Date().toISOString(),
     };
+    if (route.e2e) msg.e2e = route.e2e;
     room.messages.push(msg);
     bumpStat("msgPrivate");
     trimRoomMessages(room);
@@ -11662,8 +11798,8 @@ io.on("connection", (socket) => {
     savePrivateMsgs();
 
     io.to(`user:${toLc}`).emit("privateMsg:received", {
-      fromUsername: socket._regUser.username, type: "sticker", sticker, message: "",
-      timestamp: msg.ts, messageId: msg.id,
+      fromUsername: socket._regUser.username, type: "sticker", sticker: msg.sticker, message: "",
+      timestamp: msg.ts, messageId: msg.id, e2e: msg.e2e || null,
     });
     socket.emit("privateMsg:sent", { success: true, messageId: msg.id });
     notifyPrivateMessage(myLc, socket._regUser.username, toLc, "sticker");
@@ -11677,7 +11813,7 @@ io.on("connection", (socket) => {
   // Stored next to the photos (random name, deleted with the conversation).
   // The format is read from the file's own first bytes, never the browser's
   // label: WebM / Ogg (Chrome, Firefox — Opus) or MP4 (Safari — AAC).
-  socket.on("privateMsg:sendVoice", ({ toUsername, audioData, duration, messageId } = {}) => {
+  socket.on("privateMsg:sendVoice", ({ toUsername, audioData, duration, messageId, e2e } = {}) => {
     const reply = (x) => socket.emit("privateMsg:voiceSent", { messageId: messageId || null, ...x });
     if (!socket._regUser || !toUsername || !audioData) return;
     if (socket._regUser.isGuest) return reply({ success: false, error: "ხმოვანი შეტყობინება მხოლოდ რეგისტრირებულებს შეუძლიათ" });
@@ -11687,13 +11823,16 @@ io.on("connection", (socket) => {
     const myUser = registeredUsers.get(myLc), toUser = registeredUsers.get(toLc);
     if (!toUser || !(myUser?.friends || []).includes(toLc)) return reply({ success: false, error: "მხოლოდ მეგობრებს შეგიძლია მისწერო" });
     if ((toUser.blockedUsers || []).includes(myLc) || (myUser?.blockedUsers || []).includes(toLc)) return reply({ success: false });
+    const route = e2eeRoute(myUser, toUser, e2e, false);
+    if (route.error) return reply({ success: false, error: route.error });
 
     let buf;
     try { buf = Buffer.from(String(audioData), "base64"); } catch { buf = null; }
     if (!buf || buf.length < 200) return reply({ success: false, error: "ჩანაწერი ცარიელია" });
-    if (buf.length > VOICE_MAX_BYTES) return reply({ success: false, error: "ჩანაწერი ზედმეტად დიდია" });
+    if (buf.length > VOICE_MAX_BYTES + 16) return reply({ success: false, error: "ჩანაწერი ზედმეტად დიდია" });
     let ext = null;
-    if (buf[0] === 0x1A && buf[1] === 0x45 && buf[2] === 0xDF && buf[3] === 0xA3) ext = "webm";
+    if (route.e2e) ext = "e2e"; // 🔐 locked in the browser — only the size can be checked here
+    else if (buf[0] === 0x1A && buf[1] === 0x45 && buf[2] === 0xDF && buf[3] === 0xA3) ext = "webm";
     else if (buf.slice(0, 4).toString("latin1") === "OggS") ext = "ogg";
     else if (buf.slice(4, 8).toString("latin1") === "ftyp") ext = "m4a";
     if (!ext) return reply({ success: false, error: "ჩანაწერის ფორმატი ვერ ამოვიცანი" });
@@ -11714,6 +11853,7 @@ io.on("connection", (socket) => {
       id: String(messageId || "").slice(0, 100) || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       from: myLc, type: "voice", voiceUrl, duration: secs, text: "", ts: new Date().toISOString(),
     };
+    if (route.e2e) msg.e2e = route.e2e;
     room.messages.push(msg);
     bumpStat("msgPrivate");
     trimRoomMessages(room);
@@ -11722,7 +11862,7 @@ io.on("connection", (socket) => {
 
     io.to(`user:${toLc}`).emit("privateMsg:received", {
       fromUsername: socket._regUser.username, type: "voice", voiceUrl, duration: secs, message: "",
-      timestamp: msg.ts, messageId: msg.id,
+      timestamp: msg.ts, messageId: msg.id, e2e: msg.e2e || null,
     });
     reply({ success: true, voiceUrl, duration: secs });
     notifyPrivateMessage(myLc, socket._regUser.username, toLc, "voice");
@@ -11760,7 +11900,11 @@ io.on("connection", (socket) => {
   const PHOTO_MAX_DIMENSION   = 2000;
   const PHOTO_JPEG_QUALITY    = 85;
 
-  socket.on("privateMsg:sendPhoto", async ({ toUsername, photoData, mimeType, messageId }) => {
+  // 🔐 Between two people with keys the photo arrives already shrunk,
+  // turned upright and stripped of its hidden details (location…) by the
+  // sender's browser, then locked — the server only checks its size.
+  const MAX_E2E_PHOTO_BYTES = 8 * 1024 * 1024;
+  socket.on("privateMsg:sendPhoto", async ({ toUsername, photoData, mimeType, messageId, e2e }) => {
     if (!socket._regUser || !toUsername || !photoData) return;
     if (socket._regUser.isGuest) { socket.emit("privateMsg:photoSent", { success: false, messageId, error: "სტუმრებს ფოტოს გაგზავნა არ შეუძლიათ" }); return; }
 
@@ -11795,6 +11939,8 @@ io.on("connection", (socket) => {
     if (toUser.blockedUsers?.includes(myLc) || myUser.blockedUsers?.includes(toLc)) {
       socket.emit("privateMsg:photoSent", { success: false, messageId }); return;
     }
+    const route = e2eeRoute(myUser, toUser, e2e, false);
+    if (route.error) { socket.emit("privateMsg:photoSent", { success: false, messageId, error: route.error }); return; }
 
     let rawBuffer;
     try {
@@ -11810,7 +11956,14 @@ io.on("connection", (socket) => {
 
     let processedBuffer;
     let outExt = "jpg";
-    if (sharp) {
+    if (route.e2e) {
+      if (rawBuffer.length < 100 || rawBuffer.length > MAX_E2E_PHOTO_BYTES) {
+        socket.emit("privateMsg:photoSent", { success: false, messageId, error: "ფოტო ზედმეტად დიდია" });
+        return;
+      }
+      processedBuffer = rawBuffer;
+      outExt = "e2e";
+    } else if (sharp) {
       try {
         processedBuffer = await sharp(rawBuffer)
           .rotate() // auto-orient from EXIF before anything else touches the pixels
@@ -11866,6 +12019,7 @@ io.on("connection", (socket) => {
       photoUrl,
       ts: new Date().toISOString(),
     };
+    if (route.e2e) msg.e2e = route.e2e;
     room.messages.push(msg);
     bumpStat("photoPrivate");
     trimRoomMessages(room);
@@ -11878,6 +12032,7 @@ io.on("connection", (socket) => {
       photoUrl,
       timestamp: msg.ts,
       messageId: msg.id,
+      e2e: msg.e2e || null,
     });
     socket.emit("privateMsg:photoSent", { success: true, messageId: msg.id, photoUrl });
     notifyPrivateMessage(myLc, socket._regUser.username, toLc, "photo");
@@ -11920,18 +12075,23 @@ io.on("connection", (socket) => {
   });
 
   // ── friendChat:gif — relay GIF URL to friend ─────────────────────────────
-  socket.on("friendChat:gif", ({ toUsername, url }) => {
-    if (!socket._regUser || !toUsername || !url) return;
-    // Only GIPHY links (what the GIF search returns) — any other URL would
-    // load in the friend's browser and could be used to track them.
-    if (typeof url !== "string" || url.length > 500 || !/^https:\/\/(?:[a-z0-9-]+\.)?giphy\.com\//i.test(url)) return;
+  socket.on("friendChat:gif", ({ toUsername, url, e2e }) => {
+    if (!socket._regUser || !toUsername || (!url && !e2e)) return;
     if (mediaRateLimited(socket, "friendGif", 8, 10_000)) return;
     const toLc   = String(toUsername).toLowerCase().trim();
     const myUser = registeredUsers.get(socket._regUser.usernameLower);
     if (!myUser || !(myUser.friends || []).includes(toLc)) return;
+    // 🔐 Locked, the link travels inside — the receiving page only shows
+    // GIPHY links, like the check below.
+    const route = e2eeRoute(myUser, registeredUsers.get(toLc), e2e, true, 2000);
+    if (route.error) { socket.emit("privateMsg:sent", { success: false, messageId: null, error: route.error, kind: "gif" }); return; }
+    // Only GIPHY links (what the GIF search returns) — any other URL would
+    // load in the friend's browser and could be used to track them.
+    if (!route.e2e && (typeof url !== "string" || url.length > 500 || !/^https:\/\/(?:[a-z0-9-]+\.)?giphy\.com\//i.test(url))) return;
     io.to(`user:${toLc}`).emit("friendChat:gif", {
       fromUsername: socket._regUser.username,
-      url:          url,
+      url:          route.e2e ? null : url,
+      e2e:          route.e2e,
       timestamp:    new Date().toISOString()
     });
     notifyPrivateMessage(socket._regUser.usernameLower, socket._regUser.username, toLc, "gif");

@@ -1975,6 +1975,7 @@ body.guest-mode .profile-actions { display: none; }
   <script src="/ban-notice.js"></script>
   <script src="/notifications.js"></script>
   <script src="/profile-themes.js"></script>
+  <script src="/e2ee.js"></script>
 <script src="/socket.io/socket.io.js"></script>
   <script>
   (function () {
@@ -3970,8 +3971,11 @@ function profileChipsHTML(p) {
     }
 
     /* ── Logout ──────────────────────────────────────────────────── */
-    document.getElementById("logoutBtn")?.addEventListener("click", () => {
+    document.getElementById("logoutBtn")?.addEventListener("click", async () => {
       if (!confirm("გამოხვიდეთ სისტემიდან?")) return;
+      // The key for encrypted chats leaves this device too (logging in
+      // again with the password brings it back) — see e2ee.js.
+      try { await window.GaicaniE2EE?.forget(localStorage.getItem(LS_USER)); } catch (_) {}
       clearAuth();
       window.location.href = "/";
     });
@@ -4110,6 +4114,7 @@ function profileChipsHTML(p) {
             return;
           }
           // Gone — clear every local trace and send them to the front page.
+          try { await window.GaicaniE2EE?.forget(localStorage.getItem("gaicani_auth_user")); } catch (_) {}
           try {
             localStorage.removeItem("gaicani_auth_token");
             localStorage.removeItem("gaicani_auth_user");

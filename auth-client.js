@@ -195,7 +195,8 @@
         setError("signup-error", d.error || "შეცდომა");
         return;
       }
-      // Success — auto-login
+      // Success — auto-login (and make this account's chat key — see e2ee.js)
+      await setupChatKey(d, password);
       handleAuthSuccess(d.token, d.username, d.friends || [], d.pendingRequests || [], d.avatar);
     } catch (_) {
       setError("signup-error", "კავშირის შეცდომა. კვლავ სცადეთ.");
@@ -228,12 +229,23 @@
       });
       const d = await r.json();
       if (!r.ok) { setError("login-error", d.error || "არასწორი სახელი ან პაროლი"); return; }
+      await setupChatKey(d, password);
       handleAuthSuccess(d.token, d.username, d.friends || [], d.pendingRequests || [], d.avatar);
     } catch (_) {
       setError("login-error", "კავშირის შეცდომა. კვლავ სცადეთ.");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "შესვლა"; }
     }
+  }
+
+  /* 🔐 While the password is at hand: open this account's key for
+     end-to-end encrypted chats on this device, or make one (e2ee.js).
+     Never holds up logging in for long — the chat page can ask later. */
+  async function setupChatKey(d, password) {
+    const E = window.GaicaniE2EE;
+    if (!E || !d || !d.token) return;
+    const t = E.setupWithPassword({ token: d.token, username: d.username, password, key: d.e2ee || null }).catch(() => false);
+    await Promise.race([t, new Promise((res) => setTimeout(res, 8000))]);
   }
 
   /* ══════════════════════════════════════════════════════════════════
@@ -498,10 +510,11 @@
       showToast(`ℹ️ ${esc(byUsername)}-მ მოთხოვნა უარყო`));
 
     // ── Private messages ──────────────────────────────────────────────
-    s.on("privateMsg:received", ({ fromUsername, message, timestamp, type }) => {
+    s.on("privateMsg:received", ({ fromUsername, message, timestamp, type, e2e }) => {
       // Photos, stickers and voice messages carry no text — say what they are.
+      // An end-to-end message can only be read on the chat page itself.
       const text = type === "photo" ? "📷 ფოტო" : type === "sticker" ? "🥟 სტიკერი"
-        : type === "voice" ? "🎤 ხმოვანი შეტყობინება" : String(message || "");
+        : type === "voice" ? "🎤 ხმოვანი შეტყობინება" : e2e ? "🔒 ახალი შეტყობინება" : String(message || "");
       if (privChatPartner === fromUsername) {
         appendPrivMsg(fromUsername, text, timestamp, false);
       } else {
@@ -849,6 +862,9 @@
      ══════════════════════════════════════════════════════════════════ */
   function openPrivateChat(friend) {
     if (!authUser) return;
+    // Private chats are end-to-end encrypted on their own page (e2ee.js);
+    // this old panel can't read them, so it opens that page instead.
+    if (window.GaicaniE2EE) { window.location.href = "/friend-chat.html?friend=" + encodeURIComponent(friend); return; }
     privChatPartner = friend;
     privChatMessages = [];
 
