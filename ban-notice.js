@@ -26,7 +26,7 @@ function attachTempBanGuard(socket) {
 
     const overlay = document.createElement("div");
     overlay.style.cssText =
-      "position:fixed;inset:0;z-index:99999;background:#17181c;color:#eceef2;" +
+      "position:fixed;inset:0;z-index:2147483600;background:#17181c;color:#eceef2;" +
       "display:flex;align-items:center;justify-content:center;padding:24px;" +
       "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;";
 
@@ -43,9 +43,16 @@ function attachTempBanGuard(socket) {
     h1.style.cssText = "font-size:1.15em;margin:0 0 14px;color:#f56769;";
     h1.textContent = `წვდომა შეზღუდულია ${hours === 24 ? "1 დღით" : hours + " საათით"}`;
 
+    // Why (the reason the admin chose or wrote), and that next time it's for good.
+    const reason = !data?.reason || data.reason === "offensive_name" ? "შეურაცხმყოფელი სახელი" : String(data.reason);
+    const aboutName = !!data?.nameReason || !data?.reason || data.reason === "offensive_name";
     const p1 = document.createElement("p");
     p1.style.cssText = "font-size:.9em;line-height:1.65;color:#c7cad3;margin:0 0 12px;";
-    p1.innerHTML = "თქვენ დროებით დაგეიკეტათ წვდომა<br><b>შეურაცხმყოფელი სახელის გამო</b>.";
+    p1.append("თქვენ დროებით დაგებლოკათ წვდომა.", document.createElement("br"), "მიზეზი: ");
+    const why = document.createElement("b");
+    why.style.color = "#eceef2";
+    why.textContent = reason; // textContent — never innerHTML with this
+    p1.appendChild(why);
 
     box.appendChild(icon);
     box.appendChild(h1);
@@ -60,10 +67,18 @@ function attachTempBanGuard(socket) {
       box.appendChild(nameEl);
     }
 
-    const p2 = document.createElement("p");
-    p2.style.cssText = "font-size:.9em;line-height:1.65;color:#c7cad3;margin:0 0 12px;";
-    p2.textContent = "გთხოვთ, დაბრუნებისას აირჩიოთ სხვა სახელი.";
-    box.appendChild(p2);
+    if (aboutName) {
+      const p2 = document.createElement("p");
+      p2.style.cssText = "font-size:.9em;line-height:1.65;color:#c7cad3;margin:0 0 12px;";
+      p2.textContent = "გთხოვთ, დაბრუნებისას აირჩიოთ სხვა სახელი.";
+      box.appendChild(p2);
+    }
+
+    const warn = document.createElement("div");
+    warn.style.cssText = "background:rgba(214,168,79,.10);border:1px solid rgba(214,168,79,.35);color:#e9cf8f;" +
+      "border-radius:10px;padding:10px 12px;font-size:.86em;line-height:1.55;margin:4px 0 4px;";
+    warn.textContent = "⚠️ გთხოვთ, იყავით თავაზიანები და დაიცავით წესები. განმეორების შემთხვევაში დაბლოკვა იქნება სამუდამო.";
+    box.appendChild(warn);
 
     overlay.appendChild(box);
     document.body.appendChild(overlay);
@@ -82,7 +97,7 @@ function showSpamCaptcha(socket, data) {
   const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
   let wrap = document.getElementById("gcSpamCaptcha");
   if (!wrap) {
-    wrap = el("div", "position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;" +
+    wrap = el("div", "position:fixed;inset:0;z-index:2147483500;display:flex;align-items:center;justify-content:center;padding:20px;" +
       "background:rgba(8,6,18,.78);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;");
     wrap.id = "gcSpamCaptcha";
     wrap.setAttribute("role", "dialog");
@@ -154,7 +169,7 @@ function closeSpamCaptcha() {
 function showNameBlockScreen(currentName) {
   if (document.getElementById("nameBlockScreen")) return;
   const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
-  const wrap = el("div", "position:fixed;inset:0;z-index:100001;display:flex;align-items:center;justify-content:center;padding:20px;" +
+  const wrap = el("div", "position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:20px;" +
     "background:radial-gradient(700px 500px at 50% 0%,rgba(227,59,95,.18),transparent 70%),#130f26;color:#f5f0ff;font-family:inherit;");
   wrap.id = "nameBlockScreen";
   const card = el("div", "width:100%;max-width:380px;text-align:center;padding:26px 20px;border-radius:22px;" +

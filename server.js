@@ -419,39 +419,76 @@ loadBannedUserAgents(); // restore UA bans immediately at startup
 const AUTO_BAN_ENABLED = process.env.AUTO_BAN_ENABLED === "true";
 
 // ── Temporary (24 h) IP bans ─────────────────────────────────────────────────
-// Separate from bannedIPs (which is permanent and silent). These carry a
-// reason and the offending username, and the blocked visitor is shown an
-// explanation page rather than a bare 403 — the point is to tell someone why
-// they were removed and when they can come back.
-const tempBans = new Map(); // ip -> { until, reason, username, at }
+// Separate from bannedIPs (which is permanent and silent). These carry the
+// reason the admin chose (or wrote) and the offending username, and the
+// blocked visitor is told why, when they can come back, and that next time
+// the block will be permanent. Kept in temp_bans.json, so a restart or a
+// deploy doesn't lift them early.
+const tempBans = new Map(); // ip -> { until, reason, nameReason, username, at }
 const TEMP_BAN_MS = 24 * 60 * 60 * 1000;
+const TEMP_BANS_FILE = path.join(DATA_PATH, "temp_bans.json");
+const TEMP_BAN_REASON_MAX = 200;
+const NAME_REASON_TEXT = "შეურაცხმყოფელი სახელი";
+
+function loadTempBans() {
+  try {
+    const obj = JSON.parse(fs.readFileSync(TEMP_BANS_FILE, "utf8"));
+    const now = Date.now();
+    for (const [ip, e] of Object.entries(obj || {})) if (e && e.until > now) tempBans.set(ip, e);
+  } catch { /* none yet */ }
+}
+function saveTempBans() {
+  const now = Date.now(), obj = {};
+  for (const [ip, e] of tempBans) if (e.until > now) obj[ip] = e;
+  try { writeFileAtomic(TEMP_BANS_FILE, JSON.stringify(obj, null, 2)); }
+  catch (e) { console.error("[TEMP-BAN] save failed:", e.message); }
+}
+loadTempBans();
 
 function getTempBan(ip) {
   const e = tempBans.get(ip);
   if (!e) return null;
-  if (Date.now() >= e.until) { tempBans.delete(ip); return null; } // expired
+  if (Date.now() >= e.until) { tempBans.delete(ip); saveTempBans(); return null; } // expired
   return e;
 }
 
-function addTempBan(ip, username, reason) {
+// reason: the text the blocked person sees. Blocks from before reasons
+// could be chosen said "offensive_name" — shown as such.
+function addTempBan(ip, username, reason, nameReason) {
+  let text = String(reason || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, TEMP_BAN_REASON_MAX);
+  if (!text || text === "offensive_name") { text = NAME_REASON_TEXT; nameReason = true; }
   const entry = {
     until: Date.now() + TEMP_BAN_MS,
-    reason: reason || "offensive_name",
+    reason: text,
+    nameReason: !!nameReason,
     username: username || "",
     at: Date.now(),
   };
   tempBans.set(ip, entry);
+  saveTempBans();
   return entry;
+}
+const tempBanReason = (e) => (!e.reason || e.reason === "offensive_name" ? NAME_REASON_TEXT : e.reason);
+const tempBanForName = (e) => !!e.nameReason || !e.reason || e.reason === "offensive_name";
+// What the blocked visitor's page (and the live connection) is told.
+function tempBanNotice(e) {
+  return {
+    hours: Math.max(1, Math.ceil((e.until - Date.now()) / 3600000)),
+    reason: tempBanReason(e),
+    nameReason: tempBanForName(e),
+    username: e.username || "",
+    until: e.until,
+  };
 }
 
 function tempBanPageHtml(entry) {
-  const hoursLeft = Math.max(1, Math.ceil((entry.until - Date.now()) / 3600000));
-  const name = String(entry.username || "").replace(/[&<>"']/g, c =>
+  const n = tempBanNotice(entry);
+  const esc = (v) => String(v || "").replace(/[&<>"']/g, c =>
     ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   return `<!DOCTYPE html>
 <html lang="ka"><head><meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>\u10ec\u10d5\u10d3\u10dd\u10db\u10d0 \u10e8\u10d4\u10d6\u10e6\u10e3\u10d3\u10e3\u10da\u10d8\u10d0</title>
+<title>წვდომა შეზღუდულია</title>
 <style>
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
     background:#17181c;color:#eceef2;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;padding:24px}
@@ -460,17 +497,21 @@ function tempBanPageHtml(entry) {
   .icon{font-size:2.6em;margin-bottom:10px}
   h1{font-size:1.15em;margin:0 0 14px;color:#f56769}
   p{font-size:.9em;line-height:1.65;color:#c7cad3;margin:0 0 12px}
+  .reason{font-weight:700;color:#eceef2}
   .name{display:inline-block;background:rgba(242,63,66,.12);border:1px solid rgba(242,63,66,.3);
     color:#f56769;border-radius:8px;padding:6px 14px;font-weight:800;margin:6px 0 14px;word-break:break-all}
+  .warn{background:rgba(214,168,79,.10);border:1px solid rgba(214,168,79,.35);color:#e9cf8f;
+    border-radius:10px;padding:10px 12px;font-size:.86em;line-height:1.55;margin:4px 0 12px}
   .left{font-size:.82em;color:#8a8d9c;margin-top:16px}
 </style></head><body>
 <div class="box">
-  <div class="icon">\u{1F6AB}</div>
-  <h1>\u10ec\u10d5\u10d3\u10dd\u10db\u10d0 \u10e8\u10d4\u10d6\u10e6\u10e3\u10d3\u10e3\u10da\u10d8\u10d0 1 \u10d3\u10e6\u10d8\u10d7</h1>
-  <p>\u10d7\u10e5\u10d5\u10d4\u10dc \u10d3\u10e0\u10dd\u10d4\u10d1\u10d8\u10d7 \u10d3\u10d0\u10d2\u10d4\u10d1\u10da\u10dd\u10d9\u10d0\u10d7 \u10ec\u10d5\u10d3\u10dd\u10db\u10d0<br><b>\u10e8\u10d4\u10e3\u10e0\u10d0\u10ea\u10ee\u10db\u10e7\u10dd\u10e4\u10d4\u10da\u10d8 \u10e1\u10d0\u10ee\u10d4\u10da\u10d8\u10e1 \u10d2\u10d0\u10db\u10dd</b>.</p>
-  <div class="name">${name || "\u2014"}</div>
-  <p>\u10d2\u10d7\u10ee\u10dd\u10d5\u10d7, \u10d3\u10d0\u10d1\u10e0\u10e3\u10dc\u10d4\u10d1\u10d8\u10e1\u10d0\u10e1 \u10d0\u10d8\u10e0\u10e9\u10d8\u10dd\u10d7 \u10e1\u10ee\u10d5\u10d0 \u10e1\u10d0\u10ee\u10d4\u10da\u10d8.</p>
-  <div class="left">\u10d3\u10d0\u10e0\u10e9\u10d4\u10dc\u10d8\u10da\u10d8\u10d0 \u10d3\u10d0\u10d0\u10ee\u10da\u10dd\u10d4\u10d1\u10d8\u10d7 ${hoursLeft} \u10e1\u10d0\u10d0\u10d7\u10d8</div>
+  <div class="icon">🚫</div>
+  <h1>წვდომა შეზღუდულია 1 დღით</h1>
+  <p>თქვენ დროებით დაგებლოკათ წვდომა.<br>მიზეზი: <span class="reason">${esc(n.reason)}</span></p>
+  ${n.username ? `<div class="name">${esc(n.username)}</div>` : ""}
+  ${n.nameReason ? "<p>გთხოვთ, დაბრუნებისას აირჩიოთ სხვა სახელი.</p>" : ""}
+  <div class="warn">⚠️ გთხოვთ, იყავით თავაზიანები და დაიცავით წესები. განმეორების შემთხვევაში დაბლოკვა იქნება სამუდამო.</div>
+  <div class="left">დარჩენილია დაახლოებით ${n.hours} საათი</div>
 </div></body></html>`;
 }
 
@@ -2120,23 +2161,20 @@ app.post(ROUTE.tempBan, ownerOnly, (req, res) => {
   const username = String(req.query.username || "").trim();
   if (!ip) return res.status(400).json({ error: "ip param required" });
 
-  const entry = addTempBan(ip, username, "offensive_name");
+  // reason = what the person is told (chosen or written in the admin panel);
+  // name=1 when it's about their name (they're asked to pick another).
+  const entry = addTempBan(ip, username, String(req.query.reason || ""), req.query.name === "1");
 
   let kicked = 0;
   for (const [, s] of io.sockets.sockets) {
     if (s.clientIP === ip) {
-      s.emit("tempBanned", {
-        hours: 24,
-        reason: "offensive_name",
-        username,
-        until: entry.until,
-      });
+      s.emit("tempBanned", tempBanNotice(entry));
       setTimeout(() => s.disconnect(true), 600);
       kicked++;
     }
   }
-  console.log(`[ADMIN] 24h block on ${ip} (name: ${username || "n/a"}) — kicked ${kicked} socket(s)`);
-  res.json({ success: true, ip, username, until: entry.until, kickedSockets: kicked });
+  console.log(`[ADMIN] 24h block on ${ip} (name: ${username || "n/a"}, reason: ${entry.reason}) — kicked ${kicked} socket(s)`);
+  res.json({ success: true, ip, username, reason: entry.reason, until: entry.until, kickedSockets: kicked });
 });
 
 // GET <tempBansList route> — every currently-active 24h block, with how
@@ -2152,7 +2190,7 @@ app.get(ROUTE.tempBansList, ownerOnly, (req, res) => {
     list.push({
       ip,
       username: entry.username || "",
-      reason: entry.reason || "offensive_name",
+      reason: tempBanReason(entry),
       until: entry.until,
       remainingMs: entry.until - now,
     });
@@ -2166,6 +2204,7 @@ app.post(ROUTE.unbanTemp, ownerOnly, (req, res) => {
   const ip = String(req.query.ip || "").trim();
   if (!ip) return res.status(400).json({ error: "ip param required" });
   const had = tempBans.delete(ip);
+  saveTempBans();
   console.log(`[ADMIN] Lifted 24h block on ${ip} early`);
   res.json({ success: true, ip, wasActive: had });
 });
@@ -2684,24 +2723,68 @@ async function banIP(ip) {
   loadAll();
 }
 
-async function tempBan(ip, username) {
-  const msg = [
-    'Block this IP for 24 hours?',
-    '',
-    'IP: ' + ip,
-    'Name: ' + username,
-    '',
-    'They will see a page saying they were blocked for 1 day',
-    'because of an offensive name, showing that name.'
-  ].join(String.fromCharCode(10));
-  if (!confirm(msg)) return;
-  try {
-    const r = await api('POST', R.tempBan + '?ip=' + encodeURIComponent(ip) +
-                        '&username=' + encodeURIComponent(username));
-    alert('Blocked ' + ip + ' for 24 hours' + String.fromCharCode(10) +
-          'sockets kicked: ' + r.kickedSockets);
-    load();
-  } catch (e) { alert('Failed: ' + e.message); }
+// ⏱ 24h block: pick the reason they'll see (or write your own). They're
+// also told to be polite — next time the block will be permanent.
+const TEMP_BAN_REASONS = [
+  { text: 'უხეში ან შეურაცხმყოფელი საუბარი', hint: 'rude or insulting talk' },
+  { text: 'სპამი ან რეკლამა', hint: 'spam or ads' },
+  { text: 'შეურაცხმყოფელი სახელი', hint: 'offensive name (they are asked to pick another)', name: true },
+  { text: 'არასათანადო კონტენტი (18+, ძალადობა)', hint: 'inappropriate content' },
+  { text: '', hint: 'other: write it below', other: true },
+];
+function tempBan(ip, username) {
+  const old = document.getElementById('tbModal');
+  if (old) old.remove();
+  const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
+  const wrap = el('div', 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px');
+  wrap.id = 'tbModal';
+  const box = el('div', 'width:100%;max-width:440px;background:#2b2d31;color:#dbdee1;border-radius:12px;padding:18px;max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)');
+  box.append(el('div', 'font-weight:700;font-size:1.05em;margin-bottom:4px', '⏱ Block for 24 hours'));
+  box.append(el('div', 'color:#949ba4;font-size:.85em', 'IP: ' + ip + (username ? '   ·   ' + username : '')));
+  box.append(el('div', 'margin:14px 0 4px;font-weight:600', 'Reason they will see:'));
+  TEMP_BAN_REASONS.forEach((r, i) => {
+    const row = el('label', 'display:flex;gap:10px;align-items:flex-start;padding:7px 0;cursor:pointer');
+    const rb = document.createElement('input');
+    rb.type = 'radio'; rb.name = 'tbReason'; rb.value = String(i); rb.checked = i === 0;
+    rb.style.marginTop = '3px';
+    const txt = el('div', '');
+    if (r.text) txt.append(el('div', '', r.text));
+    txt.append(el('div', 'color:#949ba4;font-size:.82em', r.hint));
+    row.append(rb, txt);
+    box.append(row);
+  });
+  const other = el('textarea', 'width:100%;box-sizing:border-box;margin-top:2px;background:#1e1f22;color:#dbdee1;border:1px solid #444;border-radius:8px;padding:8px;font:inherit;resize:vertical');
+  other.rows = 2; other.maxLength = 200;
+  other.placeholder = 'Your own reason (they see it exactly as written)';
+  other.addEventListener('input', () => { box.querySelector('input[name="tbReason"][value="4"]').checked = true; });
+  box.append(other);
+  box.append(el('div', 'margin-top:12px;padding:9px 10px;border-radius:8px;background:rgba(214,168,79,.12);color:#e9cf8f;font-size:.84em',
+    'They also see: ⚠️ გთხოვთ, იყავით თავაზიანები და დაიცავით წესები. განმეორების შემთხვევაში დაბლოკვა იქნება სამუდამო.'));
+  const row = el('div', 'display:flex;gap:8px;justify-content:flex-end;margin-top:14px');
+  const cancel = el('button', 'background:#4e5058;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer', 'Cancel');
+  const go = el('button', 'background:#8a6d1f;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:700', '⏱ Block 24h');
+  row.append(cancel, go);
+  box.append(row);
+  wrap.append(box);
+  document.body.append(wrap);
+  cancel.onclick = () => wrap.remove();
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
+  go.onclick = async () => {
+    const picked = box.querySelector('input[name="tbReason"]:checked');
+    const r = TEMP_BAN_REASONS[Number(picked ? picked.value : 0)];
+    const reason = r.other ? other.value.trim() : r.text;
+    if (!reason) { other.style.borderColor = '#f23f42'; other.focus(); return; }
+    go.disabled = true;
+    try {
+      const d = await api('POST', R.tempBan + '?ip=' + encodeURIComponent(ip) +
+                          '&username=' + encodeURIComponent(username) +
+                          '&reason=' + encodeURIComponent(reason) + (r.name ? '&name=1' : ''));
+      wrap.remove();
+      const nl = String.fromCharCode(10);
+      alert('Blocked ' + ip + ' for 24 hours' + nl + 'reason: ' + d.reason + nl + 'sockets kicked: ' + d.kickedSockets);
+      load();
+    } catch (e) { go.disabled = false; alert('Failed: ' + e.message); }
+  };
 }
 
 async function deleteUser(username) {
@@ -10797,12 +10880,7 @@ io.on("connection", (socket) => {
   const tempBanEntry = getTempBan(socket.clientIP);
   if (tempBanEntry) {
     console.log(`[TEMP-BAN] Rejected temp-banned IP: ${socket.clientIP}`);
-    socket.emit("tempBanned", {
-      hours: Math.max(1, Math.ceil((tempBanEntry.until - Date.now()) / 3600000)),
-      reason: tempBanEntry.reason,
-      username: tempBanEntry.username,
-      until: tempBanEntry.until,
-    });
+    socket.emit("tempBanned", tempBanNotice(tempBanEntry));
     socket.disconnect(true);
     return;
   }
