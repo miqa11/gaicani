@@ -1591,12 +1591,24 @@ button, textarea, input { font-family: inherit; }
     document.querySelector(`.fc-row[data-msgid="${CSS.escape(messageId)}"]`)?.remove();
     if (o && o.kind === "text" && !elInput.value) { elInput.value = o.payload.text; updateFCCharCount(); updateFCSendButtonMode(); }
   }
+  // 🤖 The server can't compare end-to-end messages, so repeats are noticed
+  // here — the same text 5 times among the last 8 (within 2 minutes) — and
+  // the server then asks for its captcha before this one goes out.
+  const recentOut = [];
+  function noteRepeat(text) {
+    const now = Date.now(), t = String(text || "").trim();
+    while (recentOut.length && (now - recentOut[0].at > 120000 || recentOut.length >= 8)) recentOut.shift();
+    recentOut.push({ t, at: now });
+    if (t && recentOut.filter((m) => m.t === t).length >= 5) { socket.emit("spam:repeat"); recentOut.length = 0; }
+  }
   async function emitOut(messageId) {
     const o = outbox.get(messageId);
     if (!o || !socket) return;
     const ev = o.kind === "text" ? "privateMsg:send" : o.kind === "sticker" ? "privateMsg:sendSticker" : "friendChat:gif";
     if (E2EE && E2EE.canSeal(friendLc)) {
-      socket.emit(ev, { toUsername: friendName, messageId, e2e: await E2EE.sealJSON(friendLc, o.kind, o.payload) });
+      const e2e = await E2EE.sealJSON(friendLc, o.kind, o.payload);
+      if (o.kind === "text" && !o.retried) noteRepeat(o.payload.text);
+      socket.emit(ev, { toUsername: friendName, messageId, e2e });
     } else if (E2EE && E2EE.mustSeal(friendLc)) {
       outbox.delete(messageId);
       dropOptimistic(messageId, o);

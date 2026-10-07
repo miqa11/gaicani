@@ -15,6 +15,11 @@ function attachTempBanGuard(socket) {
   // Account blocked by an admin for an offensive name → forced rename screen.
   socket.on("account:nameBlocked", (data) => showNameBlockScreen(data && data.username));
 
+  // 🤖 The same message sent again and again → a captcha before the next
+  // ones go out (server-spamguard.js). Nothing is blocked.
+  socket.on("spam:captcha", (data) => showSpamCaptcha(socket, data || {}));
+  socket.on("spam:cleared", () => closeSpamCaptcha(true));
+
   socket.on("tempBanned", (data) => {
     const hours = Math.max(1, Math.round(data?.hours || 24));
     const username = String(data?.username || "").trim();
@@ -67,6 +72,78 @@ function attachTempBanGuard(socket) {
     // reconnect attempts so the overlay doesn't get torn down underneath.
     try { socket.io.opts.reconnection = false; socket.disconnect(); } catch (_) {}
   });
+}
+
+
+// ── 🤖 "Same message again and again" captcha ────────────────────────────────
+// Four digits in a picture. The messages sent meanwhile wait on the server
+// and go out as soon as it's solved — nothing is lost or blocked.
+function showSpamCaptcha(socket, data) {
+  const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
+  let wrap = document.getElementById("gcSpamCaptcha");
+  if (!wrap) {
+    wrap = el("div", "position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;" +
+      "background:rgba(8,6,18,.78);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;");
+    wrap.id = "gcSpamCaptcha";
+    wrap.setAttribute("role", "dialog");
+    wrap.setAttribute("aria-modal", "true");
+    const box = el("form", "width:100%;max-width:340px;background:#1d1a2e;color:#eceef2;border:1px solid rgba(214,168,79,.35);" +
+      "border-radius:18px;padding:22px 20px 18px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.55);");
+    box.setAttribute("autocomplete", "off");
+    box.appendChild(el("div", "font-size:2em;margin-bottom:6px;", "🤖"));
+    box.appendChild(el("div", "font-weight:700;font-size:1.05em;margin-bottom:8px;", "დაადასტურე, რომ ადამიანი ხარ"));
+    box.appendChild(el("div", "font-size:.84em;line-height:1.5;color:#c9c4dc;margin-bottom:14px;",
+      "ერთსა და იმავე შეტყობინებას რამდენჯერმე აგზავნი. გასაგრძელებლად ჩაწერე სურათზე გამოსახული 4 ციფრი — შეტყობინება ამის შემდეგ გაიგზავნება."));
+    const img = el("img", "display:block;width:200px;max-width:100%;height:auto;margin:0 auto 6px;border-radius:10px;background:#f6f2e8;");
+    img.id = "gcSpamCaptchaImg";
+    img.alt = "კაპჩა";
+    box.appendChild(img);
+    const again = el("button", "background:none;border:none;color:#d6a84f;font-size:.8em;cursor:pointer;padding:4px 8px;margin-bottom:10px;", "🔄 სხვა სურათი");
+    again.type = "button";
+    box.appendChild(again);
+    const input = el("input", "display:block;width:100%;box-sizing:border-box;height:46px;border-radius:12px;border:1px solid rgba(255,255,255,.18);" +
+      "background:rgba(255,255,255,.07);color:#fff;font-size:22px;letter-spacing:.35em;text-align:center;outline:none;margin-bottom:8px;");
+    input.id = "gcSpamCaptchaInput";
+    input.type = "text"; input.inputMode = "numeric"; input.maxLength = 4; input.placeholder = "••••";
+    input.setAttribute("autocomplete", "one-time-code");
+    input.setAttribute("aria-label", "სურათზე გამოსახული ციფრები");
+    box.appendChild(input);
+    const err = el("div", "min-height:1.2em;font-size:.8em;color:#f0a0a0;margin-bottom:8px;");
+    err.id = "gcSpamCaptchaErr";
+    err.setAttribute("aria-live", "polite");
+    box.appendChild(err);
+    const btn = el("button", "width:100%;height:46px;border:none;border-radius:12px;font-weight:700;font-size:.95em;cursor:pointer;" +
+      "color:#1a1405;background:linear-gradient(135deg,#f0c76a,#d6a84f);", "დადასტურება");
+    btn.type = "submit";
+    box.appendChild(btn);
+    wrap.appendChild(box);
+    document.body.appendChild(wrap);
+
+    input.addEventListener("input", () => { input.value = input.value.replace(/\D/g, "").slice(0, 4); });
+    again.addEventListener("click", () => {
+      socket.emit("spam:image", null, (r) => { if (r && r.img) img.src = r.img; else if (r && r.ok) closeSpamCaptcha(); });
+    });
+    box.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (input.value.length !== 4 || btn.disabled) { err.textContent = "ჩაწერე 4 ციფრი"; return; }
+      btn.disabled = true;
+      socket.emit("spam:solve", { answer: input.value }, (r) => {
+        btn.disabled = false;
+        if (r && r.ok) { closeSpamCaptcha(); return; }
+        input.value = "";
+        if (r && r.wait) { err.textContent = "⏳ ცოტა მოიცადე და სცადე თავიდან"; return; }
+        err.textContent = "❌ არასწორია — სცადე ახალი სურათით";
+        if (r && r.img) img.src = r.img;
+        input.focus();
+      });
+    });
+  }
+  if (data.img) document.getElementById("gcSpamCaptchaImg").src = data.img;
+  const input = document.getElementById("gcSpamCaptchaInput");
+  setTimeout(() => { try { input.focus(); } catch (_) {} }, 50);
+}
+function closeSpamCaptcha() {
+  document.getElementById("gcSpamCaptcha")?.remove();
 }
 
 

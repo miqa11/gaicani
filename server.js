@@ -65,6 +65,9 @@ const crypto     = require("crypto");
 // 🔒 Private chats and voice/photo files are stored encrypted when the
 // CHAT_KEY environment variable is set — see server-chatcrypt.js.
 const chatCrypt  = require("./server-chatcrypt");
+// 🤖 The same message sent again and again (per IP) → a captcha before the
+// next ones go out. Nothing is blocked — see server-spamguard.js.
+const spamGuard  = require("./server-spamguard").createSpamGuard();
 if (chatCrypt.enabled) console.log(`[CHATS] Private chats are stored encrypted (key ${chatCrypt.keyId})`);
 else if (chatCrypt.keyTooShort) console.warn(`[CHATS] CHAT_KEY is too short (needs ${chatCrypt.minLength}+ characters) — private chats are NOT encrypted`);
 else console.warn("[CHATS] CHAT_KEY is not set — private chats are stored unencrypted");
@@ -3250,6 +3253,7 @@ io.on("connection", (socket) => {
     "unknown";
   socket.clientIP  = rawIP;
   socket.userAgent = socket.handshake.headers["user-agent"] || "";
+  spamGuard.attach(socket); // 🤖 repeated messages → captcha (all chats on this connection)
 
   // ── Drop banned IPs / user-agents immediately ───────────────────────────────
   if (isIPBanned(rawIP) || isIPBanned(socket.handshake.headers["cf-connecting-ip"]) || isLinkBanned(rawIP) || isReportBanned(rawIP) || isUABanned(socket.userAgent)) {
