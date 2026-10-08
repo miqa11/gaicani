@@ -1619,7 +1619,7 @@ app.get("/private-photos/:file", async (req, res) => {
   try { data = chatCrypt.decryptFile(await fs.promises.readFile(path.join(PRIVATE_PHOTOS_DIR, name))); }
   catch (e) { return res.status(e.code === "ENOENT" ? 404 : 410).end(); } // 410: locked with another key
   res.setHeader("Content-Type", PRIVATE_MEDIA_TYPES[name.split(".").pop().toLowerCase()] || "application/octet-stream");
-  res.setHeader("Cache-Control", "private, max-age=604800, immutable");
+  res.setHeader("Cache-Control", "private, no-store"); // 📷 view-once: no copy left behind in the browser
   res.setHeader("Accept-Ranges", "bytes");
   const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
   if (m && (m[1] || m[2])) {
@@ -3219,6 +3219,10 @@ function broadcastQueuePositions() {
   waitingQueue.forEach((s, i) => s.emit("queuePosition", { position: i + 1, total: waitingQueue.length }));
 }
 
+// 📷 Random-chat photos (VIP): size limit, and how long one waits for a yes.
+const RC_PHOTO_MAX_BYTES = 4 * 1024 * 1024;
+const RC_PHOTO_WAIT_MS   = 2 * 60 * 1000;
+
 // ── 🛟 Support AI (see server-supportai.js) ─────────────────────────────────
 // "Support AI" is in random chat's pool like any other person: it asks what
 // we should improve, and what people write to it shows up on the Support
@@ -3862,6 +3866,67 @@ io.on("connection", (socket) => {
     reply({ ok: true });
   });
 
+
+  // ── 📷 Photos in random chat — VIP senders, view once ──────────────────
+  // The other person is asked first; only if they say yes does the photo
+  // reach them. It's never saved: it waits in memory (at most 2 minutes)
+  // for the answer, then it's gone either way. They see it blurred, tap,
+  // and it's on screen for 10 seconds.
+  socket.on("rcPhoto:offer", async ({ data } = {}, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    const to = socket.partner;
+    if (!to || to._isGhost) return reply({ error: "თანამოსაუბრე არ გყავს" });
+    const acct = socket._regUser && !socket._regUser.isGuest && registeredUsers.get(socket._regUser.usernameLower);
+    if (!acct || !acct.isPro) return reply({ error: "ფოტოს გაგზავნა მხოლოდ VIP მომხმარებლებს შეუძლიათ" });
+    if (to.isSupportAI) return reply({ error: "Support AI-ს ფოტოს ვერ გაუგზავნი" });
+    if (socket._rcPhoto) return reply({ error: "წინა ფოტოზე პასუხს ჯერ ელოდები" });
+    if (mediaRateLimited(socket, "rcPhoto", 4, 60_000)) return reply({ error: "ძალიან ხშირად აგზავნი — ცოტა დაელოდე" });
+    let buf = null;
+    try { buf = Buffer.from(String(data || ""), "base64"); } catch (_) {}
+    if (!buf || buf.length < 100 || buf.length > RC_PHOTO_MAX_BYTES) return reply({ error: "ფოტო ზედმეტად დიდია" });
+    // A real picture (anything else fails here), upright, no hidden details.
+    if (sharp) {
+      try { buf = await sharp(buf).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer(); }
+      catch (_) { return reply({ error: "ეს ფაილი სურათი არ არის ან დაზიანებულია" }); }
+    } else if (!(buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF)) return reply({ error: "ეს ფაილი სურათი არ არის" });
+    if (socket.partner !== to || !to.connected) return reply({ error: "თანამოსაუბრე შეიცვალა" });
+    const id = crypto.randomBytes(8).toString("hex");
+    const offer = { id, buf, to };
+    offer.timer = setTimeout(() => {          // no answer in time → withdrawn
+      if (socket._rcPhoto !== offer) return;
+      socket._rcPhoto = null;
+      if (to._rcIncoming) to._rcIncoming.delete(id);
+      to.emit("rcPhoto:withdrawn", { id });
+      socket.emit("rcPhoto:status", { id, state: "expired" });
+    }, RC_PHOTO_WAIT_MS);
+    socket._rcPhoto = offer;
+    to._rcIncoming = to._rcIncoming || new Map();
+    to._rcIncoming.set(id, socket);
+    to.emit("rcPhoto:offer", { id, from: socket.userName });
+    bumpStat("photoRandom");
+    reply({ ok: true, id });
+  });
+  socket.on("rcPhoto:answer", ({ id, accept } = {}) => {
+    const from = socket._rcIncoming && socket._rcIncoming.get(id);
+    if (!from) return;
+    socket._rcIncoming.delete(id);
+    const offer = from._rcPhoto;
+    if (!offer || offer.id !== id) return;
+    clearTimeout(offer.timer);
+    from._rcPhoto = null;
+    if (accept && from.partner === socket) {
+      socket.emit("rcPhoto:deliver", { id, data: offer.buf.toString("base64") });
+      socket._rcSeenFrom = socket._rcSeenFrom || new Map();
+      socket._rcSeenFrom.set(id, from);
+      from.emit("rcPhoto:status", { id, state: "accepted" });
+    } else from.emit("rcPhoto:status", { id, state: "declined" });
+  });
+  socket.on("rcPhoto:viewed", ({ id } = {}) => {
+    const from = socket._rcSeenFrom && socket._rcSeenFrom.get(id);
+    if (!from) return;
+    socket._rcSeenFrom.delete(id);
+    if (from.connected) from.emit("rcPhoto:status", { id, state: "viewed" });
+  });
 
   // ── Question card ─────────────────────────────────────────────────────────
   socket.on("sendQuestion", ({ text }) => {
@@ -7101,6 +7166,7 @@ app.get("/api/priv/history", (req, res) => {
     text:      m.text,
     type:      m.type || "text",
     photoUrl:  m.photoUrl || null,
+    gone:      m.gone || null,            // 📷 view-once photo already seen / declined
     sticker:   m.sticker || null,
     voiceUrl:  m.voiceUrl || null,
     duration:  m.duration || null,
@@ -12314,6 +12380,25 @@ io.on("connection", (socket) => {
     const streak = recordFriendMessage(myLc, toLc);
     io.to(`user:${toLc}`).emit("streak:update", { friendUsername: socket._regUser.username, count: streak.count, atRisk: streak.atRisk });
     socket.emit("streak:update", { friendUsername: toUser.username || toUsername, count: streak.count, atRisk: streak.atRisk });
+  });
+
+  // ── 📷 Private photos are view-once: when the friend it was sent to has
+  // looked at it (10 s) or said no, its file is deleted and both chats show
+  // that instead. Only the person it was sent to can do this.
+  socket.on("privateMsg:photoDone", ({ friendUsername, messageId, state } = {}) => {
+    if (!socket._regUser || socket._regUser.isGuest) return;
+    const myLc = socket._regUser.usernameLower;
+    const friendLc = String(friendUsername || "").toLowerCase().trim();
+    const room = privateRooms.get(privRoomId(myLc, friendLc));
+    const m = room && (room.messages || []).find((x) => x.id === messageId && x.type === "photo");
+    if (!m || m.from !== friendLc || m.gone) return;
+    deleteMessageFile(m);
+    m.gone = state === "declined" ? "declined" : "viewed";
+    delete m.photoUrl;
+    savePrivateMsgs();
+    const out = { messageId, state: m.gone };
+    io.to(`user:${myLc}`).emit("privateMsg:photoGone", Object.assign({ friendUsername: registeredUsers.get(friendLc)?.username || friendLc }, out));
+    io.to(`user:${friendLc}`).emit("privateMsg:photoGone", Object.assign({ friendUsername: socket._regUser.username }, out));
   });
 
   // ── friendChat:join — subscribe socket to its friend-chat pair room ───────

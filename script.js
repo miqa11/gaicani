@@ -731,6 +731,7 @@ function clearReply() {
 replyPreviewClose.addEventListener("click", () => clearReply());
 
 function setInputsEnabled(enabled) {
+  setTimeout(refreshPhotoBtn, 0); // 📷 follows the chat (VIP only)
   messageInput.disabled   = !enabled;
   messageInput.readOnly   = !enabled;
   messageInput.style.pointerEvents = enabled ? "" : "none";
@@ -1788,6 +1789,93 @@ socket.on("supportAI:skipOffer", () => {
   chat.appendChild(box);
   scheduleScroll();
 });
+
+// ── 📷 Photos (VIP senders) — view once, see view-once.js ─────────────────
+// 📷 → "send a photo?" → gallery → preview → send. The other person is asked
+// first; only if they agree does it reach them, blurred; a tap shows it for
+// 10 seconds and it's gone. Nothing is saved anywhere.
+function isVip() { const u = window.gaicaniAuthUser; return !!(u && u.isPro && !u.isGuest); }
+function refreshPhotoBtn() {
+  const b = document.getElementById("photoBtn");
+  if (!b) return;
+  b.style.display = isVip() ? "" : "none";
+  b.disabled = !partnerConnected || isSupportName(partnerName);
+}
+socket.on("auth:authenticated", () => setTimeout(refreshPhotoBtn, 0));
+socket.on("auth:proStatusChanged", () => setTimeout(refreshPhotoBtn, 0));
+const sentPhotos = new Map(); // offer id → its status line
+const PHOTO_STATE = { accepted: "✅ დაგეთანხმა — ახლა უყურებს", viewed: "👁 ნახა — ფოტო გაქრა",
+  declined: "🚫 ფოტოზე უარი თქვა", expired: "⌛ არ უპასუხა — ფოტო გაუქმდა" };
+function blobToBase64(blob) {
+  return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => { const s = String(fr.result); res(s.slice(s.indexOf(",") + 1)); }; fr.onerror = rej; fr.readAsDataURL(blob); });
+}
+function addOwnPhoto(url) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "message-wrapper you";
+  const row = document.createElement("div");
+  row.className = "message-row";
+  const content = document.createElement("div");
+  content.className = "message-content you rc-photo";
+  const img = document.createElement("img");
+  img.src = url; img.alt = "";
+  content.appendChild(img);
+  row.appendChild(content);
+  const status = document.createElement("div");
+  status.className = "seen-status";
+  status.textContent = "⏳ ელოდება თანხმობას…";
+  wrapper.append(row, status);
+  chat.appendChild(wrapper);
+  scheduleScroll();
+  return status;
+}
+document.getElementById("photoBtn")?.addEventListener("click", async () => {
+  if (!isVip() || !partnerConnected || !window.GaicaniViewOnce) return;
+  const r = await window.GaicaniViewOnce.choose({ to: partnerName });
+  if (!r) return;
+  if (r.error) { addSystemMessage("⚠️ " + r.error); return; }
+  if (!partnerConnected) { addSystemMessage("⚠️ თანამოსაუბრე აღარ არის"); return; }
+  const status = addOwnPhoto(URL.createObjectURL(r.blob));
+  socket.emit("rcPhoto:offer", { data: await blobToBase64(r.blob) }, (res) => {
+    if (!res || res.error) { status.textContent = "⚠️ " + ((res && res.error) || "ვერ გაიგზავნა"); status.classList.add("failed"); return; }
+    sentPhotos.set(res.id, status);
+  });
+});
+socket.on("rcPhoto:status", ({ id, state } = {}) => {
+  const st = sentPhotos.get(id);
+  if (!st) return;
+  st.textContent = PHOTO_STATE[state] || "";
+  if (state !== "accepted") sentPhotos.delete(id);
+});
+// Someone is sending me a photo: ask first.
+const photoWaits = new Map(), photoCards = new Map();
+socket.on("rcPhoto:offer", ({ id, from } = {}) => {
+  if (!partnerConnected || !window.GaicaniViewOnce || !id) return;
+  const card = window.GaicaniViewOnce.card({
+    from: from || partnerName,
+    onAnswer: (accept) => new Promise((resolve) => {
+      socket.emit("rcPhoto:answer", { id, accept: !!accept });
+      if (!accept) return resolve(null);
+      const t = setTimeout(() => { photoWaits.delete(id); resolve(null); }, 25000);
+      photoWaits.set(id, (url) => { clearTimeout(t); resolve(url); });
+    }),
+    onViewed: () => socket.emit("rcPhoto:viewed", { id }),
+  });
+  photoCards.set(id, card);
+  const wrapper = document.createElement("div");
+  wrapper.className = "message-wrapper partner";
+  wrapper.appendChild(card.el);
+  chat.appendChild(wrapper);
+  scheduleScroll();
+  playNotification("message");
+  incrementUnread();
+});
+socket.on("rcPhoto:deliver", async ({ id, data } = {}) => {
+  const done = photoWaits.get(id);
+  if (!done) return;
+  photoWaits.delete(id);
+  try { done(URL.createObjectURL(await (await fetch("data:image/jpeg;base64," + data)).blob())); } catch (_) { done(null); }
+});
+socket.on("rcPhoto:withdrawn", ({ id } = {}) => { const c = photoCards.get(id); if (c) c.setText("⌛ ფოტო გაუქმდა"); });
 
 socket.on("partnerTyping", (typing) => {
   typing ? showTypingIndicator() : hideTypingIndicator();

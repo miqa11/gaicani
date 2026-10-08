@@ -507,6 +507,8 @@
       pointer-events: none; /* the wrapper itself handles the tap */
     }
     .fc-photo-reveal-hint .icon { font-size: 1.7em; }
+    .fc-photo-cap { font-size: 0.72em; opacity: 0.75; margin-top: 4px; }
+    .fc-photo-gone { font-size: 0.86em; opacity: 0.85; }
 
     /* ── GIF Picker ── */
     #fc-gif-picker {
@@ -1163,6 +1165,7 @@ button, textarea, input { font-family: inherit; }
 <script src="/profile-themes.js"></script>
 <script src="/stickers.js"></script>
 <script src="/e2ee.js"></script>
+<script src="/view-once.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
   // Keep --app-height in sync with the real visible viewport, so the
@@ -1355,7 +1358,6 @@ button, textarea, input { font-family: inherit; }
   }
   const friendName = getFriendParam();
   let myIsPro = false; // set from the auth:authenticated payload once connected
-  const revealedPhotoIds = new Set(); // photos tapped-to-reveal this session
 
   const elLoading   = $("fc-loading");
   const elMessages  = $("fc-messages");
@@ -1754,54 +1756,43 @@ button, textarea, input { font-family: inherit; }
       const img = window.GaicaniStickers?.img(msg.sticker);
       if (img) bubble.appendChild(img); else bubble.textContent = "🙂";
     } else if (msg.type === "photo") {
-      const img = document.createElement("img");
-      img.className = "fc-gif-img";
-      img.loading = "lazy";
-      if (msg.e2e && !msg.localUrl) {
-        // 🔐 fetched locked, opened here
-        img.classList.add("fc-photo-loading");
-        sealedMediaUrl(msg).then((u) => {
-          img.classList.remove("fc-photo-loading");
-          if (u) { img.src = u; return; }
-          const note = document.createElement("span");
-          note.className = "fc-bubble-locked";
-          note.textContent = "🔒 ფოტოს გახსნა ამ მოწყობილობაზე ვერ ხერხდება";
-          (img.closest(".fc-photo-wrap") || img).replaceWith(note);
-        });
+      // 📷 View-once (see view-once.js): the friend is asked first, sees it
+      // blurred, taps, and it's on screen for 10 seconds — then it's deleted.
+      if (msg.gone) {
+        bubble.appendChild(photoGoneNote(msg.gone, isMe));
+      } else if (!isMe) {
+        bubble.appendChild(window.GaicaniViewOnce.card({
+          from: friendName,
+          onAnswer: async (accept) => {
+            if (!accept) { photoDone(msg, "declined"); return null; }
+            return photoBlobUrl(msg);
+          },
+          onViewed: () => photoDone(msg, "viewed"),
+        }).el);
       } else {
-        img.src = msg.localUrl || msg.photoUrl;
-      }
-
-      // Only photos RECEIVED from the other person start blurred — the
-      // sender already knows what they sent, no need to hide it from them.
-      // Once tapped, a photo stays revealed for the rest of this page
-      // session (revealedPhotoIds), but defaults back to blurred on reload —
-      // a deliberately cautious default rather than persisting it anywhere.
-      const shouldBlur = !isMe && msg.id && !revealedPhotoIds.has(msg.id);
-      if (shouldBlur) {
-        img.classList.add("blurred");
-        const wrap = document.createElement("div");
-        wrap.className = "fc-photo-wrap";
-        const hint = document.createElement("div");
-        hint.className = "fc-photo-reveal-hint";
-        const icon = document.createElement("div");
-        icon.className = "icon";
-        icon.textContent = "👁";
-        const label = document.createElement("div");
-        label.textContent = "შეხე სანახავად";
-        hint.appendChild(icon);
-        hint.appendChild(label);
-        wrap.appendChild(img);
-        wrap.appendChild(hint);
-        wrap.addEventListener("click", (e) => {
-          e.stopPropagation(); // don't also trigger the bubble's double-tap-heart handler
-          img.classList.remove("blurred");
-          hint.remove();
-          if (msg.id) revealedPhotoIds.add(msg.id);
-        });
-        bubble.appendChild(wrap);
-      } else {
+        // The sender sees their own photo (they know what they sent).
+        const img = document.createElement("img");
+        img.className = "fc-gif-img";
+        img.loading = "lazy";
+        if (msg.e2e && !msg.localUrl) {
+          // 🔐 fetched locked, opened here
+          img.classList.add("fc-photo-loading");
+          sealedMediaUrl(msg).then((u) => {
+            img.classList.remove("fc-photo-loading");
+            if (u) { img.src = u; return; }
+            const note = document.createElement("span");
+            note.className = "fc-bubble-locked";
+            note.textContent = "🔒 ფოტოს გახსნა ამ მოწყობილობაზე ვერ ხერხდება";
+            img.replaceWith(note);
+          });
+        } else {
+          img.src = msg.localUrl || msg.photoUrl;
+        }
         bubble.appendChild(img);
+        const cap = document.createElement("div");
+        cap.className = "fc-photo-cap";
+        cap.textContent = `👁 ერთჯერადი — ${friendName} ჯერ არ უნახავს`;
+        bubble.appendChild(cap);
       }
     } else {
       const textSpan = document.createElement("span");
@@ -2194,6 +2185,7 @@ button, textarea, input { font-family: inherit; }
         text:      m.text,
         type:      m.type || "text",
         photoUrl:  m.photoUrl || null,
+        gone:      m.gone || null,
         sticker:   m.sticker || null,
         voiceUrl:  m.voiceUrl || null,
         duration:  m.duration || null,
@@ -2385,6 +2377,11 @@ button, textarea, input { font-family: inherit; }
       }
       if (messageId) outbox.delete(messageId);
       showToast("⚠️ შეტყობინება ვერ გაიგზავნა");
+    });
+
+    socket.on("privateMsg:photoGone", ({ friendUsername, messageId, state } = {}) => {
+      if (String(friendUsername || "").toLowerCase() !== friendLc) return;
+      paintPhotoGone(messageId, state);
     });
 
     /* Friend reacted to one of our messages */
@@ -2630,113 +2627,78 @@ button, textarea, input { font-family: inherit; }
     });
   }
 
-  /* ── Photo sending (Pro only) ────────────────────────────────── */
-  const elPhotoBtn   = $("fc-photo-btn");
-  const elPhotoInput = $("fc-photo-input");
-  const PHOTO_MAX_BYTES = 20 * 1024 * 1024; // must match the server's raw-input cap
-
-  // Called once we actually know isPro (see the auth:authenticated and
-  // auth:proStatusChanged handlers above) — reveals the button for pro
-  // users, and makes sure it disappears again if pro status is revoked
-  // while this session is still open.
+  /* ── 📷 Photos (VIP senders) — view once ─────────────────────────
+     📷 → "send a photo?" → gallery → preview → send (see view-once.js).
+     The friend is asked first, sees it blurred, taps, has it on screen
+     for 10 seconds; then the server deletes it and both chats say so. */
+  const elPhotoBtn = $("fc-photo-btn");
+  // Shown once we know the person is VIP (auth:authenticated /
+  // auth:proStatusChanged), hidden again if that's taken away.
   function refreshPhotoBtnVisibility() {
     if (elPhotoBtn) elPhotoBtn.style.display = myIsPro ? "" : "none";
   }
-
-  if (elPhotoBtn && elPhotoInput) {
-    elPhotoBtn.addEventListener("click", () => {
-      if (!myIsPro) return; // defence in depth — button should be hidden anyway
-      elPhotoInput.click();
-    });
-
-    elPhotoInput.addEventListener("change", () => {
-      const file = elPhotoInput.files && elPhotoInput.files[0];
-      elPhotoInput.value = ""; // reset so picking the SAME file again still fires 'change'
-      if (!file) return;
-
-      // Deliberately lenient here — file.type is reported by the browser
-      // and isn't always reliable (some Android pickers leave it blank for
-      // less common formats like HEIC). The server decodes the actual
-      // bytes with sharp and is the real authority on whether this is a
-      // genuine image; this is just a fast pre-check to skip an obviously
-      // wrong upload (a PDF, a video, etc.) before spending the bandwidth.
-      if (file.type && !file.type.startsWith("image/")) {
-        showToast("⚠️ მხოლოდ სურათის ფაილებია დაშვებული");
-        return;
-      }
-      if (file.size > PHOTO_MAX_BYTES) {
-        showToast("⚠️ ფოტო ზედმეტად დიდია (მაქს. 20MB)");
-        return;
-      }
-      if (!socket?.connected) {
-        showToast("⚠️ კავშირი არ არის");
-        return;
-      }
-      if (E2EE && (E2EE.canSeal(friendLc) || E2EE.mustSeal(friendLc))) { sendSealedPhoto(file); return; }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        // FileReader gives a data: URI ("data:image/png;base64,XXXX") — the
-        // server only wants the base64 payload itself.
-        const commaIdx = String(reader.result).indexOf(",");
-        const base64 = commaIdx >= 0 ? reader.result.slice(commaIdx + 1) : "";
-        if (!base64) { showToast("⚠️ ფოტოს წაკითხვა ვერ მოხერხდა"); return; }
-
-        const msgId = fcGenId();
-        // Optimistic local render, same pattern as text sends — the photo
-        // shows immediately rather than waiting on a round trip, and the
-        // photoSent handler above will surface an error if it actually failed.
-        appendMessage({ id: msgId, from: myUsername, type: "photo", photoUrl: reader.result, ts: new Date().toISOString() });
-
-        socket.emit("privateMsg:sendPhoto", {
-          toUsername: friendName,
-          photoData: base64,
-          mimeType: file.type,
-          messageId: msgId,
-        });
-      };
-      reader.onerror = () => showToast("⚠️ ფოტოს წაკითხვა ვერ მოხერხდა");
-      reader.readAsDataURL(file);
-    });
-  }
-
-
-  // 🔐 A photo for an end-to-end chat is prepared here, since the server
-  // can't open it: turned upright, at most 2000px, saved as JPEG — which
-  // also drops its hidden details (where and when it was taken) — then
-  // locked and sent.
-  async function shrinkPhoto(file) {
-    const url = URL.createObjectURL(file);
-    try {
-      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-      const w0 = img.naturalWidth, h0 = img.naturalHeight;
-      if (!w0 || !h0) throw new Error("empty");
-      const k = Math.min(1, 2000 / Math.max(w0, h0));
-      const c = document.createElement("canvas");
-      c.width = Math.max(1, Math.round(w0 * k)); c.height = Math.max(1, Math.round(h0 * k));
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); // see-through parts → white, like a JPEG would
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.85));
-      if (!blob) throw new Error("encode");
-      return blob;
-    } finally { URL.revokeObjectURL(url); }
-  }
-  async function sendSealedPhoto(file) {
-    if (!E2EE.canSeal(friendLc)) { showToast(LOCKED_SEND_MSG, 4500); showUnlock(true); return; }
-    let blob;
-    try { blob = await shrinkPhoto(file); }
-    catch (_) { showToast("⚠️ ეს ფოტო ვერ გაიხსნა — სცადე JPG ან PNG"); return; }
+  if (elPhotoBtn) elPhotoBtn.addEventListener("click", async () => {
+    if (!myIsPro || !window.GaicaniViewOnce) return;
+    const r = await window.GaicaniViewOnce.choose({ to: friendName });
+    if (!r) return;
+    if (r.error) { showToast("⚠️ " + r.error); return; }
+    sendPhotoBlob(r.blob);
+  });
+  const blobBase64 = (blob) => new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => { const s = String(fr.result); res(s.slice(s.indexOf(",") + 1)); };
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+  async function sendPhotoBlob(blob) {
+    if (!socket) return;
+    const sealed = E2EE && (E2EE.canSeal(friendLc) || E2EE.mustSeal(friendLc));
+    if (sealed && !E2EE.canSeal(friendLc)) { showToast(LOCKED_SEND_MSG, 4500); showUnlock(true); return; }
     const msgId = fcGenId();
     const localUrl = URL.createObjectURL(blob);
     appendMessage({ id: msgId, from: myUsername, type: "photo", photoUrl: localUrl, localUrl, ts: new Date().toISOString() });
     try {
-      const { env, data } = await E2EE.sealFile(friendLc, "photo", await blobBytes(blob));
-      socket.emit("privateMsg:sendPhoto", { toUsername: friendName, photoData: data, mimeType: "image/jpeg", messageId: msgId, e2e: env });
+      if (sealed) {
+        // 🔐 locked here; the server only stores what it can't open
+        const { env, data } = await E2EE.sealFile(friendLc, "photo", await blobBytes(blob));
+        socket.emit("privateMsg:sendPhoto", { toUsername: friendName, photoData: data, mimeType: "image/jpeg", messageId: msgId, e2e: env });
+      } else {
+        socket.emit("privateMsg:sendPhoto", { toUsername: friendName, photoData: await blobBase64(blob), mimeType: "image/jpeg", messageId: msgId });
+      }
     } catch (_) { showToast("⚠️ ფოტო ვერ გაიგზავნა"); }
   }
+  // The receiver's side: fetch (and unlock) only after they said yes.
+  async function photoBlobUrl(msg) {
+    if (msg.e2e) { const u = await sealedMediaUrl(msg); mediaUrls.delete(msg.photoUrl); return u; }
+    try {
+      const r = await fetch(msg.photoUrl, { cache: "no-store" });
+      return r.ok ? URL.createObjectURL(await r.blob()) : null;
+    } catch (_) { return null; }
+  }
+  function photoDone(msg, state) {
+    msg.gone = state;
+    socket?.emit("privateMsg:photoDone", { friendUsername: friendName, messageId: msg.id, state });
+  }
+  function photoGoneNote(state, isMe) {
+    const n = document.createElement("span");
+    n.className = "fc-photo-gone";
+    n.textContent = state === "declined"
+      ? (isMe ? `📷 ${friendName}-მ ფოტოზე უარი თქვა` : "📷 ფოტოზე უარი თქვი")
+      : (isMe ? `📷 ${friendName}-მ ფოტო ნახა — გაქრა` : "📷 ფოტო ნანახია — გაქრა");
+    return n;
+  }
+  // Seen or declined (by the friend, or by me on another device) → gone here too.
+  function paintPhotoGone(messageId, state) {
+    const m = messages.find((x) => x.id === messageId);
+    if (m) { m.gone = state; m.photoUrl = null; }
+    const row = document.querySelector(`.fc-row[data-msgid="${CSS.escape(messageId)}"]`);
+    const bubble = row && row.querySelector(".fc-bubble");
+    if (!bubble) return;
+    const isMe = row.classList.contains("me");
+    bubble.replaceChildren(photoGoneNote(state, isMe));
+  }
 
-  /* ── 🎤 Voice messages ─────────────────────────────────────────
+    /* ── 🎤 Voice messages ─────────────────────────────────────────
      Tap 🎤 → recording bar (🗑️ cancel · time · ➤ send), up to 60 s. Sent as
      the recorder's own format; the server checks it and keeps the file with
      the conversation. The bubble is a small player. */
