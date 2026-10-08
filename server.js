@@ -1586,6 +1586,7 @@ app.use((req, res, next) => {
   if (base.startsWith(".")) return res.status(404).end();            // .env and other dotfiles
   if (/(^|\/)_(restore_tmp|before_restore)(\/|$)/.test(norm)) return res.status(404).end(); // backup restore folders
   if (base.toLowerCase() === "manifest.json") return next();         // the PWA manifest is public
+  if (norm === "/nsfw/model/model.json") return next();              // 📷 the on-phone nudity check's model
   if (PUBLIC_FILE_DENY.some(re => re.test(base))) return res.status(404).end();
   next();
 });
@@ -1642,6 +1643,8 @@ const assets = require("./server-assets").mountAssets(app, { root: __dirname });
 app.use(express.static(path.join(__dirname), {
   setHeaders(res, filePath) {
     if (assets.cacheHeaders(res, filePath)) return;
+    // 📷 the nudity detector (~5 MB, see view-once.js) — downloaded once, then kept
+    if (filePath.includes(path.sep + "nsfw" + path.sep)) { res.setHeader("Cache-Control", "public, max-age=2592000"); return; }
     if (LONG_CACHE_EXT.test(filePath)) res.setHeader("Cache-Control", "public, max-age=86400");
   },
 }));

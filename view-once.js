@@ -4,6 +4,9 @@
              like where it was taken) and shown with "send" / "cancel".
    Receiver: card()    → "X is sending you a photo — see it?" → yes → blurred
              → tap → full screen for 10 seconds (counting down) → gone.
+   Before the preview, the photo is checked for nudity on the phone itself
+   (NSFWJS — free, open source, served from this site, nothing sent
+   anywhere); a nude or explicit photo can't be sent.
    Pages talk to their own server; this file only does the screens. */
 (function () {
   "use strict";
@@ -17,6 +20,8 @@
 .vo-box p{margin:0 0 14px;font-size:.84em;line-height:1.5;color:#b7aed6}
 .vo-box img{display:block;max-width:100%;max-height:52vh;margin:0 auto 12px;border-radius:12px;object-fit:contain}
 .vo-btns{display:flex;gap:10px}
+.vo-spin{width:34px;height:34px;margin:4px auto 12px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:#a58bff;animation:voSpin .8s linear infinite}
+@keyframes voSpin{to{transform:rotate(360deg)}}
 .vo-btns button{flex:1;border:none;border-radius:12px;padding:12px;font:inherit;font-weight:700;font-size:.92em;cursor:pointer}
 .vo-no{background:rgba(255,255,255,.1);color:#f3eeff}
 .vo-yes{background:linear-gradient(135deg,#7c5cff,#5865f2);color:#fff}
@@ -54,7 +59,8 @@
       if (text) box.appendChild(el("p", null, text));
       const btns = el("div", "vo-btns"), bNo = el("button", "vo-no", no), bYes = el("button", "vo-yes", yes);
       bNo.type = bYes.type = "button";
-      btns.append(bNo, bYes); box.appendChild(btns); back.appendChild(box); document.body.appendChild(back);
+      if (no) btns.appendChild(bNo);
+      btns.appendChild(bYes); box.appendChild(btns); back.appendChild(box); document.body.appendChild(back);
       const done = (v) => { back.remove(); resolve(v); };
       bNo.onclick = () => done(false);
       bYes.onclick = () => { if (onYes) onYes(); done(true); };
@@ -80,9 +86,45 @@
     } finally { URL.revokeObjectURL(url); }
   }
 
-  // Sender: ask → gallery → shrink → preview. → { blob } | { error } | null (cancelled)
+  // ── 🔞 Nudity check on this phone (NSFWJS, MobileNetV2 — about 90% right).
+  // Loaded the first time someone opens the photo flow (~5 MB, then cached).
+  let nsfwModel = null;
+  function loadScript(src) {
+    return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  }
+  function nsfwReady() {
+    if (!nsfwModel) {
+      nsfwModel = (async () => {
+        if (!window.nsfwjs) await loadScript("/nsfw/nsfwjs.min.js");
+        return window.nsfwjs.load("/nsfw/model/model.json");
+      })();
+      nsfwModel.catch(() => { nsfwModel = null; }); // a failed download can be tried again
+    }
+    return nsfwModel;
+  }
+  // → true when it looks nude / explicit. Throws if the check can't run.
+  async function looksNude(blob) {
+    const model = await nsfwReady();
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const p = {};
+      for (const x of await model.classify(img)) p[x.className] = x.probability;
+      return (p.Porn || 0) + (p.Hentai || 0) >= 0.5 || (p.Sexy || 0) >= 0.85;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function busy(text) {
+    css();
+    const back = el("div", "vo-back"), box = el("div", "vo-box");
+    box.append(el("div", "vo-spin"), el("p", null, text));
+    back.appendChild(box); document.body.appendChild(back);
+    return () => back.remove();
+  }
+
+  // Sender: ask → gallery → shrink → nudity check → preview. → { blob } | { error } | null (cancelled)
   function choose(opts = {}) {
     css();
+    nsfwReady().catch(() => {}); // start downloading the check while they pick
     return new Promise((resolve) => {
       const input = document.createElement("input");
       input.type = "file"; input.accept = "image/*"; input.style.display = "none";
@@ -95,6 +137,16 @@
         if (file.size > 25 * 1024 * 1024) return resolve({ error: "ფოტო ზედმეტად დიდია" });
         let blob;
         try { blob = await shrink(file); } catch (_) { return resolve({ error: "ეს ფოტო ვერ გაიხსნა — სცადე JPG ან PNG" }); }
+        const done = busy("🔍 ფოტოს ვამოწმებ…");
+        let nude;
+        try { nude = await looksNude(blob); } catch (_) { nude = null; } finally { done(); }
+        if (nude === null) return resolve({ error: "ფოტოს შემოწმება ვერ მოხერხდა — შეამოწმე ინტერნეტი და სცადე თავიდან" });
+        if (nude) {
+          await dialog({ title: "🚫 ამ ფოტოს ვერ გაგზავნი",
+            text: "როგორც ჩანს, ფოტოზე შიშველი ან უხამსი შინაარსია. ასეთი ფოტოების გაგზავნა აკრძალულია.",
+            no: null, yes: "გასაგებია" });
+          return resolve(null);
+        }
         const url = URL.createObjectURL(blob);
         const ok = await dialog({ title: "📷 გაგზავნა?", img: url,
           text: `${opts.to ? opts.to + " " : ""}ჯერ დაგეთანხმება, შემდეგ ნახავს ${SECONDS} წამით — მერე ფოტო გაქრება.`,
