@@ -439,6 +439,7 @@
       transition: border-color 0.15s, background 0.15s;
     }
     .friend-item:hover { border-color: var(--border-2); }
+    .friend-item.no-card { cursor: default; }
     .friend-avatar {
       width: 36px; height: 36px;
       border-radius: 50%;
@@ -3053,7 +3054,7 @@ function profileChipsHTML(p) {
           ? `${esc(info.nickname)} <span class="friend-real">· ${esc(shown)}</span>`
           : esc(shown);
         return `
-        <div class="friend-item${info && info.pinned ? " is-pinned" : ""}" data-friend="${esc(f)}">
+        <div class="friend-item${info && info.pinned ? " is-pinned" : ""}${isOtherSupport(f) ? " no-card" : ""}" data-friend="${esc(f)}">
           <div class="friend-avatar-wrap">
             <div class="friend-avatar${info && info.theme ? " pt-on" + (window.GaicaniThemes?.get(info.theme)?.glow ? " pt-glow" : "") : ""}" style="${info && info.theme ? (window.GaicaniThemes?.vars(info.theme) || "") : ""}">${avatarHtml}</div>
             ${info && info.online ? '<span class="online-dot" title="ონლაინ"></span>' : ""}
@@ -3452,7 +3453,11 @@ function profileChipsHTML(p) {
       slot.replaceWith(btn);
     }
 
+    // 🛟 Support has no card for others — nobody adds or reports it.
+    // (The name is kept for the real Support account; guests can't take it.)
+    function isOtherSupport(n) { return String(n || "").toLowerCase() === "support" && (authUser?.username || "").toLowerCase() !== "support"; }
     async function openProfileCard(username) {
+      if (isOtherSupport(username)) return;
       const backdrop = document.getElementById("profileCardBackdrop");
       const body = document.getElementById("profileCardBody");
       body.innerHTML = '<div class="profile-card-loading">იტვირთება...</div>';
@@ -3861,9 +3866,10 @@ function profileChipsHTML(p) {
           const bioHtml = u.bio ? `<span class="online-user-bio" title="${esc(u.bio)}">${esc(u.bio)}</span>` : "";
           const actionHtml = alreadyFriend
             ? `<span class="already-friend-badge">✅ მეგობარი</span>`
+            : isOtherSupport(u.username) ? ""
             : `<button class="act-btn act-add" data-u="${esc(u.username)}"${alreadySent ? " disabled" : ""}>${alreadySent ? "✅ გაგზავნილია" : "➕ დამატება"}</button>`;
           return `
-            <div class="friend-item" data-online-user="${esc(u.username)}">
+            <div class="friend-item${isOtherSupport(u.username) ? " no-card" : ""}" data-online-user="${esc(u.username)}">
               <div class="friend-avatar-wrap">
                 <div class="friend-avatar">${avatarHtml}</div>
                 <span class="online-dot" title="ონლაინ"></span>

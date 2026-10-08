@@ -386,6 +386,8 @@
 
     // ── Partner is a registered user — show banner ────────────────────
     s.on("auth:partnerRegInfo", ({ partnerRegName, isFriend }) => {
+      // 🛟 Support can't be added — no banner or ➕ for it.
+      if (!isFriend && String(partnerRegName || "").toLowerCase() === "support") return;
       showPartnerRegBanner(partnerRegName, isFriend);
       updateAddFriendBtn(partnerRegName, isFriend);
       if (isFriend) hideFriendAddHint(); else showFriendAddHint(partnerRegName);

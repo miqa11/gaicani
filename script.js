@@ -313,9 +313,12 @@ function addSystemImageMessage(imgSrc, altText) {
 // ── Partner-found card (avatar + name + status) ─────────────────────────────
 // ── Partner profile popup — tap the partner's card or their name in the
 //    header. All user text goes in via textContent (never innerHTML).
+// 🛟 The real Support account (guests can't take the name): no card, no
+// report — nobody adds or reports Support.
+function isSupportName(n) { return String(n || "").toLowerCase() === "support"; }
 function openPartnerProfile() {
   const d = partnerCardData;
-  if (!d) return;
+  if (!d || isSupportName(d.name)) return;
   document.getElementById("partnerProfileOverlay")?.remove();
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const ov = el("div", "pp-overlay"); ov.id = "partnerProfileOverlay";
@@ -707,7 +710,7 @@ function setInputsEnabled(enabled) {
 // It stays disabled during the reconnecting grace-period.
 function updateBlockBtn() {
   blockBtn.disabled  = !(partnerConnected || canBlockDisconnected);
-  if (reportBtn) reportBtn.disabled = !(partnerConnected || canBlockDisconnected);
+  if (reportBtn) reportBtn.disabled = !(partnerConnected || canBlockDisconnected) || isSupportName(partnerName || lastPartnerName);
 }
 
 function setPartnerNameDisplay(name, isVip) {
@@ -1729,9 +1732,10 @@ socket.on("partnerDisconnected", (data) => {
     offerEl.innerHTML =
       `<span>გსურთ დაბლოკოთ <strong>"${lastPartnerName}"</strong>? ის ვეღარ შეძლებს თქვენს შეწუხებას.</span>` +
       `<button class="block-offer-btn" id="blockOfferBtn">🚫 დაბლოკვა</button>` +
+      (isSupportName(lastPartnerName) ? "" : // 🛟 Support can't be reported
       `<div class="block-offer-report-row">` +
         `<button class="report-offer-btn" id="reportOfferBtn">🚩 რეპორტი</button>` +
-      `</div>`;
+      `</div>`);
     chat.appendChild(offerEl);
     scheduleScroll();
 
@@ -1740,7 +1744,7 @@ socket.on("partnerDisconnected", (data) => {
       emitBlockUser(lastPartnerName);
     });
 
-    offerEl.querySelector("#reportOfferBtn").addEventListener("click", () => {
+    offerEl.querySelector("#reportOfferBtn")?.addEventListener("click", () => {
       const btn = offerEl.querySelector("#reportOfferBtn");
       if (!btn || btn.disabled) return;
       showReportReasonModal(lastPartnerName, (reason) => {
@@ -1930,7 +1934,7 @@ blockBtn.addEventListener("click", () => {
 reportBtn.addEventListener("click", () => {
   const targetName = partnerName || lastPartnerName;
   if (!partnerConnected && !canBlockDisconnected) return;
-  if (!targetName) return;
+  if (!targetName || isSupportName(targetName)) return;
   showReportReasonModal(targetName, (reason) => {
     socket.emit("reportUser", { reason });
     // Also block so they can't re-match

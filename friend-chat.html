@@ -1243,6 +1243,7 @@ button, textarea, input { font-family: inherit; }
     return d < 30 ? `${d} დღის წინ` : new Date(ts).toLocaleDateString("ka-GE", { day: "numeric", month: "short" });
   }
   async function openProfileCard(username) {
+    if (String(username || "").toLowerCase() === "support") return; // 🛟 no card for Support
     const backdrop = $("profileCardBackdrop");
     const body = $("profileCardBody");
     body.innerHTML = '<div class="profile-card-loading">იტვირთება...</div>';

@@ -3913,6 +3913,8 @@ io.on("connection", (socket) => {
     const targetName        = socket.partner ? socket.partner.userName : (socket.lastPartnerName || snap.name || "");
 
     if (!targetIP) return; // nothing to report
+    // 🛟 Support can't be reported (enough reports would ban its IP).
+    if (registeredUsers.get(String(targetName || "").toLowerCase())?.isAdmin) return;
 
     // A reason is required — reject silently if missing/empty (client UI enforces this too)
     const cleanReason = (reason || "").trim().slice(0, 200);
@@ -6183,6 +6185,7 @@ function loadNotifications() {
 // once — renameAccount() carries its friends, chats, rooms and posts over —
 // so the same password still logs in, now as "Support".
 const SUPPORT_USERNAME = "Support";
+const SUPPORT_NO_REQUESTS = "Support-ს მეგობრად ვერ დაამატებ";
 const LEGACY_ADMIN_USERNAMES = [...new Set([process.env.ADMIN_USERNAME, "ADMINISTRATOR1121"]
   .filter((n) => n && n.toLowerCase() !== SUPPORT_USERNAME.toLowerCase()))];
 const ADMIN_SEED_USERNAME = SUPPORT_USERNAME;
@@ -6882,6 +6885,7 @@ app.post("/api/friends/request", friendRestLimiter, express.json({ limit: "2kb" 
   // Same rules as the socket route, which this endpoint used to skip —
   // letting anyone get past blocks.
   if (fromUser.isGuest || toUser.isGuest) return res.status(403).json({ error: "სტუმრებს მეგობრობა არ შეუძლიათ" });
+  if (toUser.isAdmin && !fromUser.isAdmin) return res.status(403).json({ error: SUPPORT_NO_REQUESTS });
   if (toUser.blockedUsers?.includes(entry.usernameLower)) return res.status(403).json({ error: "ამ მომხმარებელს არ შეუძლია მოთხოვნის მიღება" });
   if (fromUser.blockedUsers?.includes(toLc)) return res.status(403).json({ error: "მოხსენით ბლოკი ჯერ, რომ მოთხოვნა გაგზავნოთ" });
   if ((fromUser.friends || []).includes(toLc)) return res.status(400).json({ error: "უკვე მეგობრები ხართ" });
@@ -11496,6 +11500,8 @@ io.on("connection", (socket) => {
     const targetUser = registeredUsers.get(targetLc);
     if (!targetUser) return;
     if (targetUser.isGuest) { socket.emit("friend:error", { msg: "ეს მომხმარებელი სტუმარია და ჯერ არ დარეგისტრირებულა", targetUsername: targetUser.username }); return; }
+    // 🛟 Nobody adds Support — Support adds people itself.
+    if (targetUser.isAdmin && !supportAccount()) { socket.emit("friend:error", { msg: SUPPORT_NO_REQUESTS, targetUsername: targetUser.username }); return; }
     const myLc = socket._regUser.usernameLower;
     const myUser = registeredUsers.get(myLc);
 
@@ -11930,6 +11936,7 @@ io.on("connection", (socket) => {
     if (!targetLc || targetLc === myLc) return;
     const targetUser = registeredUsers.get(targetLc);
     if (!targetUser || targetUser.isGuest) return; // guests aren't reportable — temporary identity, names get reused
+    if (targetUser.isAdmin) { socket.emit("user:reportResult", { success: false, error: "Support-ზე რეპორტი შეუძლებელია" }); return; }
 
     const cleanReason = (reason || "").trim().slice(0, 300);
     if (!cleanReason) { socket.emit("user:reportResult", { success: false, error: "მიუთითეთ მიზეზი" }); return; }

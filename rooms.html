@@ -376,6 +376,7 @@
     }
     .rm-msg-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .rm-msg-name { cursor: pointer; }
+    .rm-msg-avatar.no-card, .rm-msg-name.no-card { cursor: default; }
 
     /* Report reason modal */
     .rm-report-backdrop {
@@ -708,11 +709,13 @@
       av.textContent = (m.fromUsername || "?").charAt(0).toUpperCase();
     }
     av.addEventListener("click", () => openProfileCard(m.fromUsername));
+    if (isOtherSupport(m.fromUsername)) av.classList.add("no-card");
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "rm-msg-name";
     nameSpan.textContent = m.fromUsername; // textContent — auto-escapes
     nameSpan.addEventListener("click", () => openProfileCard(m.fromUsername));
+    if (isOtherSupport(m.fromUsername)) nameSpan.classList.add("no-card");
     if (m.isPro) {
       const star = document.createElement("span");
       star.className = "pro-star";
@@ -871,8 +874,11 @@
      Opened from a message author's avatar or name. Fetches the live profile
      so the picture/bio/online state are current, rather than whatever was
      true when the message was sent. */
+  // 🛟 Support has no card for others — nobody adds or reports it.
+  // (The name is kept for the real Support account; guests can't take it.)
+  function isOtherSupport(n) { return String(n || "").toLowerCase() === "support" && myUsernameLower !== "support"; }
   async function openProfileCard(username) {
-    if (!username) return;
+    if (!username || isOtherSupport(username)) return;
     const backdrop = $("profileCardBackdrop");
     const body = $("profileCardBody");
     body.innerHTML = '<div class="profile-card-loading">იტვირთება...</div>';
