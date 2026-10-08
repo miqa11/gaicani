@@ -192,6 +192,52 @@
     }
     #chatSendBtn:hover { background: var(--accent-dk); }
     #chatSendBtn:active { transform: scale(0.94); }
+    #pollBtn {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-size: 1.05em; cursor: pointer;
+    }
+    #pollBtn.hidden { display: none; }
+
+    /* ── 📊 Polls ───────────────────────────────────────────────── */
+    .rm-poll {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 12px; max-width: 440px;
+    }
+    .rm-poll-q { font-weight: 700; line-height: 1.45; margin-bottom: 10px; word-break: break-word; }
+    .rm-poll-opts { display: flex; flex-direction: column; gap: 7px; }
+    .rm-poll-opt {
+      position: relative; overflow: hidden; display: flex; align-items: center; gap: 8px;
+      width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--bg); color: var(--text);
+      font: inherit; font-size: 0.9em; cursor: pointer;
+    }
+    .rm-poll-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(88,101,242,0.16); transition: width .35s ease; }
+    .rm-poll-opt.mine { border-color: var(--accent); }
+    .rm-poll-opt.mine .rm-poll-bar { background: rgba(88,101,242,0.32); }
+    .rm-poll-label { position: relative; flex: 1; min-width: 0; word-break: break-word; }
+    .rm-poll-num { position: relative; font-size: 0.8em; color: var(--muted); white-space: nowrap; }
+    .rm-poll-opt.mine .rm-poll-num { color: var(--text); font-weight: 700; }
+    .rm-poll-foot { margin-top: 8px; font-size: 0.74em; color: var(--muted); }
+    #pollModal input {
+      width: 100%; padding: 11px 13px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 16px; font-family: inherit;
+    }
+    #pollModal input:focus { outline: none; border-color: rgba(88,101,242,0.5); }
+    #pollQuestion { margin-bottom: 12px; }
+    .rm-poll-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .rm-poll-row button {
+      flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: none;
+      background: var(--surface-2); color: var(--muted); cursor: pointer;
+    }
+    #pollAddOption {
+      width: 100%; margin: 2px 0 14px; padding: 10px; border-radius: 10px; cursor: pointer;
+      background: none; border: 1px dashed var(--border); color: var(--muted); font: inherit; font-size: 0.88em;
+    }
+    #pollAddOption[hidden] { display: none; }
+    #pollCancel { background: var(--surface-2); color: var(--text); }
+    #pollCreate { background: var(--accent); color: #fff; }
+    .rm-poll-err { color: var(--danger); font-size: 0.8em; margin: -6px 0 10px; }
+    .rm-poll-err:empty { display: none; }
 
     /* ── Modals (room form + members) ───────────────────────────── */
     .rm-modal {
@@ -404,12 +450,28 @@
     </header>
     <div id="chatMessages" class="rm-messages"></div>
     <div class="rm-input-bar">
+      <button id="pollBtn" class="admin-only hidden" title="გამოკითხვა" aria-label="გამოკითხვის შექმნა">📊</button>
       <textarea id="chatInput" rows="1" maxlength="2000" placeholder="შეტყობინება..."></textarea>
       <button id="chatSendBtn" title="გაგზავნა">➤</button>
     </div>
   </div>
 
   <div id="rmToast"></div>
+</div>
+
+<!-- 📊 New poll (admin only) -->
+<div id="pollModal" class="rm-modal">
+  <div class="rm-modal-box">
+    <h3>📊 ახალი გამოკითხვა</h3>
+    <input type="text" id="pollQuestion" maxlength="200" placeholder="კითხვა, მაგ: სად შევხვდეთ შაბათს?" />
+    <div id="pollOptions"></div>
+    <button type="button" id="pollAddOption">＋ პასუხის დამატება</button>
+    <div class="rm-poll-err" id="pollErr" aria-live="polite"></div>
+    <div class="rm-modal-actions">
+      <button id="pollCancel">გაუქმება</button>
+      <button id="pollCreate">შექმნა</button>
+    </div>
+  </div>
 </div>
 
 <!-- New / Edit room modal (admin only) -->
@@ -682,14 +744,128 @@
       meta.appendChild(delBtn);
     }
 
-    const body = document.createElement("div");
-    body.className = "rm-msg-text";
-    body.textContent = m.text; // textContent — auto-escapes, never innerHTML
+    let body;
+    if (m.type === "poll" && Array.isArray(m.options)) {
+      body = buildPollCard(m);
+    } else {
+      body = document.createElement("div");
+      body.className = "rm-msg-text";
+      body.textContent = m.text; // textContent — auto-escapes, never innerHTML
+    }
 
     wrap.appendChild(meta);
     wrap.appendChild(body);
     $("chatMessages").appendChild(wrap);
   }
+
+  /* ── 📊 Polls ─────────────────────────────────────────────────────────
+     The admin asks a question with 2–6 answers; everyone taps one (tap it
+     again to take it back). Only counts are shown — never who chose what. */
+  const pollState = new Map(); // message id → { counts, total, myVote, card }
+  function buildPollCard(m) {
+    const card = document.createElement("div");
+    card.className = "rm-poll";
+    const q = document.createElement("div");
+    q.className = "rm-poll-q";
+    q.textContent = "📊 " + m.question;
+    const list = document.createElement("div");
+    list.className = "rm-poll-opts";
+    m.options.forEach((o, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rm-poll-opt";
+      btn.dataset.i = String(i);
+      const bar = document.createElement("span"); bar.className = "rm-poll-bar";
+      const label = document.createElement("span"); label.className = "rm-poll-label"; label.textContent = o.text;
+      const num = document.createElement("span"); num.className = "rm-poll-num";
+      btn.append(bar, label, num);
+      btn.addEventListener("click", () => votePoll(m.id, i));
+      list.appendChild(btn);
+    });
+    const foot = document.createElement("div");
+    foot.className = "rm-poll-foot";
+    card.append(q, list, foot);
+    pollState.set(m.id, { counts: m.options.map((o) => o.count || 0), total: m.total || 0, myVote: m.myVote ?? null, card });
+    paintPoll(m.id);
+    return card;
+  }
+  function paintPoll(id) {
+    const st = pollState.get(id);
+    if (!st) return;
+    st.card.querySelectorAll(".rm-poll-opt").forEach((btn) => {
+      const i = Number(btn.dataset.i), c = st.counts[i] || 0;
+      const pct = st.total ? Math.round((c * 100) / st.total) : 0;
+      const mine = st.myVote === i;
+      btn.classList.toggle("mine", mine);
+      btn.setAttribute("aria-pressed", String(mine));
+      btn.querySelector(".rm-poll-bar").style.width = pct + "%";
+      btn.querySelector(".rm-poll-num").textContent = (mine ? "✓ " : "") + pct + "% · " + c;
+    });
+    st.card.querySelector(".rm-poll-foot").textContent = st.total + " ხმა · " +
+      (st.myVote === null ? "აირჩიე პასუხი" : "შენი პასუხი მონიშნულია — ხელახლა შეხებით გააუქმებ");
+  }
+  function votePoll(id, i) {
+    if (!socket || !currentRoomId) return;
+    if (amGuest) { showToast("🔒 ხმის მისაცემად საჭიროა რეგისტრაცია"); return; }
+    socket.emit("rooms:pollVote", { roomId: currentRoomId, messageId: id, option: i }, (r) => {
+      if (!r || r.error) { if (r && r.error) showToast(r.error); return; }
+      const st = pollState.get(id);
+      if (!st) return;
+      st.myVote = r.myVote; st.counts = r.counts; st.total = r.total;
+      paintPoll(id);
+    });
+  }
+
+  // The poll form (admin)
+  function pollOptionRow(value) {
+    const row = document.createElement("div");
+    row.className = "rm-poll-row";
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.maxLength = 80; inp.value = value || "";
+    const del = document.createElement("button");
+    del.type = "button"; del.textContent = "✕"; del.setAttribute("aria-label", "პასუხის წაშლა");
+    del.addEventListener("click", () => { row.remove(); renumberPollOptions(); });
+    row.append(inp, del);
+    return row;
+  }
+  function renumberPollOptions() {
+    const rows = $("pollOptions").querySelectorAll(".rm-poll-row");
+    rows.forEach((r, i) => {
+      r.querySelector("input").placeholder = (i + 1) + ". პასუხი";
+      r.querySelector("button").style.visibility = rows.length > 2 ? "visible" : "hidden";
+    });
+    $("pollAddOption").hidden = rows.length >= 6;
+  }
+  function openPollModal() {
+    $("pollQuestion").value = "";
+    $("pollErr").textContent = "";
+    $("pollOptions").innerHTML = "";
+    $("pollOptions").append(pollOptionRow(), pollOptionRow());
+    renumberPollOptions();
+    $("pollModal").classList.add("show");
+    setTimeout(() => $("pollQuestion").focus(), 50);
+  }
+  $("pollBtn").addEventListener("click", openPollModal);
+  $("pollAddOption").addEventListener("click", () => {
+    $("pollOptions").append(pollOptionRow());
+    renumberPollOptions();
+    $("pollOptions").lastElementChild.querySelector("input").focus();
+  });
+  $("pollModal").addEventListener("input", () => { $("pollErr").textContent = ""; });
+  $("pollCancel").addEventListener("click", () => $("pollModal").classList.remove("show"));
+  $("pollModal").addEventListener("click", (e) => { if (e.target === $("pollModal")) $("pollModal").classList.remove("show"); });
+  $("pollCreate").addEventListener("click", () => {
+    const question = $("pollQuestion").value.trim();
+    const options = [...$("pollOptions").querySelectorAll("input")].map((i) => i.value.trim()).filter(Boolean);
+    if (!question) { $("pollErr").textContent = "ჩაწერე კითხვა"; return; }
+    if (new Set(options).size < 2) { $("pollErr").textContent = "საჭიროა მინიმუმ 2 განსხვავებული პასუხი"; return; }
+    $("pollCreate").disabled = true;
+    socket.emit("rooms:createPoll", { roomId: currentRoomId, question, options }, (r) => {
+      $("pollCreate").disabled = false;
+      if (!r || r.error) { $("pollErr").textContent = (r && r.error) || "ვერ მოხერხდა"; return; }
+      $("pollModal").classList.remove("show");
+    });
+  });
 
   /* ── Tap-a-user profile card ──────────────────────────────────────────
      Opened from a message author's avatar or name. Fetches the live profile
@@ -1010,6 +1186,14 @@
       if (empty) empty.remove();
       appendMessageEl(message);
       scrollChatToBottom();
+    });
+
+    socket.on("rooms:pollUpdate", ({ roomId, messageId, counts, total }) => {
+      if (roomId !== currentRoomId) return;
+      const st = pollState.get(messageId);
+      if (!st) return;
+      st.counts = counts || st.counts; st.total = total || 0;
+      paintPoll(messageId);
     });
 
     socket.on("rooms:messageDeleted", ({ roomId, messageId }) => {

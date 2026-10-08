@@ -25,7 +25,7 @@
     friend_request: ["👥", "#4f6cff"], friend_accept: ["✅", "#1fc18a"],
     message: ["💬", "#4f6cff"], trinder_like: ["💗", "#e33b5f"],
     trinder_match: ["💞", "#e33b5f"], game_invite: ["🎮", "#9d5cff"],
-    coins_gift: ["🪙", "#d6a84f"],
+    coins_gift: ["🪙", "#d6a84f"], support: ["🛟", "#d6a84f"],
   };
 
   const CSS = `
@@ -124,6 +124,7 @@
       case "game_invite":    return who + "-მა მოგიწვია " + esc(GAME_LABEL[n.game] || "თამაშზე");
       case "coins_gift":     return "🎁 ადმინისტრაციამ გაჩუქა <b>" + esc(Number(n.amount || 0).toLocaleString("en-US")) + "</b> მონეტა" +
                                (n.note ? ": „" + esc(n.note) + "“" : "");
+      case "support":        return "<b>" + esc(n.from || "Support") + "</b>: " + esc(n.text || "");
       default:               return "ახალი შეტყობინება";
     }
   }

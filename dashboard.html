@@ -1035,6 +1035,30 @@ html, body {
 /* ── Collapsible lists (online & guest users) ── */
 .section[data-collapsible] > .section-label { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: background .2s; }
 .section[data-collapsible] > .section-label:hover { background: rgba(214,168,79,.05); }
+
+/* ── 🛟 Support tools (Support account only) ── */
+#supportSection[hidden] { display: none; }
+#supportSection { border-color: rgba(214,168,79,.42); }
+.sp-body { padding: 10px 12px 12px; }
+.sp-title { font-weight: 700; font-size: .86em; margin: 4px 0 8px; color: var(--text); }
+.sp-body textarea, .sp-body input[type=search] {
+  display: block; width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: var(--text);
+  font: inherit; font-size: 16px; resize: vertical; outline: none;
+}
+.sp-body textarea:focus, .sp-body input[type=search]:focus { border-color: rgba(214,168,79,.5); }
+.sp-btn {
+  display: block; width: 100%; margin: 8px 0 14px; padding: 11px; border: none; border-radius: 12px;
+  font: inherit; font-weight: 700; cursor: pointer; color: #1a1405; background: linear-gradient(135deg,#f0c76a,#d6a84f);
+}
+.sp-list { max-height: 460px; overflow-y: auto; padding: 8px 0 0; }
+.sp-row { cursor: default; }
+.sp-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.sp-who .friend-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-sub { font-size: .72em; color: var(--muted); }
+.sp-row .friend-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.sp-row .act-btn { white-space: nowrap; }
+a.sp-chat { text-decoration: none; display: inline-flex; align-items: center; }
 .collapse-chevron {
   margin-left: auto; flex-shrink: 0; width: 28px; height: 28px; border-radius: 999px;
   display: grid; place-items: center;
@@ -1824,6 +1848,22 @@ body.guest-mode .profile-actions { display: none; }
       <div id="dgRoomsList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
+    <!-- 🛟 Support tools — only on the Support account's dashboard -->
+    <div class="section" id="supportSection" hidden data-view="home">
+      <div class="section-label">
+        🛟 Support
+        <span class="section-badge" id="supportUserCount">0</span>
+      </div>
+      <div class="sp-body">
+        <div class="sp-title">📢 შეტყობინება ყველას</div>
+        <textarea id="spBroadcastText" rows="3" maxlength="300" placeholder="ტექსტი, რომელსაც ყველა დარეგისტრირებული მომხმარებელი მიიღებს 🔔-ში"></textarea>
+        <button type="button" id="spBroadcastBtn" class="sp-btn">📢 ყველასთვის გაგზავნა</button>
+        <div class="sp-title">👥 ყველა მომხმარებელი</div>
+        <input type="search" id="spSearch" placeholder="ძებნა სახელით…" autocomplete="off" />
+        <div class="friends-list sp-list" id="spUserList"><div class="empty-state">იტვირთება…</div></div>
+      </div>
+    </div>
+
     <!-- Incoming friend requests — hidden until there are entries -->
     <div class="section" id="pendingSection" style="display:none" data-view="home">
       <div class="section-label">
@@ -2012,6 +2052,7 @@ body.guest-mode .profile-actions { display: none; }
     }
 
     /* ── Predefined profile avatars ──────────────────────────────── */
+    const SUPPORT_AVATAR = "avatar-support.jpg";
     const AVAILABLE_AVATARS = [
       "avatar1.png", "avatar2.png", "avatar3.png", "avatar4.png",
       "avatar5.png", "avatar6.png", "avatar7.png", "avatar8.png",
@@ -2048,7 +2089,9 @@ body.guest-mode .profile-actions { display: none; }
       containerEl.innerHTML = "";
       const best = (dailySt && dailySt.best) || 0;
       const owned = new Set((shop && shop.ownedAvatars) || []);
-      AVAILABLE_AVATARS.forEach(file => {
+      // 🛟 The Support account's own picture — offered to Support only.
+      const pics = authUser && authUser.isAdmin ? [SUPPORT_AVATAR, ...AVAILABLE_AVATARS] : AVAILABLE_AVATARS;
+      pics.forEach(file => {
         const price = SHOP_AVATARS[file];
         if (price) {
           if (!shop) return; // prices not loaded yet
@@ -2636,7 +2679,7 @@ function profileChipsHTML(p) {
           refreshTrinder();
           if (window.GaicaniNotif) window.GaicaniNotif.attach(socket);
           setTimeout(loadDetailsSummary, 0); // authUser is filled in just below
-          setTimeout(() => { loadFriendInfo(); loadDaily(); loadMyTheme(); }, 0);
+          setTimeout(() => { loadFriendInfo(); loadDaily(); loadMyTheme(); initSupportTools(); }, 0);
         }
         if (authUser) {
           authUser.friends = friends || [];
@@ -2687,7 +2730,7 @@ function profileChipsHTML(p) {
         if (!authUser || !fromUsername) return;
         const lc = fromUsername.toLowerCase();
         if (!authUser.pendingRequests) authUser.pendingRequests = [];
-        if (!authUser.pendingRequests.includes(lc)) authUser.pendingRequests.push(lc);
+        if (!authUser.pendingRequests.some(u => u.toLowerCase() === lc)) authUser.pendingRequests.push(fromUsername);
         renderPendingRequests(authUser.pendingRequests);
         showToast(`📨 ${esc(fromUsername)}-მ გამოგიგზავნა მეგობრობის მოთხოვნა`);
       });
@@ -4026,6 +4069,7 @@ function profileChipsHTML(p) {
           avatar: d.avatar || AVAILABLE_AVATARS[0],
           bio: d.bio || "",
           isPro: !!d.isPro,
+          isAdmin: !!d.isAdmin,
         };
         paintCoins(d.coins);
       } catch (_) {
@@ -4050,6 +4094,92 @@ function profileChipsHTML(p) {
 
       // Connect socket for live friend updates
       setupSocket(token);
+    }
+
+    /* ── 🛟 Support tools — only on the Support account's dashboard ──────
+       Notify everyone, or anyone from the full list of accounts (as
+       Support); send a friend request — they don't need to be online — and
+       chat once they've accepted. The server checks it's really Support. */
+    let spUsers = [], spTimer = null, spBound = false;
+    function spLoad(delay = 0) {
+      clearTimeout(spTimer);
+      spTimer = setTimeout(() => socket?.emit("support:users", null, (r) => {
+        if (!r || r.error) return;
+        spUsers = r.users || [];
+        document.getElementById("supportUserCount").textContent = spUsers.length;
+        spRender();
+      }), delay);
+    }
+    function spRender() {
+      const list = document.getElementById("spUserList");
+      if (!list) return;
+      const q = (document.getElementById("spSearch").value || "").trim().toLowerCase();
+      const found = q ? spUsers.filter((u) => u.username.toLowerCase().includes(q)) : spUsers;
+      const shown = found.slice(0, 100);
+      if (!shown.length) {
+        list.innerHTML = `<div class="empty-state">${q ? "ვერავინ მოიძებნა" : "ჯერ სხვა მომხმარებელი არ არის"}</div>`;
+        return;
+      }
+      list.innerHTML = shown.map((u) => {
+        const sub = u.online ? "🟢 ონლაინ" : u.lastSeenAt ? "ბოლოს " + agoText(u.lastSeenAt) : "";
+        const friendBtn = u.friend
+          ? `<a class="act-btn sp-chat" href="/friend-chat.html?friend=${encodeURIComponent(u.username)}">💬 ჩატი</a>`
+          : u.requested
+            ? `<button class="act-btn" disabled>⏳ გაგზავნილია</button>`
+            : `<button class="act-btn act-add sp-add" data-u="${esc(u.username)}">➕ მეგობრად</button>`;
+        return `<div class="friend-item sp-row">
+            <div class="friend-avatar-wrap">
+              <div class="friend-avatar"><img src="${AVATAR_DIR}${esc(u.avatar)}" alt="" loading="lazy" /></div>
+              ${u.online ? '<span class="online-dot" title="ონლაინ"></span>' : ""}
+            </div>
+            <div class="sp-who"><span class="friend-name">${esc(u.username)}</span><span class="sp-sub">${esc(sub)}</span></div>
+            <div class="friend-actions">
+              <button class="act-btn sp-notify" data-u="${esc(u.username)}" title="შეტყობინება Support-ის სახელით" aria-label="შეტყობინება ${esc(u.username)}-ს">🔔</button>
+              ${friendBtn}
+            </div>
+          </div>`;
+      }).join("") + (found.length > shown.length ? `<div class="empty-state">ნაჩვენებია ${shown.length} / ${found.length} — დააზუსტე ძებნა</div>` : "");
+    }
+    function initSupportTools() {
+      const sec = document.getElementById("supportSection");
+      if (!sec || !authUser || !authUser.isAdmin || !socket) return;
+      sec.hidden = false;
+      spLoad();
+      if (spBound) return;
+      spBound = true;
+      document.getElementById("spSearch").addEventListener("input", spRender);
+      document.getElementById("spUserList").addEventListener("click", (e) => {
+        const add = e.target.closest(".sp-add"), bell = e.target.closest(".sp-notify");
+        if (add) {
+          const name = add.dataset.u;
+          add.disabled = true;
+          add.textContent = "⏳ გაგზავნილია";
+          socket.emit("friend:request", { toUsername: name });
+          const u = spUsers.find((x) => x.username === name);
+          if (u) u.requested = true;
+          showToast(`➕ მეგობრობის მოთხოვნა გაეგზავნა: ${name}`);
+        } else if (bell) {
+          const name = bell.dataset.u;
+          const text = prompt(`🔔 შეტყობინება ${name}-ს (Support-ის სახელით):`, "");
+          if (!text || !text.trim()) return;
+          socket.emit("support:notify", { to: name, text }, (r) =>
+            showToast(r && r.ok ? `✅ გაეგზავნა: ${name}` : `⚠️ ${(r && r.error) || "ვერ გაიგზავნა"}`));
+        }
+      });
+      document.getElementById("spBroadcastBtn").addEventListener("click", () => {
+        const ta = document.getElementById("spBroadcastText");
+        const text = ta.value.trim();
+        if (!text) { ta.focus(); return; }
+        if (!confirm(`📢 გაეგზავნოს ყველა დარეგისტრირებულ მომხმარებელს (${spUsers.length})?` + String.fromCharCode(10, 10) + text)) return;
+        socket.emit("support:notify", { to: "*", text }, (r) => {
+          if (r && r.ok) { ta.value = ""; showToast(`📢 გაეგზავნა ${r.sent} მომხმარებელს`); }
+          else showToast(`⚠️ ${(r && r.error) || "ვერ გაიგზავნა"}`);
+        });
+      });
+      // Kept current: who's online, and requests accepted, declined or refused.
+      socket.on("users:onlineChanged", () => spLoad(1500));
+      ["friends:changed", "friend:accepted", "friend:acceptedByOther", "friend:declinedByOther", "friend:removed", "friend:removedByOther", "friend:error"]
+        .forEach((ev) => socket.on(ev, () => spLoad(300)));
     }
 
     /* ── DND-during-chat toggle — reflects and controls the same

@@ -2032,6 +2032,7 @@ app.post(ROUTE.deleteUser, ownerOnly, (req, res) => {
       const before = room.messages.length;
       room.messages = room.messages.filter(m => m.fromLc !== lc);
       removedRoomMsgs += before - room.messages.length;
+      for (const m of room.messages) if (m.votes) delete m.votes[lc]; // 📊 their poll answers
     }
     if (Array.isArray(room.members)) room.members = room.members.filter(m => m !== lc);
     if (Array.isArray(room.bannedUsers)) room.bannedUsers = room.bannedUsers.filter(b => b !== lc);
@@ -4926,6 +4927,8 @@ function avatarUnlocked(u, file) {
 // pickable option in a real registered user's avatar picker (that would
 // be confusing — it would look like they'd chosen to appear as a guest).
 const GUEST_AVATAR = "avatar-guest.jpg";
+// The Support account's own picture (a gold headset) — nobody else can have it.
+const SUPPORT_AVATAR = "avatar-support.jpg";
 
 const USERS_FILE        = path.join(DATA_PATH, "registered_users.json");
 const PRIV_MSGS_FILE    = path.join(DATA_PATH, "private_messages.json");
@@ -5021,7 +5024,7 @@ function notifView(it) {
   return {
     id: it.id, type: it.type, from: it.from || null, name: it.name || null,
     game: it.game || null, kind: it.kind || null, link: it.link || null,
-    amount: it.amount || null, note: it.note || null,
+    amount: it.amount || null, note: it.note || null, text: it.text || null,
     count: it.count || 1, ts: it.ts, read: !!it.read,
     avatar: from ? (from.avatar || DEFAULT_AVATAR) : null,
   };
@@ -5340,12 +5343,26 @@ function isRetiredName(lc) {
   for (const [, u] of registeredUsers) if (Array.isArray(u.retiredNames) && u.retiredNames.includes(lc)) return true;
   return false;
 }
+// Who's waiting for an answer to a friend request, as their names are
+// written ("Support", not "support") — stored lower-case on the account.
+function pendingNames(user) {
+  return (user.pendingRequests || []).map((lc) => registeredUsers.get(lc)?.username || lc);
+}
+// Names that would pass for the site's staff — "Support", "Admin",
+// "მხარდაჭერა"… also written with 0/1/4/5 or with dots and spaces — are kept
+// for the real Support account, so nobody can pretend to be it.
+const STAFF_NAME_RE = /support|suport|admin|moderator|საპორტ|მხარდაჭერ|ადმინ|მოდერატორ/;
+function isStaffName(name) {
+  const raw = String(name || "").toLowerCase();
+  const n = raw.replace(/[\s._-]+/g, "").replace(/0/g, "o").replace(/[1!|]/g, "i").replace(/4/g, "a").replace(/[5$]/g, "s").replace(/3/g, "e");
+  return STAFF_NAME_RE.test(n) || STAFF_NAME_RE.test(raw);
+}
 function validateNewUsername(raw, oldLc) {
   const clean = String(raw || "").trim();
   if (clean.length < 2 || clean.length > 20) return { error: "სახელი: 2–20 სიმბოლო" };
   if (!/^[\w\u10D0-\u10FF\s\-.]+$/.test(clean)) return { error: "სახელი შეიცავს დაუშვებელ სიმბოლოებს" };
   if (findBannedWord(clean)) return { error: ABUSE_WORD_MESSAGE };
-  if (GUEST_NAME_RE.test(clean)) return { error: "ეს სახელი დაკავებულია" };
+  if (GUEST_NAME_RE.test(clean) || isStaffName(clean)) return { error: "ეს სახელი დაკავებულია" };
   const lc = clean.toLowerCase();
   if (lc === oldLc) return { error: "ახალი სახელი ძველისგან უნდა განსხვავდებოდეს" };
   if (registeredUsers.has(lc) || authReservedNames.has(lc) || activeUsernames.has(lc) || isRetiredName(lc)) return { error: "ეს სახელი უკვე დაკავებულია" };
@@ -5385,7 +5402,10 @@ function renameAccount(oldLc, newName) {
   for (const [, r] of chatRooms) {
     if (r.createdBy === oldLc) { r.createdBy = newLc; r.createdByUsername = newName; }
     r.members = (r.members || []).map(swap); r.bannedUsers = (r.bannedUsers || []).map(swap);
-    for (const m of r.messages || []) if (m.fromLc === oldLc) { m.fromLc = newLc; m.fromUsername = newName; }
+    for (const m of r.messages || []) {
+      if (m.fromLc === oldLc) { m.fromLc = newLc; m.fromUsername = newName; }
+      if (m.votes) swapKey(m.votes); // 📊 their poll answers stay theirs
+    }
   }
   // forum posts, comments and their votes
   for (const [, p] of forumPosts) {
@@ -5408,7 +5428,7 @@ function renameAccount(oldLc, newName) {
     if (it.fromLc !== oldLc) continue;
     it.fromLc = newLc; it.from = newName;
     if (it.key === `msg:${oldLc}`) it.key = `msg:${newLc}`;
-    if (it.type === "message" || it.type === "friend_accept") it.link = `/friend-chat.html?friend=${encodeURIComponent(newName)}`;
+    if (it.type === "message" || it.type === "friend_accept" || (it.type === "support" && /^\/friend-chat/.test(it.link || ""))) it.link = `/friend-chat.html?friend=${encodeURIComponent(newName)}`;
   }
   notifDirty = true;
   saveAuthUsers(); savePrivateMsgs(); saveStreaks(); saveChatRooms(); saveForum();
@@ -5608,6 +5628,25 @@ function findBannedWord(text) {
 const ABUSE_WORD_MESSAGE = "ამ სიტყვის გამოყენება აკრძალულია — გთხოვთ, შეცვალოთ ტექსტი.";
 
 // ── Rooms helpers ─────────────────────────────────────────────────────────────
+// ── 📊 Room polls ───────────────────────────────────────────────────────────
+// Only counts are ever shown — never who voted for what.
+function pollCounts(m) {
+  const counts = m.options.map(() => 0);
+  for (const v of Object.values(m.votes || {})) if (counts[v] !== undefined) counts[v]++;
+  return counts;
+}
+function pollPublic(m, viewerLc) {
+  const counts = pollCounts(m);
+  const votes = m.votes || {};
+  return {
+    type: "poll",
+    question: m.question,
+    options: m.options.map((text, i) => ({ text, count: counts[i] })),
+    total: counts.reduce((a, b) => a + b, 0),
+    myVote: viewerLc && Object.prototype.hasOwnProperty.call(votes, viewerLc) ? votes[viewerLc] : null,
+  };
+}
+
 function isRoomAdmin(usernameLower) {
   const u = registeredUsers.get(usernameLower);
   return !!(u && u.isAdmin);
@@ -5688,12 +5727,13 @@ function roomPublicSummary(room, forLc) {
   };
 }
 
-function roomMessagePublic(m) {
+// viewerLc: who it's for — a poll tells each person which answer is theirs.
+function roomMessagePublic(m, viewerLc) {
   // Avatar is looked up live from the account rather than stored on the
   // message, so it stays correct for old messages after someone changes
   // their picture (and so historical messages get one at all).
   const author = registeredUsers.get(m.fromLc);
-  return {
+  const out = {
     id: m.id,
     fromUsername: m.fromUsername,
     text: m.text,
@@ -5701,6 +5741,8 @@ function roomMessagePublic(m) {
     avatar: author?.avatar || null,
     isPro: !!author?.isPro,
   };
+  if (m.type === "poll") Object.assign(out, pollPublic(m, viewerLc));
+  return out;
 }
 
 // Everyone currently online under this username, kicked out of a room's live
@@ -6018,7 +6060,7 @@ function loadAuthUsers() {
   try {
     const obj = readJsonFile(USERS_FILE);
     for (const u of Object.values(obj)) {
-      if (!u.avatar || !AVAILABLE_AVATARS.includes(u.avatar)) u.avatar = DEFAULT_AVATAR;
+      if (!u.avatar || !(AVAILABLE_AVATARS.includes(u.avatar) || (u.avatar === SUPPORT_AVATAR && u.isAdmin))) u.avatar = DEFAULT_AVATAR;
       // Stray requests from people who are already friends (the server used
       // to accept those) — they showed up as "pending" next to the friendship.
       if (Array.isArray(u.pendingRequests) && Array.isArray(u.friends)) u.pendingRequests = u.pendingRequests.filter(x => !u.friends.includes(x));
@@ -6135,10 +6177,41 @@ function loadNotifications() {
 // existing admin account — seedAdminAccount() below returns early if the
 // account already exists, so an already-deployed server keeps whatever
 // password it has and nothing breaks on upgrade.
-const ADMIN_SEED_USERNAME = process.env.ADMIN_USERNAME || "ADMINISTRATOR1121";
+//
+// The administrator account is "Support", with its own picture. It used to be
+// ADMINISTRATOR1121 (or whatever ADMIN_USERNAME said): that account is renamed
+// once — renameAccount() carries its friends, chats, rooms and posts over —
+// so the same password still logs in, now as "Support".
+const SUPPORT_USERNAME = "Support";
+const LEGACY_ADMIN_USERNAMES = [...new Set([process.env.ADMIN_USERNAME, "ADMINISTRATOR1121"]
+  .filter((n) => n && n.toLowerCase() !== SUPPORT_USERNAME.toLowerCase()))];
+const ADMIN_SEED_USERNAME = SUPPORT_USERNAME;
 const ADMIN_SEED_PASSWORD = process.env.ADMIN_PASSWORD || crypto.randomBytes(18).toString("base64url");
 
+function becomeSupport() {
+  const lc = SUPPORT_USERNAME.toLowerCase();
+  const holder = registeredUsers.get(lc);
+  if (holder && holder.isAdmin) return; // already done
+  // An ordinary account registered "Support" before the name was kept for
+  // staff: it gets a plain name, so the admin rights can't land on it.
+  if (holder) {
+    let n;
+    do { n = "user" + crypto.randomInt(10000, 100000); } while (registeredUsers.has(n) || isRetiredName(n));
+    console.warn(`[ADMIN] An ordinary account was called "${holder.username}" — renamed to "${n}" (the name belongs to Support)`);
+    renameAccount(lc, n);
+  }
+  const legacy = LEGACY_ADMIN_USERNAMES.map((n) => registeredUsers.get(n.toLowerCase())).find((u) => u && u.isAdmin);
+  if (legacy) {
+    const oldName = legacy.username;
+    renameAccount(oldName.toLowerCase(), SUPPORT_USERNAME);
+    legacy.avatar = SUPPORT_AVATAR;
+    saveAuthUsers();
+    console.log(`[ADMIN] The administrator account "${oldName}" is now "${SUPPORT_USERNAME}"`);
+  }
+}
+
 async function seedAdminAccount() {
+  becomeSupport();
   const lc = ADMIN_SEED_USERNAME.toLowerCase();
   const existing = registeredUsers.get(lc);
   if (existing) {
@@ -6165,7 +6238,7 @@ async function seedAdminAccount() {
     createdAt: new Date().toISOString(),
     friends: [],
     pendingRequests: [],
-    avatar: DEFAULT_AVATAR,
+    avatar: SUPPORT_AVATAR,
     bio: "",
     isAdmin: true,
   };
@@ -6288,6 +6361,8 @@ app.post("/api/auth/register", authLimiter, express.json({ limit: "5kb" }), asyn
     return res.status(400).json({ error: "სახელი შეიცავს დაუშვებელ სიმბოლოებს" });
   if (findBannedWord(clean))
     return res.status(400).json({ error: ABUSE_WORD_MESSAGE });
+  if (isStaffName(clean))
+    return res.status(409).json({ error: "ეს სახელი დაკავებულია" });
   if (password.length < 6 || password.length > 100)
     return res.status(400).json({ error: "პაროლი: 6–100 სიმბოლო" });
 
@@ -6352,11 +6427,12 @@ app.post("/api/auth/avatar", express.json({ limit: "1kb" }), (req, res) => {
     authTokens.delete(token);
     return res.status(401).json({ error: "Token expired" });
   }
-  if (typeof avatar !== "string" || !AVAILABLE_AVATARS.includes(avatar))
+  if (typeof avatar !== "string" || !(AVAILABLE_AVATARS.includes(avatar) || avatar === SUPPORT_AVATAR))
     return res.status(400).json({ error: "არასწორი ავატარი" });
 
   const user = registeredUsers.get(entry.usernameLower);
   if (!user) return res.status(401).json({ error: "User not found" });
+  if (avatar === SUPPORT_AVATAR && !user.isAdmin) return res.status(403).json({ error: "ეს სურათი მხოლოდ Support-ს ეკუთვნის" });
   if (!avatarUnlocked(user, avatar)) {
     return res.status(403).json({ error: SHOP_AVATARS[avatar]
       ? `🔒 ეს სურათი იყიდება — ${SHOP_AVATARS[avatar].toLocaleString("en-US")} მონეტა`
@@ -6446,7 +6522,7 @@ app.post("/api/auth/login", authLimiter, express.json({ limit: "5kb" }), async (
     token,
     username: user.username,
     friends: user.friends || [],
-    pendingRequests: user.pendingRequests || [],
+    pendingRequests: pendingNames(user),
     avatar: user.avatar || DEFAULT_AVATAR,
     bio: user.bio || "",
     isAdmin: !!user.isAdmin,
@@ -6516,6 +6592,7 @@ app.post("/api/auth/delete-account", authLimiter, express.json({ limit: "2kb" })
     if (Array.isArray(room.messages)) {
       for (const m of room.messages) {
         if (m.fromLc === lc) { m.fromLc = DELETED_LC; m.fromUsername = DELETED_LABEL; }
+        if (m.votes) delete m.votes[lc]; // 📊 their poll answers
       }
     }
     if (room.lastRead) delete room.lastRead[lc];
@@ -6590,7 +6667,7 @@ app.post("/api/auth/verify", express.json({ limit: "1kb" }), (req, res) => {
     coins: user.isGuest ? undefined : spendableCoins(user, entry.usernameLower),
     username: user.username,
     friends: user.friends || [],
-    pendingRequests: user.pendingRequests || [],
+    pendingRequests: pendingNames(user),
     avatar: user.avatar || DEFAULT_AVATAR,
     bio: user.bio || "",
     isAdmin: !!user.isAdmin,
@@ -6734,7 +6811,7 @@ app.get("/api/rooms/:roomId/messages", (req, res) => {
 
   res.json({
     room: roomPublicSummary(room, auth.usernameLower),
-    messages: room.messages.map(roomMessagePublic),
+    messages: room.messages.map((m) => roomMessagePublic(m, auth.usernameLower)),
   });
 });
 
@@ -11140,7 +11217,7 @@ io.on("connection", (socket) => {
     onlineRegSockets.get(entry.usernameLower).add(socket.id);
 
     socket.join(`user:${entry.usernameLower}`);
-    socket.emit("auth:authenticated", { username: user.username, friends: user.friends || [], pendingRequests: user.pendingRequests || [], avatar: user.avatar || DEFAULT_AVATAR, bio: user.bio || "", streaks: getStreaksForFriends(entry.usernameLower, user.friends || []), isAdmin: !!user.isAdmin, isPro: !!user.isPro, adFreeUntil: user.adFreeUntil || 0, appearOffline: !!user.appearOffline, blockedUsers: user.blockedUsers || [] });
+    socket.emit("auth:authenticated", { username: user.username, friends: user.friends || [], pendingRequests: pendingNames(user), avatar: user.avatar || DEFAULT_AVATAR, bio: user.bio || "", streaks: getStreaksForFriends(entry.usernameLower, user.friends || []), isAdmin: !!user.isAdmin, isPro: !!user.isPro, adFreeUntil: user.adFreeUntil || 0, appearOffline: !!user.appearOffline, blockedUsers: user.blockedUsers || [] });
     console.log(`[AUTH] ${user.username} logged in`);
     announceOnlineChanged(); // let dashboards know the online list may have changed
   });
@@ -11226,7 +11303,7 @@ io.on("connection", (socket) => {
     if (!onlineRegSockets.has(entry.usernameLower)) onlineRegSockets.set(entry.usernameLower, new Set());
     onlineRegSockets.get(entry.usernameLower).add(socket.id);
     socket.join(`user:${entry.usernameLower}`);
-    socket.emit("auth:authenticated", { username: user.username, friends: user.friends || [], pendingRequests: user.pendingRequests || [], avatar: user.avatar || DEFAULT_AVATAR, bio: user.bio || "", streaks: getStreaksForFriends(entry.usernameLower, user.friends || []), isAdmin: !!user.isAdmin, isPro: !!user.isPro, adFreeUntil: user.adFreeUntil || 0, appearOffline: !!user.appearOffline, blockedUsers: user.blockedUsers || [] });
+    socket.emit("auth:authenticated", { username: user.username, friends: user.friends || [], pendingRequests: pendingNames(user), avatar: user.avatar || DEFAULT_AVATAR, bio: user.bio || "", streaks: getStreaksForFriends(entry.usernameLower, user.friends || []), isAdmin: !!user.isAdmin, isPro: !!user.isPro, adFreeUntil: user.adFreeUntil || 0, appearOffline: !!user.appearOffline, blockedUsers: user.blockedUsers || [] });
     console.log(`[AUTH] ${user.username} logged in via auth:token`);
     announceOnlineChanged(); // let dashboards know the online list may have changed
   });
@@ -11350,12 +11427,68 @@ io.on("connection", (socket) => {
   });
 
 
+  // ── 🛟 Support tools — only for the Support (admin) account's dashboard ─
+  // Every handler checks the admin flag on the account itself, never
+  // anything the page says about itself.
+  const supportAccount = () => {
+    const u = socket._regUser && !socket._regUser.isGuest && registeredUsers.get(socket._regUser.usernameLower);
+    return u && u.isAdmin ? u : null;
+  };
+  // Every registered account, for Support's list (online first).
+  socket.on("support:users", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    const me = supportAccount();
+    if (!me) return ack({ error: "forbidden" });
+    const myLc = socket._regUser.usernameLower;
+    const friends = new Set(me.friends || []);
+    const rows = [];
+    for (const [lc, u] of registeredUsers) {
+      if (lc === myLc || u.isGuest) continue;
+      rows.push({
+        username: u.username,
+        avatar: u.avatar || DEFAULT_AVATAR,
+        online: (onlineRegSockets.get(lc)?.size || 0) > 0 && !u.appearOffline,
+        lastSeenAt: u.lastSeenAt || null,
+        friend: friends.has(lc),
+        requested: (u.pendingRequests || []).includes(myLc),
+      });
+    }
+    rows.sort((a, b) => (b.online - a.online) || ((b.lastSeenAt || 0) - (a.lastSeenAt || 0)) || a.username.localeCompare(b.username));
+    ack({ users: rows });
+  });
+  // A 🔔 notification from Support — to one person, or to everyone ("*").
+  // For people who are friends with Support, tapping it opens the chat.
+  socket.on("support:notify", ({ to, text } = {}, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    const me = supportAccount();
+    if (!me) return reply({ error: "forbidden" });
+    const clean = String(text || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 300);
+    if (!clean) return reply({ error: "ჩაწერე ტექსტი" });
+    const myLc = socket._regUser.usernameLower;
+    const send = (lc, u) => pushNotification(lc, {
+      type: "support", from: me.username, fromLc: myLc, text: clean,
+      link: (u.friends || []).includes(myLc) ? `/friend-chat.html?friend=${encodeURIComponent(me.username)}` : "/dashboard.html",
+    });
+    let sent = 0;
+    if (to === "*") {
+      for (const [lc, u] of registeredUsers) { if (lc === myLc || u.isGuest) continue; send(lc, u); sent++; }
+    } else {
+      const lc = String(to || "").toLowerCase().trim();
+      const u = registeredUsers.get(lc);
+      if (!u || u.isGuest || lc === myLc) return reply({ error: "მომხმარებელი ვერ მოიძებნა" });
+      send(lc, u); sent = 1;
+    }
+    console.log(`[SUPPORT] ${me.username} → ${to === "*" ? "everyone" : to} (${sent}): ${clean.slice(0, 80)}`);
+    reply({ ok: true, sent });
+  });
+
   socket.on("friend:request", ({ toUsername }) => {
     if (!socket._regUser) return;
     if (socket._regUser.isGuest) { socket.emit("guest:registerRequired", { feature: "addFriend" }); return; }
     // Unlimited friend requests are a harassment vector (mass-spamming every
     // user) and each pending request is stored on the target's account.
-    if (mediaRateLimited(socket, "friendRequest", 10, 60_000)) {
+    // (Not for Support, who adds people from the full list.)
+    if (!supportAccount() && mediaRateLimited(socket, "friendRequest", 10, 60_000)) {
       socket.emit("friend:error", { message: "ძალიან ბევრი მოთხოვნა — ცოტა დაელოდე.", targetUsername: String(toUsername || "") });
       return;
     }
@@ -13923,7 +14056,7 @@ io.on("connection", (socket) => {
     const amAdmin = isRoomAdmin(lc);
     socket.emit("rooms:room", {
       room: roomPublicSummary(room, lc),
-      messages: room.messages.map(roomMessagePublic),
+      messages: room.messages.map((m) => roomMessagePublic(m, lc)),
       isAdmin: amAdmin,
       members: room.members.map(m => registeredUsers.get(m)?.username || m),
       bannedUsers: amAdmin ? room.bannedUsers.map(m => registeredUsers.get(m)?.username || m) : undefined,
@@ -13984,6 +14117,61 @@ io.on("connection", (socket) => {
     saveChatRooms();
 
     io.to(`roomchat:${roomId}`).emit("rooms:message", { roomId, message: roomMessagePublic(msg) });
+  });
+
+  // ── 📊 Polls: the admin asks a question with 2–6 answers; members vote
+  // once and can change or take back their vote. Counts only, never names.
+  socket.on("rooms:createPoll", ({ roomId, question, options } = {}, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) return reply({ error: "მხოლოდ ადმინისტრატორს შეუძლია გამოკითხვის შექმნა" });
+    const room = chatRooms.get(roomId);
+    if (!room) return reply({ error: "ოთახი ვერ მოიძებნა" });
+    const clean = (v, max) => String(v || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, max);
+    const q = clean(question, 200);
+    const opts = [...new Set((Array.isArray(options) ? options : []).map((o) => clean(o, 80)).filter(Boolean))].slice(0, 6);
+    if (!q) return reply({ error: "ჩაწერე კითხვა" });
+    if (opts.length < 2) return reply({ error: "საჭიროა მინიმუმ 2 განსხვავებული პასუხი" });
+    const lc = socket._regUser.usernameLower;
+    if (!room.members.includes(lc)) room.members.push(lc);
+    socket.join(`roomchat:${roomId}`);
+    const msg = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      fromLc: lc,
+      fromUsername: socket._regUser.username,
+      type: "poll",
+      text: "📊 " + q, // what older pages and the room list show
+      question: q,
+      options: opts,
+      votes: {},
+      ts: new Date().toISOString(),
+    };
+    room.messages.push(msg);
+    if (room.messages.length > ROOM_MSG_CAP) room.messages.shift();
+    saveChatRooms();
+    io.to(`roomchat:${roomId}`).emit("rooms:message", { roomId, message: roomMessagePublic(msg, null) });
+    reply({ ok: true, id: msg.id });
+  });
+
+  socket.on("rooms:pollVote", ({ roomId, messageId, option } = {}, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    if (!socket._regUser) return reply({ error: "შედი სისტემაში" });
+    if (socket._regUser.isGuest) { socket.emit("guest:registerRequired", { feature: "roomsWrite" }); return reply({ error: "ხმის მისაცემად საჭიროა რეგისტრაცია" }); }
+    const room = chatRooms.get(roomId);
+    if (!room) return reply({ error: "ოთახი ვერ მოიძებნა" });
+    const lc = socket._regUser.usernameLower;
+    if (room.bannedUsers.includes(lc)) return reply({ error: "ადმინისტრატორმა შეგზღუდათ ამ ოთახში მონაწილეობა" });
+    if (mediaRateLimited(socket, "pollVote", 20, 10_000)) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან" });
+    const m = room.messages.find((x) => x.id === messageId && x.type === "poll");
+    if (!m) return reply({ error: "გამოკითხვა ვერ მოიძებნა" });
+    m.votes = m.votes || {};
+    const idx = option === null || option === undefined ? null : Number(option);
+    if (idx === null || m.votes[lc] === idx) delete m.votes[lc]; // tapping your own answer again takes the vote back
+    else if (Number.isInteger(idx) && idx >= 0 && idx < m.options.length) m.votes[lc] = idx;
+    else return reply({ error: "არასწორი პასუხი" });
+    saveChatRooms();
+    const pub = pollPublic(m, lc);
+    io.to(`roomchat:${roomId}`).emit("rooms:pollUpdate", { roomId, messageId, counts: pub.options.map((o) => o.count), total: pub.total });
+    reply({ ok: true, myVote: pub.myVote, counts: pub.options.map((o) => o.count), total: pub.total });
   });
 
   // ── Admin-only room management ──────────────────────────────────────────
