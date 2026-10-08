@@ -662,6 +662,15 @@ html, body {
 .block-offer-report-row {
   margin-top: 2px;
 }
+/* ── 🛟 Support AI: "skip" under its question ── */
+.sai-skip { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 8px auto; max-width: 420px; text-align: center; }
+.sai-skip-btn {
+  background: rgba(214, 168, 79, 0.14); color: #f4d98f; border: 1px solid rgba(214, 168, 79, 0.45);
+  border-radius: 999px; padding: 9px 22px; font: inherit; font-size: 0.92em; font-weight: 700; cursor: pointer;
+}
+.sai-skip-btn:hover { background: rgba(214, 168, 79, 0.24); }
+.sai-skip-btn:disabled { opacity: 0.6; cursor: default; }
+.sai-skip-note { font-size: 0.74em; color: #a99fc8; }
 .block-offer-btn {
   background: linear-gradient(135deg, #e53935, #b71c1c);
   color: #fff;

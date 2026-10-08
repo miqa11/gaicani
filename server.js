@@ -3265,6 +3265,38 @@ function broadcastQueuePositions() {
   waitingQueue.forEach((s, i) => s.emit("queuePosition", { position: i + 1, total: waitingQueue.length }));
 }
 
+// ── 🛟 Support AI (see server-supportai.js) ─────────────────────────────────
+// Someone searching in random chat who finds nobody within a few seconds
+// may get "Support AI", which asks what we should improve. What they write
+// to it shows up on the Support dashboard. Support turns it on and off.
+const supportAI = require("./server-supportai").createSupportAI({
+  file: path.join(DATA_PATH, "support_ai.json"),
+  readJson: readJsonFile, writeAtomic: writeFileAtomic, graceMs: RECONNECT_GRACE_MS,
+  onUpdate: (d) => toAdmins("supportAI:update", d),
+});
+function toAdmins(ev, data) {
+  for (const [lc, u] of registeredUsers) if (u.isAdmin) io.to(`user:${lc}`).emit(ev, data);
+}
+// (Re)started whenever someone goes into the queue.
+function scheduleSupportAI(sock) {
+  clearTimeout(sock._saiTimer);
+  if (!supportAI.enabled) return;
+  sock._saiTimer = setTimeout(() => {
+    sock._saiTimer = null;
+    if (!sock.connected || sock.partner || !sock.userName || !waitingQueue.some((q) => q.id === sock.id)) return;
+    if (!supportAI.eligible(sock)) return;
+    waitingQueue = waitingQueue.filter((q) => q.id !== sock.id);
+    const bot = supportAI.start(sock);
+    sock.partner = bot;
+    sock.lastPartnerName = bot.userName; sock.lastPartnerIP = ""; sock.lastPartnerSocketId = bot.id; sock.hasReportedLast = false;
+    sock._reportSnapshot = { name: bot.userName, ip: "", socketId: bot.id, supportAI: true };
+    sock.hasTyped = false; sock.chatStartedAt = Date.now(); sock.lastMessages = []; sock.spamStrikes = 0;
+    sock.emit("partnerFound", { name: bot.userName, sharedTags: [], partnerBio: "", partnerIsPro: false,
+                                partnerAvatar: supportAI.AVATAR, partnerProfile: null, partnerAccountBio: "" });
+    broadcastQueuePositions();
+  }, supportAI.WAIT_MS);
+}
+
 function makeRateLimiter(max, windowMs) {
   return {
     check(socket) {
@@ -3696,6 +3728,7 @@ io.on("connection", (socket) => {
     if (!candidates.length) {
       if (!waitingQueue.some(s => s.id === socket.id)) waitingQueue.push(socket);
       broadcastQueuePositions();
+      scheduleSupportAI(socket);
       return;
     }
 
@@ -3713,6 +3746,7 @@ io.on("connection", (socket) => {
     if (!partnerSocket.connected || partnerSocket.partner || partnerSocket._isGhost) {
       if (!waitingQueue.some(s => s.id === socket.id)) waitingQueue.push(socket);
       broadcastQueuePositions();
+      scheduleSupportAI(socket);
       return;
     }
 
@@ -3872,7 +3906,7 @@ io.on("connection", (socket) => {
       socket.partner._messageQueue.push({ text, messageId, replyTo });
     } else {
       socket.partner.emit("message", { text, messageId, replyTo });
-      bumpStat("msgRandom");
+      if (!socket.partner.isSupportAI) bumpStat("msgRandom");
     }
   });
 
@@ -3930,6 +3964,7 @@ io.on("connection", (socket) => {
     // that was the cause of reports sometimes showing an unrelated
     // earlier partner's name.
     const snap              = socket._reportSnapshot || {};
+    if (socket.partner ? socket.partner.isSupportAI : snap.supportAI) return; // 🛟 Support AI isn't a person
     const targetIP          = socket.partner ? socket.partner.clientIP : (socket.lastPartnerIP || snap.ip || "");
     const targetSocketId    = socket.partner ? socket.partner.id       : (socket.lastPartnerSocketId || snap.socketId || "");
     const targetName        = socket.partner ? socket.partner.userName : (socket.lastPartnerName || snap.name || "");
@@ -3972,6 +4007,17 @@ io.on("connection", (socket) => {
       }
     }
     socket.emit("reportConfirmed");
+  });
+
+  // ── 🛟 Support AI: "⏭ გამოტოვება" — never again for this person ──────────
+  // (The page then presses 🔎 itself, which ends the conversation.)
+  socket.on("supportAI:skip", () => {
+    if (supportAI.isBot(socket.partner)) socket.partner.skip();
+  });
+  // This browser's random id (kept in its localStorage) — how Support AI
+  // remembers a guest who said "don't ask me again". No name, no IP.
+  socket.on("device", (id) => {
+    if (typeof id === "string" && /^[a-f0-9]{24}$/.test(id)) socket._did = id;
   });
 
   // ── Next ─────────────────────────────────────────────────────────────────
@@ -4059,6 +4105,7 @@ io.on("connection", (socket) => {
       const blockedName        = socket.lastPartnerName.toLowerCase();
       const blockedDisplayName = socket.lastPartnerName;
       if (!socket.blockedNames.includes(blockedName)) socket.blockedNames.push(blockedName);
+      if (blockedName === supportAI.NAME.toLowerCase()) supportAI.optOutSocket(socket);
       // Clear the name immediately so a double-click doesn't re-block.
       // Keep IP/socketId alive for 2s so a concurrent reportUser (sent in
       // the same button click) can still look up the target.
@@ -11532,6 +11579,26 @@ io.on("connection", (socket) => {
     }
     console.log(`[SUPPORT] ${me.username} → ${to === "*" ? "everyone" : to} (${sent}): ${clean.slice(0, 80)}`);
     reply({ ok: true, sent });
+  });
+
+  // 🛟 Support AI: answers from random chat, and the on/off switch.
+  socket.on("supportAI:state", (_d, ack) => {
+    if (typeof ack !== "function") return;
+    if (!supportAccount()) return ack({ error: "forbidden" });
+    ack(supportAI.view());
+  });
+  socket.on("supportAI:toggle", ({ on } = {}, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    if (!supportAccount()) return reply({ error: "forbidden" });
+    supportAI.setEnabled(on);
+    console.log(`[SUPPORT-AI] turned ${supportAI.enabled ? "ON" : "OFF"} by ${socket._regUser.username}`);
+    toAdmins("supportAI:update", { enabled: supportAI.enabled });
+    reply({ ok: true, enabled: supportAI.enabled });
+  });
+  socket.on("supportAI:delete", ({ id } = {}, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    if (!supportAccount()) return reply({ error: "forbidden" });
+    reply(supportAI.remove(String(id || "")) ? { ok: true } : { error: "ვერ მოიძებნა" });
   });
 
   socket.on("friend:request", ({ toUsername }) => {

@@ -3,6 +3,20 @@ attachTempBanGuard(socket);
 
 window.socket = socket;
 
+// A random id for this browser, kept in localStorage — lets 🛟 Support AI
+// remember someone who said "don't ask me again" (no name, no IP).
+const deviceId = (() => {
+  try {
+    let d = localStorage.getItem("gaicani_did");
+    if (!/^[a-f0-9]{24}$/.test(d || "")) {
+      d = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem("gaicani_did", d);
+    }
+    return d;
+  } catch (_) { return ""; }
+})();
+socket.on("connect", () => { if (deviceId) socket.emit("device", deviceId); });
+
 // ── Bot Detection + Challenge Token ──────────────────────────────────────────
 // Runs silently on page load. Checks for Selenium/WebDriver/headless signals.
 // If detected: token is never fetched → setName fails → bot disconnected.
@@ -313,9 +327,9 @@ function addSystemImageMessage(imgSrc, altText) {
 // ── Partner-found card (avatar + name + status) ─────────────────────────────
 // ── Partner profile popup — tap the partner's card or their name in the
 //    header. All user text goes in via textContent (never innerHTML).
-// 🛟 The real Support account (guests can't take the name): no card, no
-// report — nobody adds or reports Support.
-function isSupportName(n) { return String(n || "").toLowerCase() === "support"; }
+// 🛟 The real Support account (guests can't take the name) and the Support
+// AI that asks for feedback: no card, no report — nobody adds or reports them.
+function isSupportName(n) { return /^support( ai)?$/i.test(String(n || "").trim()); }
 function openPartnerProfile() {
   const d = partnerCardData;
   if (!d || isSupportName(d.name)) return;
@@ -386,6 +400,15 @@ function addPartnerFoundCard(name, isVip) {
   chat.appendChild(card);
   scheduleScroll();
 
+  // The picture that came with the match (registered people, 🛟 Support AI)
+  // is used straight away; otherwise it's looked up by name.
+  const known = partnerCardData && partnerCardData.name === name ? partnerCardData.avatar : null;
+  if (known) {
+    const img = document.createElement("img");
+    img.src = "/" + known; img.alt = "avatar";
+    avatar.textContent = ""; avatar.appendChild(img);
+    return;
+  }
   // Load the partner's real profile picture if they're a registered user,
   // otherwise fall back to the default (unregistered) picture.
   const DEFAULT_PARTNER_PIC = "/images%20(1).jpeg";
@@ -1677,6 +1700,25 @@ socket.on("waitingForPartner", () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+
+// 🛟 Support AI: under its question, a way to say "no thanks" — it never
+// comes back to this person, and the search for a real partner starts.
+socket.on("supportAI:skipOffer", () => {
+  if (!partnerConnected || !isSupportName(partnerName)) return;
+  const box = document.createElement("div");
+  box.className = "sai-skip";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "sai-skip-btn";
+  btn.textContent = "⏭ გამოტოვება";
+  const note = document.createElement("div");
+  note.className = "sai-skip-note";
+  note.textContent = "Support AI აღარ შეგაწუხებს — ახალ თანამოსაუბრეს მოგიძებნით";
+  btn.addEventListener("click", () => { btn.disabled = true; socket.emit("supportAI:skip"); nextBtn.click(); });
+  box.append(btn, note);
+  chat.appendChild(box);
+  scheduleScroll();
+});
 
 socket.on("partnerTyping", (typing) => {
   typing ? showTypingIndicator() : hideTypingIndicator();

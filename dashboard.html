@@ -1060,6 +1060,30 @@ html, body {
 .sp-row .friend-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .sp-row .act-btn { white-space: nowrap; }
 a.sp-chat { text-decoration: none; display: inline-flex; align-items: center; }
+/* 🤖 Support AI (random-chat feedback) */
+.sai-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 8px; }
+.sai-head .sp-title { margin: 0; }
+.sai-toggle {
+  flex-shrink: 0; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: 6px 12px 6px 6px;
+  display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,.06); color: var(--muted);
+  font: inherit; font-size: .8em; font-weight: 700; cursor: pointer;
+}
+.sai-toggle .knob { width: 34px; height: 20px; border-radius: 999px; background: rgba(255,255,255,.18); position: relative; transition: background .2s; }
+.sai-toggle .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.sai-toggle.on { color: #62e3b3; border-color: rgba(31,193,138,.45); }
+.sai-toggle.on .knob { background: #1fc18a; }
+.sai-toggle.on .knob::after { transform: translateX(14px); }
+.sai-note { font-size: .74em; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
+.sai-counts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.sai-counts span { font-size: .74em; padding: 3px 9px; border-radius: 999px; background: rgba(214,168,79,.12); border: 1px solid rgba(214,168,79,.25); color: var(--text); }
+.sai-list { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.sai-conv { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 9px 11px; }
+.sai-conv.fresh { border-color: rgba(214,168,79,.55); }
+.sai-conv-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: .78em; color: var(--muted); margin-bottom: 4px; }
+.sai-conv-head b { color: var(--text); font-size: 1.08em; }
+.sai-conv-head .sai-del { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.05em; padding: 2px 4px; }
+.sai-msg { font-size: .9em; line-height: 1.45; white-space: pre-wrap; word-break: break-word; padding: 3px 0; border-top: 1px solid rgba(255,255,255,.05); }
+.sai-conv-head + .sai-msg { border-top: none; }
 .collapse-chevron {
   margin-left: auto; flex-shrink: 0; width: 28px; height: 28px; border-radius: 999px;
   display: grid; place-items: center;
@@ -1859,6 +1883,13 @@ body.guest-mode .profile-actions { display: none; }
         <div class="sp-title">📢 შეტყობინება ყველას</div>
         <textarea id="spBroadcastText" rows="3" maxlength="300" placeholder="ტექსტი, რომელსაც ყველა დარეგისტრირებული მომხმარებელი მიიღებს 🔔-ში"></textarea>
         <button type="button" id="spBroadcastBtn" class="sp-btn">📢 ყველასთვის გაგზავნა</button>
+        <div class="sai-head">
+          <div class="sp-title">🤖 Support AI — რანდომ ჩატში</div>
+          <button type="button" id="saiToggle" class="sai-toggle" role="switch" aria-checked="false"><span class="knob"></span><span id="saiToggleText">…</span></button>
+        </div>
+        <p class="sai-note">როცა რანდომ ჩატში ვინმეს 5 წამში თანამოსაუბრე არ უჩნდება, Support AI ეკითხება რა გავაუმჯობესოთ. რასაც მისწერენ, აქ ჩნდება. „⏭ გამოტოვება“ ან ბლოკი — ის ადამიანი აღარ შეხვდება; დანარჩენებს — კვირაში მაქსიმუმ ერთხელ.</p>
+        <div class="sai-counts" id="saiCounts"></div>
+        <div class="sai-list" id="saiList"><div class="empty-state">იტვირთება…</div></div>
         <div class="sp-title">👥 ყველა მომხმარებელი</div>
         <input type="search" id="spSearch" placeholder="ძებნა სახელით…" autocomplete="off" />
         <div class="friends-list sp-list" id="spUserList"><div class="empty-state">იტვირთება…</div></div>
@@ -4146,13 +4177,69 @@ function profileChipsHTML(p) {
           </div>`;
       }).join("") + (found.length > shown.length ? `<div class="empty-state">ნაჩვენებია ${shown.length} / ${found.length} — დააზუსტე ძებნა</div>` : "");
     }
+    /* 🤖 Support AI: the on/off switch, the numbers and what people wrote. */
+    let saiState = null, saiTimer = null;
+    const saiFresh = new Set(); // arrived while this page was open
+    function saiLoad(delay = 0) {
+      clearTimeout(saiTimer);
+      saiTimer = setTimeout(() => socket?.emit("supportAI:state", null, (r) => {
+        if (!r || r.error) return;
+        saiState = r;
+        saiRender();
+      }), delay);
+    }
+    function saiRender() {
+      if (!saiState) return;
+      const on = !!saiState.enabled, c = saiState.counts || {};
+      const tg = document.getElementById("saiToggle");
+      tg.classList.toggle("on", on);
+      tg.setAttribute("aria-checked", String(on));
+      document.getElementById("saiToggleText").textContent = on ? "ჩართულია" : "გამორთულია";
+      document.getElementById("saiCounts").innerHTML =
+        `<span>💬 ჰკითხა: ${(c.asked || 0).toLocaleString("en-US")}</span><span>✍️ უპასუხა: ${(c.answered || 0).toLocaleString("en-US")}</span><span>⏭ გამოტოვა / დაბლოკა: ${(c.skipped || 0).toLocaleString("en-US")}</span>`;
+      const list = document.getElementById("saiList");
+      const convs = saiState.convs || [];
+      if (!convs.length) { list.innerHTML = '<div class="empty-state">ჯერ არავის უპასუხია</div>'; return; }
+      list.innerHTML = convs.map((cv) => {
+        const out = cv.outcome === "blocked" ? " · 🚫 დაბლოკა" : cv.outcome === "skipped" ? " · ⏭ გამოტოვა" : "";
+        return `<div class="sai-conv${saiFresh.has(cv.id) ? " fresh" : ""}">
+            <div class="sai-conv-head"><b>${esc(cv.who)}</b><span>${cv.registered ? "რეგისტრირებული" : "სტუმარი"} · ${agoText(cv.at)}${out}</span>
+              <button type="button" class="sai-del" data-id="${esc(cv.id)}" title="წაშლა" aria-label="წაშლა">🗑</button></div>
+            ${(cv.messages || []).map((m) => `<div class="sai-msg">${esc(m.text)}</div>`).join("")}
+          </div>`;
+      }).join("");
+    }
+    function initSupportAI() {
+      saiLoad();
+      document.getElementById("saiToggle").addEventListener("click", () => {
+        if (!saiState) return;
+        const want = !saiState.enabled;
+        socket.emit("supportAI:toggle", { on: want }, (r) => {
+          if (!r || r.error) { showToast(`⚠️ ${(r && r.error) || "ვერ შეიცვალა"}`); return; }
+          saiState.enabled = r.enabled; saiRender();
+          showToast(r.enabled ? "🤖 Support AI ჩაირთო" : "🤖 Support AI გამოირთო");
+        });
+      });
+      document.getElementById("saiList").addEventListener("click", (e) => {
+        const del = e.target.closest(".sai-del");
+        if (!del || !confirm("წავშალო ეს პასუხი?")) return;
+        socket.emit("supportAI:delete", { id: del.dataset.id }, (r) => { if (r && r.ok) saiLoad(); });
+      });
+      // New answers appear as they're written.
+      socket.on("supportAI:update", (d) => {
+        if (d && d.conv) saiFresh.add(d.conv.id);
+        saiLoad(200);
+      });
+    }
+
     function initSupportTools() {
       const sec = document.getElementById("supportSection");
       if (!sec || !authUser || !authUser.isAdmin || !socket) return;
       sec.hidden = false;
       spLoad();
-      if (spBound) return;
+      if (spBound) { saiLoad(); return; }
       spBound = true;
+      initSupportAI();
       document.getElementById("spSearch").addEventListener("input", spRender);
       document.getElementById("spUserList").addEventListener("click", (e) => {
         const add = e.target.closest(".sp-add"), bell = e.target.closest(".sp-notify");
