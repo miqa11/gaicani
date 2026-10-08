@@ -21,7 +21,7 @@ const path = require("path");
 const zlib = require("zlib");
 
 // Data files that make up the site. Anything else in the data folder (the
-// traffic and VirusTotal logs, .tmp / .corrupt copies) isn't backed up.
+// traffic log, .tmp / .corrupt copies) isn't backed up.
 const DATA_FILES = [
   "registered_users.json",  // accounts, passwords (hashed), friends, coins, streaks, profiles, Trinder
   "private_messages.json",
@@ -32,7 +32,6 @@ const DATA_FILES = [
   "stats.json",
   "banned_ips.json",
   "banned_user_agents.json",
-  "vt-bans.json",
   "temp_bans.json",         // 24h blocks still running (with the reason shown)
   "support_ai.json",        // 🛟 Support AI: answers from random chat, on/off, who said "don't ask again"
 ];

@@ -396,11 +396,6 @@ function isUABanned(ua) {
 
 loadBannedUserAgents(); // restore UA bans immediately at startup
 
-// ── VirusTotal integration ────────────────────────────────────────────────────
-// server.js writes non-Georgian IPs to vt-queue.json for vt-checker.js to pick up.
-// vt-checker.js writes confirmed malicious IPs to vt-bans.json.
-// We watch that file and load new bans automatically — no restart needed.
-
 // ── Automatic banning: DISABLED ──────────────────────────────────────────────
 // Every self-inflicted ban path is gated on this flag, which is OFF by default.
 // It was turned off because the flood auto-ban in particular could (and did)
@@ -412,7 +407,6 @@ loadBannedUserAgents(); // restore UA bans immediately at startup
 //   * Flood: still rate-limited with a 429 response, but never banned.
 //   * Link spam / user reports: still counted, still visible in the admin
 //     panel, but they no longer ban anyone on their own.
-//   * VirusTotal list: no longer auto-applied.
 // Manual admin bans from the panel are UNAFFECTED and work exactly as before.
 //
 // Set AUTO_BAN_ENABLED=true in the environment to restore the old behaviour.
@@ -515,99 +509,12 @@ function tempBanPageHtml(entry) {
 </div></body></html>`;
 }
 
-const VT_QUEUE_FILE = path.join(DATA_PATH, "vt-queue.json");
-const VT_BANS_FILE  = path.join(DATA_PATH, "vt-bans.json");
 const STATS_FILE     = path.join(DATA_PATH, "stats.json");
-const VT_QUEUE_MAX  = 500;
-const VT_THRESHOLD  = 3; // must match vt-checker.js
 
-// IPs already queued this session (avoid duplicate queue entries)
-const vtQueued = new Set();
-
-// Load existing VT bans on startup
-function loadVTBans() {
-  // Another automatic ban source — an external checker writes IPs here and
-  // they get merged into the permanent ban list. Off unless auto-banning is
-  // explicitly enabled.
-  if (!AUTO_BAN_ENABLED) return;
-  try {
-    const arr = JSON.parse(fs.readFileSync(VT_BANS_FILE, "utf8"));
-    if (Array.isArray(arr)) {
-      let added = 0;
-      arr.forEach(ip => {
-        if (!bannedIPs.has(ip)) {
-          bannedIPs.add(ip);
-          added++;
-        }
-      });
-      if (added) {
-        console.log(`[VT] Loaded ${added} new VT-ban(s) from disk`);
-        saveBannedIPs(); // merge into banned_ips.json so bans survive restart
-      }
-    }
-  } catch { /* file doesn't exist yet */ }
-}
-
-loadVTBans();
-
-// Poll vt-bans.json every 5s — more reliable than fs.watch on Linux
-// fs.watch can miss events or fire with null filename on some systems
-let _vtBansLastMtime = 0;
-
-function pollVTBans() {
-  try {
-    const stat = fs.statSync(VT_BANS_FILE);
-    const mtime = stat.mtimeMs;
-    if (mtime === _vtBansLastMtime) return; // file unchanged
-    _vtBansLastMtime = mtime;
-
-    const sizeBefore = bannedIPs.size;
-    loadVTBans();
-    const newBans = bannedIPs.size - sizeBefore;
-
-    if (newBans > 0) {
-      console.log(`[VT] Detected ${newBans} new VT-ban(s) — kicking live sockets`);
-      // Kick any connected sockets that are now VT-banned
-      for (const [, socket] of io.sockets.sockets) {
-        if (isIPBanned(socket.clientIP)) {
-          console.log(`[VT] Kicking VT-banned IP: ${socket.clientIP}`);
-          socket.emit("autoKicked");
-          setTimeout(() => socket.disconnect(true), 500);
-        }
-      }
-    }
-  } catch {
-    // File doesn't exist yet — fine, keep polling
-  }
-}
-
-setInterval(pollVTBans, 5000);
-
-function enqueueForVT(ip) {
-  if (vtQueued.has(ip)) return;       // already queued this session
-  if (bannedIPs.has(ip)) return;      // already banned
-  if (OWNER_IPS.has(ip)) return;      // never check owner IPs
-
-  // Bounded: this Set only avoids re-queueing the same IP, but it used to
-  // grow with every new foreign visitor for the life of the process. Every
-  // restart already starts it empty, so emptying it when it gets large
-  // behaves exactly like a restart does (the queue file below also dedupes).
-  if (vtQueued.size >= 20000) vtQueued.clear();
-  vtQueued.add(ip);
-
-  try {
-    let queue = [];
-    try { queue = JSON.parse(fs.readFileSync(VT_QUEUE_FILE, "utf8")); } catch {}
-    if (!Array.isArray(queue)) queue = [];
-    if (!queue.includes(ip)) {
-      queue.push(ip);
-      // Cap queue size
-      if (queue.length > VT_QUEUE_MAX) queue = queue.slice(-VT_QUEUE_MAX);
-      fs.writeFileSync(VT_QUEUE_FILE, JSON.stringify(queue), "utf8");
-    }
-  } catch (e) {
-    console.error("[VT] Failed to write queue:", e.message);
-  }
+// The VirusTotal IP check was removed — its leftover files (visitor IP
+// addresses waiting to be checked, results, bans it found) are deleted.
+for (const f of ["vt-queue.json", "vt-bans.json", "vt-log.json", "vt-checked.json"]) {
+  try { fs.rmSync(path.join(DATA_PATH, f), { force: true }); } catch { /* not there */ }
 }
 
 // ── Randomised secret route slugs ─────────────────────────────────────────────
@@ -625,7 +532,6 @@ const ROUTE = {
   unbanReported: "/g7zr4ce2mv9", // POST clear a report-ban (resets strike count)
   visitorLog:  "/t1uy6im0dg8",  // visitor log HTML
   visitorJson: "/e3kp9af5qh2",  // visitor log JSON
-  vtLog:       "/v2qw5rn8jx1",  // VirusTotal scan log HTML
   siteVisitors: "/k4pw8zn2rt5", // JSON: every real page-visit logged (IP + User-Agent)
   blockedUAs:   "/h6rm1qf4wt7", // JSON: list currently-blocked user-agents
   blockUA:      "/w9hq3yd6mp0", // POST: block a user-agent (kicks matching live sockets)
@@ -1714,7 +1620,6 @@ app.post("/captcha-verify", (req, res) => {
 // past. The one legitimate .json a page needs, /manifest.json, stays open.
 const PUBLIC_FILE_DENY = [
   /^server(-[\w-]+)?\.js$/i,     // server.js and server-*.js patches
-  /^vt-checker\.js$/i,
   /^package(-lock)?\.json$/i,
   /\.jsonl?$/i,                  // every data file (+ the .jsonl flood log)
   /\.jsonl?\.[\w-]+$/i,          // ...and their .tmp / .corrupt-<time> copies
@@ -3469,11 +3374,6 @@ io.on("connection", (socket) => {
   socket._connectedAt = Date.now();
   recordConnect(rawIP, socket.handshake.headers["user-agent"]);
 
-  // Queue non-Georgian IPs for VirusTotal reputation check
-  getCountry(rawIP).then(country => {
-    if (country !== "GE") enqueueForVT(rawIP);
-  });
-
   socket.userName           = "";
   socket.partner            = null;
   socket.lastPartnerName    = "";
@@ -4904,87 +4804,6 @@ app.get(ROUTE.visitorJson, ownerOnly, (req, res) => {
     deniedCount: sensitiveVisitorLog.filter(e => !e.allowed).length,
     entries: [...sensitiveVisitorLog].reverse(),
   });
-});
-
-// ── VirusTotal scan log dashboard ─────────────────────────────────────────────
-app.get(ROUTE.vtLog, ownerOnly, (req, res) => {
-  const log     = (() => { try { return JSON.parse(fs.readFileSync(path.join(DATA_PATH, "vt-log.json"), "utf8")); } catch { return []; } })();
-  const queue   = (() => { try { return JSON.parse(fs.readFileSync(VT_QUEUE_FILE, "utf8")); } catch { return []; } })();
-  const vtBans  = (() => { try { return JSON.parse(fs.readFileSync(VT_BANS_FILE,  "utf8")); } catch { return []; } })();
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
-
-  const banned  = log.filter(e => e.banned);
-  const clean   = log.filter(e => !e.banned && !e.notFound);
-  const unknown = log.filter(e => e.notFound);
-
-  const rows = [...log].reverse().map(e => {
-    const cls = e.banned ? "bad" : e.notFound ? "unk" : "ok";
-    const scoreColor = e.score > VT_THRESHOLD ? "#f23f42" : e.score > 0 ? "#faa61a" : "#3ba55d";
-    return `<tr class="${cls}">
-      <td style="color:#72767d;font-size:.78em">${esc(e.ts)}</td>
-      <td class="ip">${esc(e.ip)}</td>
-      <td style="font-weight:700;color:${scoreColor}">${e.notFound ? "—" : e.score}</td>
-      <td style="color:#f23f42">${e.malicious || 0}</td>
-      <td style="color:#faa61a">${e.suspicious || 0}</td>
-      <td>${e.banned ? "🚫 BANNED" : e.notFound ? "❓ Unknown" : "✅ Clean"}</td>
-    </tr>`;
-  }).join("");
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>VT Scanner — GAICANI</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#1e1f22;color:#dcddde;font-family:"Segoe UI",Arial,sans-serif;padding:24px;max-width:960px;margin:0 auto}
-h1{color:#fff;font-size:1.4em;margin-bottom:4px}
-.sub{color:#72767d;font-size:.82em;margin-bottom:20px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:24px}
-.sc{background:#2b2d31;border-radius:10px;padding:14px 16px}
-.sv{font-size:1.7em;font-weight:700;color:#fff}
-.sv.r{color:#f23f42}.sv.g{color:#3ba55d}.sv.y{color:#faa61a}
-.sl{font-size:.73em;color:#72767d;margin-top:3px}
-h2{color:#5865f2;font-size:.85em;margin:20px 0 10px;text-transform:uppercase;letter-spacing:.5px}
-table{width:100%;border-collapse:collapse;background:#2b2d31;border-radius:10px;overflow:hidden;font-size:.82em}
-th{background:#232428;color:#72767d;font-weight:600;padding:9px 12px;text-align:left;border-bottom:1px solid #1a1b1e}
-td{padding:8px 12px;border-bottom:1px solid #1e1f22;vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr.bad td{background:rgba(242,63,66,.07)}
-tr.unk td{background:rgba(250,166,26,.04)}
-.ip{font-family:monospace;color:#fff;font-weight:600}
-.btn{background:#5865f2;color:#fff;border:none;border-radius:6px;padding:7px 16px;cursor:pointer;font-size:.85em;margin-bottom:16px}
-.btn:hover{background:#4752c4}
-.queue-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-.qtag{background:#2b2d31;border:1px solid #3a3c40;border-radius:5px;padding:3px 9px;font-family:monospace;font-size:.8em;color:#b5bac1}
-</style>
-</head>
-<body>
-<h1>🦠 VirusTotal Scanner</h1>
-<p class="sub">Auto-scans non-Georgian IPs · Bans if score &gt; ${VT_THRESHOLD}</p>
-<button class="btn" onclick="location.reload()">↻ Refresh</button>
-
-<div class="grid">
-  <div class="sc"><div class="sv">${log.length}</div><div class="sl">Total scanned</div></div>
-  <div class="sc"><div class="sv r">${banned.length}</div><div class="sl">Auto-banned</div></div>
-  <div class="sc"><div class="sv g">${clean.length}</div><div class="sl">Clean</div></div>
-  <div class="sc"><div class="sv y">${unknown.length}</div><div class="sl">Unknown / not in VT</div></div>
-  <div class="sc"><div class="sv">${queue.length}</div><div class="sl">Pending in queue</div></div>
-  <div class="sc"><div class="sv">${vtBans.length}</div><div class="sl">VT-ban list size</div></div>
-</div>
-
-${queue.length ? `<h2>Pending queue (${queue.length})</h2>
-<div class="queue-list">${queue.map(ip => `<span class="qtag">${esc(ip)}</span>`).join("")}</div>` : ""}
-
-<h2>Scan log (newest first)</h2>
-<table>
-  <tr><th>Time</th><th>IP</th><th>Score</th><th>Malicious</th><th>Suspicious</th><th>Result</th></tr>
-  ${rows || '<tr><td colspan="6" style="color:#72767d;padding:14px">No scans yet — waiting for non-Georgian IPs to connect.</td></tr>'}
-</table>
-</body>
-</html>`);
 });
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -11112,12 +10931,6 @@ io.on("connection", (socket) => {
     socket.emit("autoKicked");
     socket.disconnect(true);
     return;
-  }
-
-  // Check for VirusTotal
-  if (socket.clientIP !== "unknown" && socket.clientIP !== "127.0.0.1") {
-    const isGeorgian = /^(193\.|195\.|196\.110|196\.111)/.test(socket.clientIP);
-    if (!isGeorgian) enqueueForVT(socket.clientIP);
   }
 
   console.log(`[SOCKET] Connected: ${socket.id} from ${socket.clientIP}`);
