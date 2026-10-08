@@ -616,6 +616,7 @@ const ROUTE = {
   panel:       "/x7k2mq9pn4w",  // visual admin panel  (users, ban/unban)
   stats:       "/r3tz8vj1qs6",  // stats dashboard HTML — PUBLIC, no IP gate (by design)
   statsApi:    "/n5ph2ck7ew0",  // stats JSON API — PUBLIC, no IP gate (called by stats page)
+  statsReset:  "/0p00hpdcmlh",  // POST: reset every counted statistic (admin login only)
   users:       "/b9wf4yd6ul3",  // list connected users JSON
   ban:         "/m2xg7rn0ks5",  // POST ban an IP
   unban:       "/q6jd1vc8zt4",  // POST unban an IP
@@ -1007,6 +1008,7 @@ function _saveStatsToDisk() {
     peakOnlineAt: stats.peakOnlineAt,
     serverStartedAt: stats.serverStartedAt,
     extendedSince: stats.extendedSince || null,
+    resetAt: stats.resetAt || null,
   };
   try {
     writeFileAtomic(STATS_FILE, JSON.stringify(out));
@@ -1037,6 +1039,7 @@ function loadStats() {
       });
     }
     stats.extendedSince = obj.extendedSince || null;
+    stats.resetAt = obj.resetAt || null;
     stats.allTimeIPs = new Set(obj.allTimeIPs || []);
     stats.peakOnline = obj.peakOnline || 0;
     stats.peakOnlineAt = obj.peakOnlineAt || null;
@@ -1048,6 +1051,7 @@ function loadStats() {
 
 function recordDisconnect(ip, connectedAtMs) {
   if (!connectedAtMs) return;
+  if (stats.resetAt && connectedAtMs < stats.resetAt) return; // began before a reset — its visit was wiped
   const durMs = Date.now() - connectedAtMs;
   getOrCreateDay(todayKey()).totalDurationMs += durMs;
   statsDirty = true;
@@ -1058,6 +1062,24 @@ function recordChatStarted() {
   getOrCreateDay(todayKey()).chats++;
   statsDirty = true;
   scheduleStatsSave();
+}
+
+// 🗑 Reset (admin, from the stats page): every counted number starts again
+// from zero — visitors, new/returning, peaks, chats, messages, games, page
+// opens, devices, time on site. Totals that are simply what exists right
+// now (accounts, friendships, stored messages, who's online) aren't
+// counters and stay as they are.
+function resetStats() {
+  stats.days.clear();
+  stats.allTimeIPs = new Set();
+  stats.resetAt = Date.now();
+  stats.extendedSince = todayKey();
+  // The people online at this moment are the new "most online" so far.
+  const online = getUniqueOnlineIPCount();
+  stats.peakOnline = online;
+  stats.peakOnlineAt = online ? new Date(stats.resetAt).toISOString() : null;
+  if (online) { const d = getOrCreateDay(todayKey()); d.peakOnline = online; d.peakOnlineAt = stats.peakOnlineAt; }
+  _saveStatsToDisk();
 }
 
 // ── Link-strike system ────────────────────────────────────────────────────────
@@ -4378,6 +4400,7 @@ app.get(ROUTE.statsApi, (req, res) => {
     uptimeSec,
     memoryMB:         Math.round(process.memoryUsage().rss / 1048576),
     extendedSince:    stats.extendedSince || null,
+    resetAt:          stats.resetAt || null,
     live: { registered: regOnline.size, guests: guestOnline.size, chatting, waiting: waitingQueue.length },
     community: {
       accounts, vip, newAccounts7d, friendships: Math.round(friendLinks / 2), activeStreaks, longestStreak,
@@ -4397,10 +4420,21 @@ app.get(ROUTE.statsApi, (req, res) => {
 });
 
 
+// POST <statsReset route> — the 🗑 button on the stats page (admin login only).
+app.post(ROUTE.statsReset, ownerOnly, (req, res) => {
+  resetStats();
+  console.log(`[STATS] All statistics reset by the admin (IP ${getClientIP(req)})`);
+  res.json({ success: true, resetAt: stats.resetAt });
+});
+
 // GET <stats route> — stats dashboard (now public — anyone with the link can view)
 app.get(ROUTE.stats, (req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store"); // the 🗑 button is only in the admin's copy
   const API = ROUTE.statsApi;
+  // Only someone logged into the admin panel (in this browser) gets the
+  // reset button — the page itself is public.
+  const RESET = hasValidAdminSession(req) ? ROUTE.statsReset : "";
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -4426,6 +4460,8 @@ h1 .gt { background:linear-gradient(180deg,#fff4d2,#f4d98f 45%,#d6a84f); -webkit
 .refresh-btn { border:1px solid var(--line); background:rgba(214,168,79,.12); color:var(--gold); border-radius:999px; padding:7px 14px; font:inherit; font-size:.85em; font-weight:700; cursor:pointer; }
 .refresh-btn:hover { background:rgba(214,168,79,.22); }
 .refresh-btn:disabled { opacity:.6; cursor:default; }
+.reset-btn { border-color:rgba(227,59,95,.45); background:rgba(227,59,95,.12); color:#ff8fa6; }
+.reset-btn:hover { background:rgba(227,59,95,.24); }
 .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--c-ret); box-shadow:0 0 8px var(--c-ret); margin-right:6px; vertical-align:middle; }
 h2 { font-size:1.05em; font-weight:800; margin:26px 2px 4px; color:var(--gold); }
 .note { color:var(--muted); font-size:.8em; margin:0 2px 10px; line-height:1.5; }
@@ -4476,7 +4512,7 @@ footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; 
 <div class="wrap">
   <header>
     <div><h1>📊 <span class="gt">GAICANI Statistics</span></h1><div class="sub"><span class="live-dot"></span><span id="updated">loading…</span></div></div>
-    <div class="hdr-right"><div class="sub" id="server"></div><button type="button" class="refresh-btn" id="refreshBtn" onclick="refreshNow()">↻ Refresh</button></div>
+    <div class="hdr-right"><div class="sub" id="server"></div><button type="button" class="refresh-btn" id="refreshBtn" onclick="refreshNow()">↻ Refresh</button>${RESET ? '<button type="button" class="refresh-btn reset-btn" id="resetBtn" onclick="resetAll()">🗑 Reset statistics</button>' : ""}</div>
   </header>
 
   <div class="hero">
@@ -4535,6 +4571,7 @@ footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; 
 </div>
 <script>
 var API = "${API}";
+var RESET = "${RESET}";
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 function fmt(n) { return (Number(n) || 0).toLocaleString("en-US"); }
@@ -4633,7 +4670,7 @@ function render(d) {
   bars($("chRet"), rd.map(function (x) { return dlabel(x.date); }), [{ color: "var(--c-ret)", values: rd.map(function (x) { return x.nextDayReturn; }) }], { tipLabels: rd.map(function (x) { return x.date; }), fmt: function (v) { return v + "%"; } });
 
   // activity (tracked since the update)
-  $("sinceNote").textContent = d.extendedSince ? "Counted since " + d.extendedSince + ". Earlier days show zero because they weren't tracked yet." : "Counting starts now.";
+  $("sinceNote").textContent = d.resetAt ? "Counted since the reset on " + when(new Date(d.resetAt).toISOString()) + "." : d.extendedSince ? "Counted since " + d.extendedSince + ". Earlier days show zero because they weren't tracked yet." : "Counting starts now.";
   bars($("chMsgs"), labels, [
     { color: "var(--c-new)", values: days.map(function (x) { return (x.counters || {}).msgRandom || 0; }) },
     { color: "var(--c-sess)", values: days.map(function (x) { return (x.counters || {}).msgPrivate || 0; }) },
@@ -4675,6 +4712,17 @@ function refreshNow() {
   fetch(API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(render)
     .catch(function () { $("updated").textContent = "Could not load — try again"; })
     .then(function () { b.disabled = false; b.textContent = "↻ Refresh"; });
+}
+// 🗑 Admin only (the server checks the admin login too).
+function resetAll() {
+  if (!RESET) return;
+  if (!confirm("Reset ALL statistics to zero?\\n\\nVisitors, new/returning, most online, chats, messages, games, page opens, devices and time on site will all start counting again from now. Accounts, friendships and stored messages are not touched.\\n\\nThis can't be undone.")) return;
+  var b = $("resetBtn"); b.disabled = true; b.textContent = "🗑 Resetting…";
+  fetch(RESET, { method: "POST", credentials: "same-origin" })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function () { b.textContent = "✓ Reset done"; return refreshNow(); })
+    .catch(function (e) { alert("Reset failed (" + e.message + ") — log in to the admin panel in this browser and try again."); b.textContent = "🗑 Reset statistics"; })
+    .then(function () { setTimeout(function () { b.disabled = false; b.textContent = "🗑 Reset statistics"; }, 2500); });
 }
 load(); setInterval(load, 30000);
 </script>
