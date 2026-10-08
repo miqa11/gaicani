@@ -637,6 +637,7 @@ const ROUTE = {
   tempBansList: "/j3nc6wp0xz5", // GET: list currently-active 24h blocks
   unbanTemp:    "/k9vd4qz2ym8", // POST: lift a 24h block early
   nameBlock:    "/q3vn8ys5ke1", // POST: block an account for an offensive name (forces a rename)
+  giftCoins:    "/p7wd3hx9nb4", // POST: 🎁 gift coins to a registered account
   backup:       "/d6mwscjzlh2", // GET: download a backup of all site data (.tar.gz)
   restore:      "/u8lkwdrjhi5", // POST: upload a backup — replaces the data and restarts
 };
@@ -1983,6 +1984,7 @@ app.get(ROUTE.regUsers, ownerOnly, (req, res) => {
       isGuest: !!u.isGuest,
       nameBlocked: !!u.nameBlocked,
       isBanned: u.lastIP ? isIPBanned(u.lastIP) : false,
+      coins: typeof u.coins === "number" ? u.coins : null,
     });
   }
   // Most-recently-seen first — the accounts an admin is most likely to be
@@ -2127,6 +2129,28 @@ app.post(ROUTE.setPro, ownerOnly, (req, res) => {
 
   console.log(`[ADMIN] ${pro ? "Granted" : "Revoked"} pro status for "${user.username}"`);
   res.json({ success: true, username: user.username, isPro: pro, notifiedSockets: notified });
+});
+
+// POST <giftCoins route>?username=x&amount=1000[&note=…] — 🎁 gift coins to a
+// registered account. They land in the same balance as everything else
+// (poker, blackjack, the shop) — onto their seat if they're at a table —
+// and the person gets a 🔔 notification saying so (with the note, if any).
+const GIFT_COINS_MAX = 1_000_000;
+app.post(ROUTE.giftCoins, ownerOnly, (req, res) => {
+  const lc = String(req.query.username || "").trim().toLowerCase();
+  const user = registeredUsers.get(lc);
+  if (!user) return res.status(404).json({ error: "user not found" });
+  if (user.isGuest) return res.status(400).json({ error: "guests have no coins" });
+  const amount = Math.floor(Number(req.query.amount));
+  if (!Number.isFinite(amount) || amount < 1 || amount > GIFT_COINS_MAX)
+    return res.status(400).json({ error: `amount must be 1–${GIFT_COINS_MAX.toLocaleString("en-US")}` });
+  const note = String(req.query.note || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
+  changeCoins(user, lc, amount);
+  const coins = spendableCoins(user, lc);
+  pushNotification(lc, { type: "coins_gift", amount, note, link: "/dashboard.html" });
+  io.to(`user:${lc}`).emit("coins:changed", { coins });
+  console.log(`[ADMIN] Gifted ${amount} coins to "${user.username}"${note ? ` ("${note}")` : ""} — balance ${coins}`);
+  res.json({ success: true, username: user.username, amount, coins });
 });
 
 // POST <nameBlock route>?username=x&block=true|false — block an account for an
@@ -2782,9 +2806,27 @@ function tempBan(ip, username) {
       wrap.remove();
       const nl = String.fromCharCode(10);
       alert('Blocked ' + ip + ' for 24 hours' + nl + 'reason: ' + d.reason + nl + 'sockets kicked: ' + d.kickedSockets);
-      load();
+      loadAll();
     } catch (e) { go.disabled = false; alert('Failed: ' + e.message); }
   };
+}
+
+// 🎁 Gift coins: how many, and an optional note they'll see with it.
+async function giftCoins(username) {
+  const raw = prompt('🎁 How many coins to gift ' + username + '?', '1000');
+  if (raw == null) return;
+  const amount = Math.floor(Number(String(raw).replace(/[^0-9]/g, '')));
+  if (!amount || amount < 1 || amount > 1000000) { alert('Enter a number from 1 to 1,000,000'); return; }
+  const note = prompt('Message they will see with it (optional) — e.g. მადლობა აქტიურობისთვის!', '');
+  if (note == null) return;
+  if (!confirm('Gift ' + amount.toLocaleString('en-US') + ' coins to ' + username + '?')) return;
+  try {
+    const d = await api('POST', R.giftCoins + '?username=' + encodeURIComponent(username) +
+                        '&amount=' + amount + '&note=' + encodeURIComponent(note));
+    alert('🎁 Gifted ' + d.amount.toLocaleString('en-US') + ' coins to ' + d.username +
+          String.fromCharCode(10) + 'Their balance now: ' + d.coins.toLocaleString('en-US'));
+    loadAll();
+  } catch (e) { alert('Failed: ' + e.message); }
 }
 
 async function deleteUser(username) {
@@ -2805,7 +2847,7 @@ async function deleteUser(username) {
           'comments: ' + r.removedComments + nl +
           'room messages: ' + r.removedRoomMsgs + nl +
           'IP banned: ' + (r.bannedIp || 'none on file'));
-    load();
+    loadAll();
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
@@ -2849,7 +2891,8 @@ function renderRegUsersTable(list) {
       const nameBadge = u.nameBlocked ? '<span class="badge" style="background:rgba(242,63,66,.2);color:#f23f42">🚫 bad name</span>' : '';
       const statusHtml = (u.isBanned
         ? '<span class="badge" style="background:rgba(242,63,66,.2);color:#f23f42">🔒 IP banned</span>'
-        : (u.isAdmin ? '<span class="badge green">admin</span>' : '')) + proBadge + nameBadge;
+        : (u.isAdmin ? '<span class="badge green">admin</span>' : '')) + proBadge + nameBadge +
+        (u.coins != null ? '<span class="badge" style="background:rgba(214,168,79,.18);color:#e9cf8f">🪙 ' + Number(u.coins).toLocaleString('en-US') + '</span>' : '');
       const actionHtml = u.lastIP
         ? (u.isBanned
             ? \`<button class="unban-btn" onclick="unbanIP('\${esc(u.lastIP)}')">✅ Unban</button>\`
@@ -2860,6 +2903,7 @@ function renderRegUsersTable(list) {
         : '';
       const proBtnHtml = \`<button class="\${u.isPro ? "unban-btn" : "ban-btn"}" style="margin-left:6px;\${u.isPro ? "" : "background:#8a6d1f"}" onclick="setProStatus('\${esc(u.username)}', \${u.isPro ? "false" : "true"})">\${u.isPro ? "\u2B50 Revoke pro" : "\u2B50 Grant pro"}</button>\`;
       const nameBtnHtml = u.isAdmin ? '' : \`<button class="\${u.nameBlocked ? "unban-btn" : "ban-btn"}" style="margin-left:6px;\${u.nameBlocked ? "" : "background:#a0422a"}" onclick="setNameBlock('\${esc(u.username)}', \${u.nameBlocked ? "false" : "true"})">\${u.nameBlocked ? "✅ Unblock name" : "🚫 Bad name"}</button>\`;
+      const giftHtml = u.isGuest ? '' : \`<button class="unban-btn" style="margin-left:6px;background:#8a6d1f" onclick="giftCoins('\${esc(u.username)}')">🎁 Coins</button>\`;
       const delHtml = u.isAdmin
         ? '<span class="hint">protected</span>'
         : \`<button class="ban-btn" style="margin-left:6px" onclick="deleteUser('\${esc(u.username)}')">🗑 Delete + ban</button>\`;
@@ -2868,7 +2912,7 @@ function renderRegUsersTable(list) {
         <td style="font-family:monospace;color:#b5bac1">\${esc(u.lastIP || "—")}</td>
         <td style="color:#b5bac1;font-size:.85em">\${esc(lastSeen)}</td>
         <td>\${statusHtml}</td>
-        <td style="white-space:nowrap">\${actionHtml}\${tempHtml}\${proBtnHtml}\${nameBtnHtml}\${delHtml}</td>
+        <td style="white-space:nowrap">\${actionHtml}\${tempHtml}\${giftHtml}\${proBtnHtml}\${nameBtnHtml}\${delHtml}</td>
       </tr>\`;
     }).join("") + "</table>";
 }
@@ -4977,6 +5021,7 @@ function notifView(it) {
   return {
     id: it.id, type: it.type, from: it.from || null, name: it.name || null,
     game: it.game || null, kind: it.kind || null, link: it.link || null,
+    amount: it.amount || null, note: it.note || null,
     count: it.count || 1, ts: it.ts, read: !!it.read,
     avatar: from ? (from.avatar || DEFAULT_AVATAR) : null,
   };

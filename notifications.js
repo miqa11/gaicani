@@ -25,6 +25,7 @@
     friend_request: ["👥", "#4f6cff"], friend_accept: ["✅", "#1fc18a"],
     message: ["💬", "#4f6cff"], trinder_like: ["💗", "#e33b5f"],
     trinder_match: ["💞", "#e33b5f"], game_invite: ["🎮", "#9d5cff"],
+    coins_gift: ["🪙", "#d6a84f"],
   };
 
   const CSS = `
@@ -72,6 +73,7 @@
 .notif-av-img { width:52px; height:52px; border-radius:50%; object-fit:cover; display:grid; place-items:center;
   background:linear-gradient(135deg,#4f6cff,#9d5cff); color:#fff; font-weight:800; font-size:1.3em; }
 .notif-av-img.heart { background:linear-gradient(135deg,#ff6f96,#e33b5f 50%,#7c3aed); font-size:1.5em; }
+.notif-av-img.gift { background:linear-gradient(135deg,#f0c76a,#d6a84f 55%,#9a6b1f); font-size:1.5em; }
 .notif-type { position:absolute; right:-3px; bottom:-3px; width:24px; height:24px; border-radius:50%;
   display:grid; place-items:center; font-size:12px; line-height:1; box-shadow:0 0 0 2px #221b40; }
 .notif-body { flex:1; min-width:0; font-size:.9em; line-height:1.38; }
@@ -120,6 +122,8 @@
         return count > 1 ? "<b>" + count + "</b> ადამიანს მოეწონე Trinder-ზე" : "ვიღაცას მოეწონე Trinder-ზე — ნახე ვინ";
       case "trinder_match": return "ახალი მატჩი Trinder-ზე: <b>" + esc(n.name || n.from || "") + "</b> — მიწერე!";
       case "game_invite":    return who + "-მა მოგიწვია " + esc(GAME_LABEL[n.game] || "თამაშზე");
+      case "coins_gift":     return "🎁 ადმინისტრაციამ გაჩუქა <b>" + esc(Number(n.amount || 0).toLocaleString("en-US")) + "</b> მონეტა" +
+                               (n.note ? ": „" + esc(n.note) + "“" : "");
       default:               return "ახალი შეტყობინება";
     }
   }
@@ -127,6 +131,7 @@
   function itemHTML(n) {
     let av;
     if (n.type === "trinder_like") av = '<div class="notif-av-img heart" aria-hidden="true">💗</div>';
+    else if (n.type === "coins_gift") av = '<div class="notif-av-img gift" aria-hidden="true">🎁</div>';
     else if (n.avatar) av = '<img class="notif-av-img" src="/' + esc(n.avatar) + '" alt="" loading="lazy" />';
     else av = '<div class="notif-av-img" aria-hidden="true">' + esc((n.from || "?").charAt(0).toUpperCase()) + "</div>";
     const [icon, color] = n.type === "game_invite"

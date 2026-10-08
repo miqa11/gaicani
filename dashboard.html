@@ -2666,6 +2666,9 @@ function profileChipsHTML(p) {
 
       // Admin granted/revoked pro status while this session is live —
       // update the badge immediately rather than waiting for a reload.
+      // 🎁 Coins gifted by the admin (or changed elsewhere) — the counter follows.
+      socket.on("coins:changed", ({ coins } = {}) => paintCoins(coins));
+
       socket.on("auth:proStatusChanged", ({ isPro }) => {
         if (authUser) authUser.isPro = !!isPro;
         renderVipBadge(!!isPro);
