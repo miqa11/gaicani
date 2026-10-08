@@ -68,6 +68,8 @@ const chatCrypt  = require("./server-chatcrypt");
 // 🤖 The same message sent again and again (per IP) → a captcha before the
 // next ones go out. Nothing is blocked — see server-spamguard.js.
 const spamGuard  = require("./server-spamguard").createSpamGuard();
+// 🚫 Phrases the admin bans (e.g. ads for other sites) — see server-adfilter.js
+const adFilter   = require("./server-adfilter").createAdFilter({ file: path.join(DATA_PATH, "ad_filter.json"), readJson: readJsonFile, writeAtomic: writeFileAtomic });
 if (chatCrypt.enabled) console.log(`[CHATS] Private chats are stored encrypted (key ${chatCrypt.keyId})`);
 else if (chatCrypt.keyTooShort) console.warn(`[CHATS] CHAT_KEY is too short (needs ${chatCrypt.minLength}+ characters) — private chats are NOT encrypted`);
 else console.warn("[CHATS] CHAT_KEY is not set — private chats are stored unencrypted");
@@ -362,6 +364,43 @@ function saveBannedIPs() {
 
 loadBannedIPs(); // restore bans immediately at startup
 
+// ── 🚫 Banned phrases (admin panel) → instant IP ban ──────────────────────────
+// Every event that carries text someone wrote is looked at before its
+// handler runs. A message with a banned phrase never goes out; its sender's
+// IP is banned for good (like a manual ban — the admin can undo it from the
+// list) and every connection from that IP is closed. The owner is exempt, so
+// trying a phrase out can't lock them out. End-to-end encrypted private
+// messages can't be read here, so they can't be checked.
+const AD_TEXT_OF = Object.assign({}, require("./server-spamguard").TEXT_OF, {
+  "sendQuestion": (d) => d && d.text,           // random chat question card
+  "setBio":       (d) => (typeof d === "string" ? d : ""),
+  "status:set":   (d) => d && d.text,           // 24h text status
+  "rooms:createPoll": (d) => d && [d.question].concat(d.options || []).join(" "),
+});
+function attachAdFilter(socket) {
+  socket.use((packet, next) => {
+    const textOf = AD_TEXT_OF[packet && packet[0]];
+    if (!textOf) return next();
+    let text = null;
+    try { text = textOf(packet[1]); } catch (_) { /* odd payload — let the handler deal with it */ }
+    const hit = typeof text === "string" && text ? adFilter.match(text) : null;
+    if (!hit) return next();
+    const acct = socket._regUser && registeredUsers.get(socket._regUser.usernameLower);
+    if ((acct && acct.isAdmin) || OWNER_IPS.has(socket.clientIP)) return next();
+    banForAd(socket, text, hit, packet[0]); // the message is dropped
+  });
+}
+function banForAd(socket, text, hit, where) {
+  const ip = socket.clientIP && socket.clientIP !== "unknown" ? socket.clientIP : "";
+  const username = (socket._regUser && socket._regUser.username) || socket.userName || "";
+  if (ip) { bannedIPs.add(ip); rebuildBannedRanges(); saveBannedIPs(); }
+  adFilter.record({ username, ip, text, pattern: hit.pattern, where });
+  for (const [, s] of io.sockets.sockets) {
+    if (s === socket || (ip && s.clientIP === ip)) { s.emit("autoKicked"); setTimeout(() => s.disconnect(true), 300); }
+  }
+  console.log(`[ADFILTER] Banned ${username || "?"} (${ip || "no IP"}) for "${hit.pattern}" in ${where}: ${String(text).slice(0, 80)}`);
+}
+
 // ── Persistent manual user-agent ban list ─────────────────────────────────────
 // Lets the admin panel block a whole User-Agent string (any IP using it gets
 // rejected), same persistence pattern as the IP ban list above.
@@ -545,6 +584,10 @@ const ROUTE = {
   unbanTemp:    "/k9vd4qz2ym8", // POST: lift a 24h block early
   nameBlock:    "/q3vn8ys5ke1", // POST: block an account for an offensive name (forces a rename)
   giftCoins:    "/p7wd3hx9nb4", // POST: 🎁 gift coins to a registered account
+  adFilter:     "/r9uq143hngq", // GET: 🚫 banned phrases + who got banned for them
+  adFilterAdd:  "/nk93d8up021", // POST: add a banned phrase
+  adFilterDel:  "/0612k04p8gw", // POST: remove a banned phrase
+  adFilterUnban:"/qmuhw5shzvm", // POST: undo one ban from the list
   backup:       "/d6mwscjzlh2", // GET: download a backup of all site data (.tar.gz)
   restore:      "/u8lkwdrjhi5", // POST: upload a backup — replaces the data and restarts
 };
@@ -2072,6 +2115,31 @@ app.post(ROUTE.unbanTemp, ownerOnly, (req, res) => {
   res.json({ success: true, ip, wasActive: had });
 });
 
+// ── 🚫 Banned phrases: the list, add / remove, and the log of bans ──────────
+app.get(ROUTE.adFilter, ownerOnly, (req, res) => {
+  const v = adFilter.view();
+  res.json({ patterns: v.patterns, total: v.total,
+    bans: v.bans.map((b) => Object.assign({}, b, { stillBanned: !b.unbanned && !!b.ip && bannedIPs.has(b.ip) })) });
+});
+app.post(ROUTE.adFilterAdd, ownerOnly, (req, res) => {
+  const r = adFilter.add(String(req.query.pattern || ""));
+  if (r.error) return res.status(400).json({ error: r.error });
+  console.log(`[ADFILTER] Phrase added: ${r.entry.pattern}`);
+  res.json({ ok: true, entry: r.entry });
+});
+app.post(ROUTE.adFilterDel, ownerOnly, (req, res) => {
+  if (!adFilter.remove(String(req.query.id || ""))) return res.status(404).json({ error: "not found" });
+  res.json({ ok: true });
+});
+app.post(ROUTE.adFilterUnban, ownerOnly, (req, res) => {
+  const b = adFilter.ban(String(req.query.id || ""));
+  if (!b) return res.status(404).json({ error: "not found" });
+  if (b.ip && bannedIPs.delete(b.ip)) { rebuildBannedRanges(); saveBannedIPs(); }
+  adFilter.markUnbanned(b.id);
+  console.log(`[ADFILTER] Ban lifted: ${b.username || "?"} (${b.ip})`);
+  res.json({ ok: true });
+});
+
 // POST <ban route>?ip=1.2.3.4  — ban an IP and kick all matching sockets
 app.post(ROUTE.ban, ownerOnly, (req, res) => {
   const ip = (req.query.ip || "").trim();
@@ -2449,6 +2517,20 @@ async function loadOverview() {
 </details>
 
 <details class="section" open>
+  <summary>🚫 Banned phrases (ads) <span class="hint" style="margin:0 0 0 4px;font-weight:400">(anyone who writes one is banned at once)</span></summary>
+  <div class="section-body" id="adFilterBox">
+  <div class="manual-ban-box">
+    <label>Phrase to ban — e.g. an advertised site</label>
+    <input type="text" id="adPhrase" placeholder="SEV•GE" maxlength="210" onkeydown="if (event.key === 'Enter') addAdPhrase()" />
+    <button class="do-ban-btn" onclick="addAdPhrase()">🚫 Ban this phrase</button>
+    <p class="hint">Caught however it's written: <code>SEV•GE</code> also catches <code>sev.ge</code>, <code>sev ge</code>, <code>S E V G E</code>, <code>s3v-g3</code> and look-alike letters. For an exact regular expression write it between slashes, e.g. <code>/promo[0-9]+/</code>. Checked in random chat, rooms, forum, game chats, private chat (not end-to-end encrypted ones — nobody can read those), polls, 24h statuses and bios. The message never goes out and the sender's IP is banned forever (undo below). You — your own IP and the Support account — are never banned.</p>
+    <div id="adPhrases"></div>
+  </div>
+  <div id="adBans">Loading...</div>
+  </div>
+</details>
+
+<details class="section" open>
   <summary>💾 Backup &amp; restore</summary>
   <div class="section-body">
   <div class="manual-ban-box backup-box">
@@ -2817,6 +2899,61 @@ async function unblockUA(b64ua) {
   loadAll();
 }
 
+// ── 🚫 Banned phrases ─────────────────────────────────────────────
+async function addAdPhrase() {
+  const el = document.getElementById("adPhrase");
+  const phrase = el.value.trim();
+  if (!phrase) { setStatus("⚠️ Type a phrase first"); return; }
+  const r = await fetch(R.adFilterAdd + "?pattern=" + encodeURIComponent(phrase), { method: "POST" });
+  const d = await r.json().catch(function () { return {}; });
+  if (!r.ok) { alert(d.error || "Failed"); return; }
+  el.value = "";
+  setStatus("✅ Banned phrase added: " + phrase);
+  loadAdFilter();
+}
+const AD_WHERE = { "message": "random chat", "sendQuestion": "random chat question", "setBio": "bio", "status:set": "24h status",
+  "rooms:send": "room", "rooms:createPoll": "poll", "forum:createPost": "forum post", "forum:comment": "forum comment",
+  "privateMsg:send": "private chat", "poker:chat": "poker chat", "blackjack:chat": "blackjack chat", "chess:chat": "chess chat",
+  "checkers:chat": "checkers chat", "joker:chat": "joker chat", "imposter:chat": "imposter chat" };
+function fmtWhen(ts) { return ts ? new Date(ts).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""; }
+async function loadAdFilter() {
+  try {
+    const d = await api("GET", R.adFilter);
+    const pats = d.patterns || [], bans = d.bans || [];
+    document.getElementById("adPhrases").innerHTML = pats.length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">' + pats.map(function (p) {
+          return '<span class="badge" style="display:inline-flex;align-items:center;gap:6px;font-size:.9em">' + esc(p.pattern) +
+            ' <button class="unban-btn" style="padding:1px 7px" data-act="del" data-id="' + esc(p.id) + '" data-label="' + esc(p.pattern) + '" title="Stop banning this">✕</button></span>';
+        }).join("") + '</div>'
+      : '<p class="hint" style="margin-top:8px">No banned phrases yet.</p>';
+    setSectionCount("adBans", d.total || 0);
+    document.getElementById("adBans").innerHTML = bans.length
+      ? '<table><tr><th>When</th><th>User</th><th>IP</th><th>What they wrote</th><th>Phrase</th><th>Where</th><th></th></tr>' + bans.map(function (b) {
+          return '<tr><td style="white-space:nowrap">' + esc(fmtWhen(b.at)) + '</td><td><span class="ip">' + esc(b.username || "—") + '</span></td>' +
+            '<td style="font-family:monospace;color:#b5bac1">' + esc(b.ip || "—") + '</td>' +
+            '<td style="max-width:320px;word-break:break-word">' + esc(b.text) + '</td><td><span class="badge">' + esc(b.pattern) + '</span></td>' +
+            '<td style="color:#949ba4">' + esc(AD_WHERE[b.where] || b.where || "") + '</td><td style="white-space:nowrap">' +
+            (b.stillBanned ? '<button class="unban-btn" data-act="unban" data-id="' + esc(b.id) + '" data-label="' + esc(b.username || b.ip) + '">Unban</button>'
+                           : '<span class="hint">' + (b.unbanned ? "unbanned" : "not banned") + '</span>') + '</td></tr>';
+        }).join("") + '</table>'
+      : '<p style="color:#72767d;font-size:.9em">Nobody has been banned for a phrase yet.</p>';
+  } catch (e) { document.getElementById("adBans").textContent = "Error"; }
+}
+document.addEventListener("click", async function (e) {
+  const btn = e.target.closest && e.target.closest("#adFilterBox [data-act]");
+  if (!btn) return;
+  if (btn.dataset.act === "del") {
+    if (!confirm("Stop banning \u201C" + btn.dataset.label + "\u201D?")) return;
+    await api("POST", R.adFilterDel + "?id=" + encodeURIComponent(btn.dataset.id));
+    setStatus("✅ Phrase removed");
+  } else {
+    if (!confirm("Unban " + btn.dataset.label + "?")) return;
+    await api("POST", R.adFilterUnban + "?id=" + encodeURIComponent(btn.dataset.id));
+    setStatus("✅ Unbanned " + btn.dataset.label);
+  }
+  loadAll();
+});
+
 async function manualBlockUA() {
   const ua = document.getElementById("manualUA").value.trim();
   if (!ua) { setStatus("⚠️ No User-Agent entered"); return; }
@@ -2876,6 +3013,7 @@ function setStatus(msg) {
 
 async function loadAll() {
   loadOverview();
+  loadAdFilter();
   try {
     const d = await api("GET", R.users);
     const el = document.getElementById("users");
@@ -3260,6 +3398,7 @@ io.on("connection", (socket) => {
     "unknown";
   socket.clientIP  = rawIP;
   socket.userAgent = socket.handshake.headers["user-agent"] || "";
+  attachAdFilter(socket);   // 🚫 banned phrases → IP ban (checked first)
   spamGuard.attach(socket); // 🤖 repeated messages → captcha (all chats on this connection)
 
   // ── Drop banned IPs / user-agents immediately ───────────────────────────────

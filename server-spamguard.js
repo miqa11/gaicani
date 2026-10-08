@@ -212,4 +212,4 @@ function createSpamGuard({ log = console.log } = {}) {
   return { check, attach, REPEAT_LIMIT, WINDOW_MSGS, WINDOW_MS };
 }
 
-module.exports = { createSpamGuard, captchaImage };
+module.exports = { createSpamGuard, captchaImage, TEXT_OF };
