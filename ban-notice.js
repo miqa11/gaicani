@@ -280,6 +280,9 @@ function attachConnectionKeeper(socket) {
     socket.emit("conn:ping", () => { answered = true; checking = false; clearTimeout(timer); });
   }
 
+  // Also for a page whose message got no answer from the server in time.
+  socket.checkConnection = () => { lastCheck = 0; check(); };
+
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") check(); });
   window.addEventListener("pageshow", (e) => { if (e.persisted) check(); });   // back/forward cache
   window.addEventListener("online", check);                                      // network returned

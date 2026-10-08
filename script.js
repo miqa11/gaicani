@@ -147,16 +147,36 @@ function getAudioCtx() {
   return _audioCtx;
 }
 
+// Browsers only let a page make sound after a tap or key press, and they
+// pause it again when the page goes to the background (iPhone: "interrupted").
+// So on every tap/key the sound is woken up again — created on the first
+// one if needed, with a silent blip that unlocks it on iPhones — and woken
+// when the page comes back to the front.
+let _audioUnlocked = false;
 function ensureAudioReady() {
-  if (_audioCtx && _audioCtx.state === "suspended") _audioCtx.resume().catch(() => {});
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state !== "running") ctx.resume().catch(() => {});
+    if (!_audioUnlocked) {
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+      _audioUnlocked = true;
+    }
+  } catch (_) { /* audio not supported */ }
 }
 
-document.addEventListener("click",   ensureAudioReady, { passive: true });
-document.addEventListener("keydown", ensureAudioReady, { passive: true });
+["pointerdown", "touchend", "click", "keydown"].forEach((ev) => document.addEventListener(ev, ensureAudioReady, { passive: true, capture: true }));
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && _audioCtx && _audioCtx.state !== "running") _audioCtx.resume().catch(() => {});
+});
 
 function playTone(freq, duration = 0.2, volume = 0.07) {
   try {
-    const ctx  = getAudioCtx();
+    const ctx = getAudioCtx();
+    // Paused (background, idle) → wake it first, then play.
+    if (ctx.state !== "running") { ctx.resume().then(() => { if (ctx.state === "running") playTone(freq, duration, volume); }).catch(() => {}); return; }
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -1261,11 +1281,10 @@ function sendMessage() {
   // Guard every possible way the chat can be in a non-connected state
   if (!partnerConnected || !userName) return;
   if (messageInput.disabled || messageInput.readOnly) return;
-  if (!socket.connected) return; // don't queue messages if socket is down
   const msgId = generateMsgId();
   const currentReply = replyTo ? { ...replyTo } : null;
   addMessage(message, true, msgId, currentReply);
-  socket.emit("message", { text: message, messageId: msgId, replyTo: currentReply });
+  sendChat(msgId, message, currentReply); // also while the connection is coming back
   messageInput.value = "";
   messageInput.style.height = "auto";
   messageInput.style.overflowY = "hidden";
@@ -1277,6 +1296,56 @@ function sendMessage() {
   if (gifPickerOpen) closeGifPickerPanel();
   else messageInput.focus();
 }
+
+// ── Sending that survives a dropped connection ─────────────────────────────
+// A message shows 🕓 until the server says it got it, then ✓ (✓✓ once read).
+// Phones quietly drop the connection in the background: if that answer
+// doesn't come within a few seconds, the connection is checked and remade,
+// and what's waiting goes out as soon as the chat is back (the server takes
+// each message once). One that can't be delivered (the partner left) is
+// marked ⚠️ instead of sitting at a grey ✓ for ever.
+const pendingOut = new Map(); // messageId → { text, replyTo, at, timer }
+function setSentMark(id, state) {
+  const el = document.getElementById(`seen_${id}`);
+  if (!el) return;
+  el.classList.toggle("pending", state === "pending");
+  el.classList.toggle("failed", state === "failed");
+  if (state === "pending") el.textContent = "🕓";
+  else if (state === "failed") el.textContent = "⚠️ არ გაიგზავნა";
+  else if (el.textContent !== "✓✓") el.textContent = "✓";
+}
+function sendChat(id, text, reply) {
+  pendingOut.set(id, { text, replyTo: reply, at: Date.now(), timer: null });
+  setSentMark(id, "pending");
+  if (socket.connected) emitChat(id);
+  else if (socket.checkConnection) socket.checkConnection(); else socket.connect();
+}
+function emitChat(id) {
+  const m = pendingOut.get(id);
+  if (!m || !socket.connected) return;
+  socket.emit("message", { text: m.text, messageId: id, replyTo: m.replyTo }, (r) => {
+    if (!pendingOut.has(id)) return;
+    clearTimeout(m.timer);
+    pendingOut.delete(id);
+    setSentMark(id, r && r.ok === false ? "failed" : "sent");
+  });
+  clearTimeout(m.timer);
+  m.timer = setTimeout(function waitForAnswer() {
+    if (!pendingOut.has(id)) return;
+    if (Date.now() - m.at > 90000) { pendingOut.delete(id); setSentMark(id, "failed"); return; }
+    // The anti-spam captcha holds it until it's solved — not lost.
+    if (!document.getElementById("gcSpamCaptcha") && socket.checkConnection) socket.checkConnection();
+    m.timer = setTimeout(waitForAnswer, 6000);
+  }, 6000);
+}
+function resendPending() { for (const id of [...pendingOut.keys()]) emitChat(id); }
+function dropPending(markFailed) {
+  for (const [id, m] of pendingOut) { clearTimeout(m.timer); if (markFailed) setSentMark(id, "failed"); }
+  pendingOut.clear();
+}
+socket.on("partnerRestored", resendPending);                 // back in the same chat after reconnecting
+socket.on("partnerDisconnected", () => dropPending(true));   // they left — what didn't reach them, didn't
+socket.on("partnerFound", () => dropPending(false));         // a new chat
 
 // ── Bio / Interests popup ─────────────────────────────────────────────────────
 let bioPopupOpen = false;
@@ -1946,6 +2015,7 @@ nextBtn.addEventListener("click", () => {
 
   // Stop any stale state synchronously first
   stopSearchRetry();
+  dropPending(false);
   partnerConnected     = false;
   partnerName = ""; setPartnerNameDisplay("");
   lastPartnerName      = "";

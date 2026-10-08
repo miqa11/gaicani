@@ -1578,8 +1578,12 @@ button, textarea, input { font-family: inherit; }
 
   // Sending: locked end-to-end when you both have keys, the old way
   // otherwise. Each message is kept until the server confirms it, and sent
-  // once more if the server knew newer keys than this page.
-  const outbox = new Map(); // messageId → { kind, payload, retried }
+  // once more if the server knew newer keys than this page. While the
+  // connection is down (or not logged in again yet) messages wait here and
+  // go out once it's back; one with no answer in a few seconds gets the
+  // connection checked (phones drop it quietly). The server takes each once.
+  const outbox = new Map(); // messageId → { kind, payload, retried, sent }
+  let authed = false;       // logged in on the current connection
   let sendChain = Promise.resolve();
   let lastGifId = null;
   function sendOut(kind, messageId, payload) {
@@ -1604,7 +1608,10 @@ button, textarea, input { font-family: inherit; }
   }
   async function emitOut(messageId) {
     const o = outbox.get(messageId);
-    if (!o || !socket) return;
+    if (!o || !socket || !authed) return; // not connected yet → sent after logging back in
+    o.sent = true;
+    clearTimeout(o.timer);
+    if (o.kind !== "gif") o.timer = setTimeout(() => { if (outbox.has(messageId) && !document.getElementById("gcSpamCaptcha")) socket.checkConnection?.(); }, 6000);
     const ev = o.kind === "text" ? "privateMsg:send" : o.kind === "sticker" ? "privateMsg:sendSticker" : "friendChat:gif";
     if (E2EE && E2EE.canSeal(friendLc)) {
       const e2e = await E2EE.sealJSON(friendLc, o.kind, o.payload);
@@ -2144,7 +2151,7 @@ button, textarea, input { font-family: inherit; }
   function sendMessage(opts) {
     const focusAfter = !opts || opts.focusAfter !== false;
     const text = elInput.value.trim();
-    if (!text || !socket?.connected) return;
+    if (!text || !socket) return; // while reconnecting it waits and goes out after
 
     elInput.value = "";
     elInput.style.height = "auto";
@@ -2272,6 +2279,7 @@ button, textarea, input { font-family: inherit; }
     socket.on("connect", () => {
       socket.emit("auth:login", { token });
     });
+    socket.on("disconnect", () => { authed = false; });
 
     /* Authenticated → join friend-chat room */
     socket.on("auth:authenticated", (d) => {
@@ -2283,6 +2291,12 @@ button, textarea, input { font-family: inherit; }
       refreshPhotoBtnVisibility();
       socket.emit("friendChat:join", { friendUsername: friendName });
       loadFriendHeader();
+      // Logged in (again) → whatever is still waiting goes out now.
+      authed = true;
+      for (const [id, o] of outbox) {
+        if (o.kind === "gif" && o.sent) continue; // a GIF has no id to tell repeats apart
+        sendChain = sendChain.then(() => emitOut(id)).catch(() => {});
+      }
     });
 
     // Header: your nickname for them, and "ონლაინ" / "ბოლოს ნანახი 5 წუთის წინ".
@@ -3000,7 +3014,7 @@ button, textarea, input { font-family: inherit; }
   }
 
   function sendFCSticker(id) {
-    if (!socket?.connected) return;
+    if (!socket) return;
     const messageId = fcGenId();
     appendMessage({ id: messageId, from: myUsername, type: "sticker", sticker: id, ts: new Date().toISOString() });
     sendOut("sticker", messageId, { sticker: id });
@@ -3008,7 +3022,7 @@ button, textarea, input { font-family: inherit; }
   }
 
   function sendFCGif(url) {
-    if (!socket?.connected) return;
+    if (!socket) return;
     const messageId = fcGenId();
     appendMessage({ id: messageId, from: myUsername, type: "gif", url, ts: new Date().toISOString() });
     sendOut("gif", messageId, { url });

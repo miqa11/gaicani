@@ -367,6 +367,7 @@ html, body {
   -webkit-user-select: none; user-select: none;
 }
 
+.seen-status.failed { color: #f23f42; }
 .seen-status.seen {
   color: #5865f2;
 }

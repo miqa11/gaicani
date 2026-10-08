@@ -3610,9 +3610,12 @@ io.on("connection", (socket) => {
   });
 
   // ── Messaging ────────────────────────────────────────────────────────────
-  socket.on("message", (msg) => {
-    if (!socket.partner) return;
-    if (!msgRateLimiter.check(socket)) return;
+  // The sender's page waits for this answer to turn 🕓 into ✓ — every way
+  // out answers, so a message is never left looking stuck.
+  socket.on("message", (msg, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    if (!socket.partner) return reply({ ok: false });
+    if (!msgRateLimiter.check(socket)) return reply({ ok: false });
 
     // ── Anti-bot layer 1: typing gate ─────────────────────────────────────
     // Real users always trigger the 'input' event which emits typing:true.
@@ -3638,7 +3641,7 @@ io.on("connection", (socket) => {
     }
 
     text = text.slice(0, MSG_MAX).replace(/<[^>]*>/g, "").trim();
-    if (!text) return;
+    if (!text) return reply({ ok: false });
 
     // ── Blocked-phrase filter ───────────────────────────────────────────────
     // The message is still blocked and the sender still kicked. The permanent
@@ -3660,7 +3663,7 @@ io.on("connection", (socket) => {
       cleanupGameForSocket(socket.id);
       socket.emit("autoKicked");
       setTimeout(() => socket.disconnect(true), 500);
-      return;
+      return reply({ ok: false });
     }
 
     // ── @ mention kick ────────────────────────────────────────────────────
@@ -3670,7 +3673,7 @@ io.on("connection", (socket) => {
       if (strikeResult1 === 'warning') {
         // First offence — warn but don't kick
         socket.emit("linkWarning");
-        return;
+        return reply({ ok: false });
       }
       // Second offence — ban and kick
       const kickedPartner = socket.partner;
@@ -3683,14 +3686,14 @@ io.on("connection", (socket) => {
       socket.partner = null;
       cleanupGameForSocket(socket.id);
       setTimeout(() => socket.disconnect(true), 1500);
-      return;
+      return reply({ ok: false });
     }
 
     if (containsLink(text)) {
       const strikeResult2 = recordLinkStrike(socket.clientIP);
       if (strikeResult2 === 'warning') {
         socket.emit("linkWarning");
-        return;
+        return reply({ ok: false });
       }
       const kickedPartner2 = socket.partner;
       socket.emit("linkBanned");
@@ -3699,9 +3702,17 @@ io.on("connection", (socket) => {
       if (kickedPartner2) { kickedPartner2.partner = null; kickedPartner2.lastPartnerName = ""; }
       cleanupGameForSocket(socket.id);
       setTimeout(() => socket.disconnect(true), 1500);
-      return;
+      return reply({ ok: false });
     }
-    if (!socket.partner) return; // partner left
+    if (!socket.partner) return reply({ ok: false }); // partner left
+    // Sent again after a reconnect, though it had already arrived → once only.
+    const to = socket.partner;
+    if (messageId) {
+      to._recvIds = to._recvIds || [];
+      if (to._recvIds.includes(messageId)) return reply({ ok: true });
+      to._recvIds.push(messageId);
+      if (to._recvIds.length > 60) to._recvIds.shift();
+    }
     if (socket.partner._isGhost) {
       socket.partner._messageQueue = socket.partner._messageQueue || [];
       socket.partner._messageQueue.push({ text, messageId, replyTo });
@@ -3709,7 +3720,9 @@ io.on("connection", (socket) => {
       socket.partner.emit("message", { text, messageId, replyTo });
       if (!socket.partner.isSupportAI) bumpStat("msgRandom");
     }
+    reply({ ok: true });
   });
+
 
   // ── Question card ─────────────────────────────────────────────────────────
   socket.on("sendQuestion", ({ text }) => {
@@ -11828,6 +11841,11 @@ io.on("connection", (socket) => {
 
     const roomId = privRoomId(socket._regUser.usernameLower, toLc);
     let room = privateRooms.get(roomId);
+    // Sent again after a reconnect, though it had already arrived → once only.
+    if (room && messageId && room.messages.some((m) => m.id === messageId && m.from === socket._regUser.usernameLower)) {
+      socket.emit("privateMsg:sent", { success: true, messageId });
+      return;
+    }
 
     if (!room) {
       room = { messages: [], createdAt: Date.now(), expiresAt: Date.now() + PRIVATE_MSG_TTL };
@@ -11895,6 +11913,10 @@ io.on("connection", (socket) => {
 
     const roomId = privRoomId(myLc, toLc);
     let room = privateRooms.get(roomId);
+    if (room && messageId && room.messages.some((m) => m.id === messageId && m.from === myLc)) {
+      socket.emit("privateMsg:sent", { success: true, messageId }); // sent again after a reconnect
+      return;
+    }
     if (!room) {
       room = { messages: [], createdAt: Date.now(), expiresAt: Date.now() + PRIVATE_MSG_TTL };
       privateRooms.set(roomId, room);
