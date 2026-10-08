@@ -1178,11 +1178,6 @@ const CAPTCHA_SECRET  = process.env.CAPTCHA_SECRET || crypto.randomBytes(32).toS
 const CAPTCHA_COOKIE  = "gc_pass";
 const CAPTCHA_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-// Geo cache — avoid hammering ip-api.com (free tier: 45 req/min)
-// ip → { country: "GE"|other, ts: Date.now() }
-const geoCache = new Map();
-const GEO_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
-
 // Pending captcha challenges — ip → { a, b, answer, expires }
 const captchaChallenges = new Map();
 const CAPTCHA_TTL = 10 * 60 * 1000; // 10 minutes to solve
@@ -1192,8 +1187,6 @@ setInterval(() => {
   const now = Date.now();
   for (const [ip, c] of captchaChallenges)
     if (now > c.expires) captchaChallenges.delete(ip);
-  for (const [ip, c] of geoCache)
-    if (now - c.ts > GEO_CACHE_TTL) geoCache.delete(ip);
 }, 5 * 60 * 1000);
 
 function makeCaptchaToken(ip) {
@@ -1231,25 +1224,6 @@ function setCaptchaCookie(res, ip, req) {
   res.setHeader("Set-Cookie",
     `${CAPTCHA_COOKIE}=${token}; Max-Age=${CAPTCHA_MAX_AGE / 1000}; Path=/; HttpOnly; SameSite=Lax${secureCookieFlag(req)}`
   );
-}
-
-async function getCountry(ip) {
-  // Always pass local / private IPs (dev environment)
-  if (!ip || ip === "::1" || ip === "127.0.0.1" || ip.startsWith("192.168.") || ip.startsWith("10.")) return "GE";
-
-  const cached = geoCache.get(ip);
-  if (cached && Date.now() - cached.ts < GEO_CACHE_TTL) return cached.country;
-
-  try {
-    const res  = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=countryCode`, { signal: AbortSignal.timeout(3000) });
-    const data = await res.json();
-    const country = data.countryCode || "??";
-    geoCache.set(ip, { country, ts: Date.now() });
-    return country;
-  } catch {
-    // On lookup failure → let them through (don't block on geo error)
-    return "GE";
-  }
 }
 
 // ── Image-selection captcha ───────────────────────────────────────────────────
@@ -1506,74 +1480,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Blocked-country page ────────────────────────────────────────────────────
-function blockedCountryHTML() {
-  return `<!DOCTYPE html>
-<html lang="ka">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>GAICANI</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{min-height:100%;background:#1e1f22;display:flex;align-items:center;justify-content:center;font-family:"Segoe UI",Arial,sans-serif}
-.box{background:#2b2d31;border-radius:16px;padding:36px 28px;max-width:420px;width:92%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.5)}
-.logo{font-size:1.8em;font-weight:900;color:#fff;letter-spacing:1px;margin-bottom:14px}
-.msg{color:#dcddde;font-size:1.05em;line-height:1.6;margin-bottom:8px}
-.sub{color:#72767d;font-size:.85em;line-height:1.5;margin-top:14px}
-</style>
-</head>
-<body>
-<div class="box">
-  <div class="logo">GAICANI</div>
-  <p class="msg">ეს სერვისი ხელმისაწვდომია მხოლოდ საქართველოს ტერიტორიაზე.</p>
-  <p class="sub">This service is only available within Georgia.</p>
-</div>
-</body>
-</html>`;
-}
-
-// ── Geo-gate — covers the WHOLE site, not just "/" ────────────────────────────
-// Originally this only checked req.path === "/", which left a real gap:
-// anyone worldwide could load /dashboard.html, /friend-chat.html, or hit any
-// /api/* endpoint directly, completely skipping the block. This now applies
-// to every GET/POST request except the admin panel (ROUTE.* paths), which
-// intentionally has its own key-login gate designed to work from any IP —
-// geo-gating it too would lock the owner out while traveling.
-app.use(async (req, res, next) => {
-  // Admin panel & its API routes are never geo-gated — they have their own
-  // key-login system (see ADMIN_KEY / hasValidAdminSession) that's meant to
-  // work from anywhere.
-  if (Object.values(ROUTE).some(r => req.path.startsWith(r))) return next();
-
-  // Only gate GET (pages/assets) and POST (API calls like login/register/
-  // gif-search/etc.) — nothing else meaningfully hits this app.
-  if (req.method !== "GET" && req.method !== "POST") return next();
-
-  const ip = (req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket?.remoteAddress || "");
-
-  // Owner always passes
-  if (OWNER_IPS.has(ip)) return next();
-
-  // Already passed the geo-check (cookie set on a prior GE visit) — avoids
-  // re-running a geo lookup on every single asset/API request.
-  if (hasCaptchaCookie(req)) return next();
-
-  // Geo-gate: only Georgian IPs may access the site. Everyone else gets a
-  // bare connection drop — no page content, no branding, nothing disclosed
-  // about what this site even is. (Primary enforcement should happen at
-  // Cloudflare's edge via a Country-based Custom Rule, which stops the
-  // request before it ever reaches this server at all — this is just the
-  // fallback in case that's ever misconfigured or bypassed.)
-  const country = await getCountry(ip);
-  if (country !== "GE") {
-    res.status(403).end();
-    return;
-  }
-
-  setCaptchaCookie(res, ip, req);
-  return next();
-});
+// ── Countries ────────────────────────────────────────────────────────────────
+// There's no country check here any more: Cloudflare decides who gets in
+// (its Custom Rules — e.g. a challenge, or a block, for visitors outside
+// Georgia), and the direct onrender.com address is refused (see
+// isDirectRenderHost), so nobody can go around those rules.
 
 // POST /captcha-verify — check submitted answer (also before static)
 app.use(express.urlencoded({ extended: false }));
@@ -1779,7 +1690,7 @@ const musicSearchCache       = new Map(); // query (lowercased, or "__browse__")
 const MUSIC_SEARCH_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 // Without this, every unique search query ever typed stays in memory
-// forever (unlike geoCache/captchaChallenges, which already get swept).
+// forever (unlike captchaChallenges, which already gets swept).
 // Runs alongside the other periodic cleanups already in the file.
 setInterval(() => {
   const now = Date.now();
@@ -3356,18 +3267,6 @@ io.on("connection", (socket) => {
     socket.emit("autoKicked");
     setTimeout(() => socket.disconnect(true), 500);
     return;
-  }
-
-  // ── Geo-gate: only Georgian IPs may use the chat socket ─────────────────────
-  // The HTTP page gate blocks non-GE visitors from loading "/", but a direct
-  // socket.io connection would skip that check — so we re-verify here too.
-  if (!OWNER_IPS.has(rawIP)) {
-    getCountry(rawIP).then(country => {
-      if (country !== "GE") {
-        socket.emit("autoKicked");
-        setTimeout(() => socket.disconnect(true), 500);
-      }
-    });
   }
 
   console.log("User connected", socket.id, rawIP);
