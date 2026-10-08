@@ -1,8 +1,8 @@
 // ── 🛟 Support AI — asks random-chat visitors what we should improve ─────────
-// When someone searching in random chat finds no real partner within WAIT_MS,
-// "Support AI" (a scripted partner, not a person) is matched with them
-// instead. It asks the question, says thanks after the first answer, and
-// every message they send it is saved for the Support dashboard.
+// "Support AI" (a scripted partner, not a person) is matched in random chat
+// like anyone else searching. It asks the question, says thanks after the
+// first answer, and every message they send it is saved for the Support
+// dashboard.
 // "⏭ გამოტოვება" or 🚫 block = it never comes to that person again; anyone
 // else meets it at most once every AGAIN_AFTER_MS. Support turns it on/off.
 //
@@ -21,7 +21,6 @@ const QUESTION = [
   "შენი აზრი ჩვენთვის ძალიან მნიშვნელოვანია.",
 ];
 const THANKS = "მადლობა! ❤️ შენი აზრი გადავეცი ჩვენს გუნდს. თუ კიდევ რამე გაქვს სათქმელი, მომწერე.";
-const WAIT_MS = 5000;                       // only when no real partner turns up this fast
 const AGAIN_AFTER_MS = 7 * 24 * 3600 * 1000; // the same person at most once a week
 const MAX_CONVS = 1000, MAX_MSGS = 40, MAX_TEXT = 1000;
 
@@ -169,7 +168,7 @@ function createSupportAI({ file, readJson, writeAtomic, graceMs, onUpdate = () =
   }
 
   return {
-    NAME, AVATAR, WAIT_MS,
+    NAME, AVATAR,
     get enabled() { return st.enabled; },
     setEnabled(on) { st.enabled = !!on; save(); },
     eligible, start, keysOf,

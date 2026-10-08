@@ -3266,9 +3266,9 @@ function broadcastQueuePositions() {
 }
 
 // ── 🛟 Support AI (see server-supportai.js) ─────────────────────────────────
-// Someone searching in random chat who finds nobody within a few seconds
-// may get "Support AI", which asks what we should improve. What they write
-// to it shows up on the Support dashboard. Support turns it on and off.
+// "Support AI" is in random chat's pool like any other person: it asks what
+// we should improve, and what people write to it shows up on the Support
+// dashboard. Support turns it on and off.
 const supportAI = require("./server-supportai").createSupportAI({
   file: path.join(DATA_PATH, "support_ai.json"),
   readJson: readJsonFile, writeAtomic: writeFileAtomic, graceMs: RECONNECT_GRACE_MS,
@@ -3277,24 +3277,16 @@ const supportAI = require("./server-supportai").createSupportAI({
 function toAdmins(ev, data) {
   for (const [lc, u] of registeredUsers) if (u.isAdmin) io.to(`user:${lc}`).emit(ev, data);
 }
-// (Re)started whenever someone goes into the queue.
-function scheduleSupportAI(sock) {
-  clearTimeout(sock._saiTimer);
-  if (!supportAI.enabled) return;
-  sock._saiTimer = setTimeout(() => {
-    sock._saiTimer = null;
-    if (!sock.connected || sock.partner || !sock.userName || !waitingQueue.some((q) => q.id === sock.id)) return;
-    if (!supportAI.eligible(sock)) return;
-    waitingQueue = waitingQueue.filter((q) => q.id !== sock.id);
-    const bot = supportAI.start(sock);
-    sock.partner = bot;
-    sock.lastPartnerName = bot.userName; sock.lastPartnerIP = ""; sock.lastPartnerSocketId = bot.id; sock.hasReportedLast = false;
-    sock._reportSnapshot = { name: bot.userName, ip: "", socketId: bot.id, supportAI: true };
-    sock.hasTyped = false; sock.chatStartedAt = Date.now(); sock.lastMessages = []; sock.spamStrikes = 0;
-    sock.emit("partnerFound", { name: bot.userName, sharedTags: [], partnerBio: "", partnerIsPro: false,
-                                partnerAvatar: supportAI.AVATAR, partnerProfile: null, partnerAccountBio: "" });
-    broadcastQueuePositions();
-  }, supportAI.WAIT_MS);
+function pairWithSupportAI(sock) {
+  waitingQueue = waitingQueue.filter((q) => q.id !== sock.id);
+  const bot = supportAI.start(sock);
+  sock.partner = bot;
+  sock.lastPartnerName = bot.userName; sock.lastPartnerIP = ""; sock.lastPartnerSocketId = bot.id; sock.hasReportedLast = false;
+  sock._reportSnapshot = { name: bot.userName, ip: "", socketId: bot.id, supportAI: true };
+  sock.hasTyped = false; sock.chatStartedAt = Date.now(); sock.lastMessages = []; sock.spamStrikes = 0;
+  sock.emit("partnerFound", { name: bot.userName, sharedTags: [], partnerBio: "", partnerIsPro: false,
+                              partnerAvatar: supportAI.AVATAR, partnerProfile: null, partnerAccountBio: "" });
+  broadcastQueuePositions();
 }
 
 function makeRateLimiter(max, windowMs) {
@@ -3725,10 +3717,21 @@ io.on("connection", (socket) => {
       !s.blockedIds.has(socket.id)
     );
 
+    // 🛟 Support AI is matched like any other person searching: with nobody
+    // else around it's the match; otherwise it has the same chance as each
+    // waiting person (someone sharing interests still comes first). Only
+    // for people it may ask — see supportAI.eligible().
+    if (supportAI.eligible(socket)) {
+      const sharesInterests = candidates.some(c => countTagOverlap(socket.interests, c.interests) > 0);
+      if (!candidates.length || (!sharesInterests && Math.random() < 1 / (candidates.length + 1))) {
+        pairWithSupportAI(socket);
+        return;
+      }
+    }
+
     if (!candidates.length) {
       if (!waitingQueue.some(s => s.id === socket.id)) waitingQueue.push(socket);
       broadcastQueuePositions();
-      scheduleSupportAI(socket);
       return;
     }
 
@@ -3746,7 +3749,6 @@ io.on("connection", (socket) => {
     if (!partnerSocket.connected || partnerSocket.partner || partnerSocket._isGhost) {
       if (!waitingQueue.some(s => s.id === socket.id)) waitingQueue.push(socket);
       broadcastQueuePositions();
-      scheduleSupportAI(socket);
       return;
     }
 
