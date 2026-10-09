@@ -563,6 +563,7 @@ const ROUTE = {
   stats:       "/r3tz8vj1qs6",  // stats dashboard HTML — PUBLIC, no IP gate (by design)
   statsApi:    "/n5ph2ck7ew0",  // stats JSON API — PUBLIC, no IP gate (called by stats page)
   statsReset:  "/0p00hpdcmlh",  // POST: reset every counted statistic (admin login only)
+  statsTopUsers: "/vgy6uq5g00i", // GET: 🏆 the most active registered users (admin login only)
   users:       "/b9wf4yd6ul3",  // list connected users JSON
   ban:         "/m2xg7rn0ks5",  // POST ban an IP
   unban:       "/q6jd1vc8zt4",  // POST unban an IP
@@ -799,6 +800,7 @@ const stats = {
   peakOnline: 0,
   peakOnlineAt: null,
   serverStartedAt: Date.now(),
+  users: new Map(),       // lowerUsername → { ms, visits, days, lastDay, lastAt } — see recordUserOnline
 };
 
 // dayObj shape:
@@ -958,6 +960,8 @@ function _saveStatsToDisk() {
     serverStartedAt: stats.serverStartedAt,
     extendedSince: stats.extendedSince || null,
     resetAt: stats.resetAt || null,
+    // accounts deleted since are left out
+    users: Object.fromEntries([...stats.users].filter(([lc]) => !registeredUsers.size || registeredUsers.has(lc))),
   };
   try {
     writeFileAtomic(STATS_FILE, JSON.stringify(out));
@@ -989,6 +993,7 @@ function loadStats() {
     }
     stats.extendedSince = obj.extendedSince || null;
     stats.resetAt = obj.resetAt || null;
+    stats.users = new Map(Object.entries(obj.users || {}));
     stats.allTimeIPs = new Set(obj.allTimeIPs || []);
     stats.peakOnline = obj.peakOnline || 0;
     stats.peakOnlineAt = obj.peakOnlineAt || null;
@@ -1013,14 +1018,60 @@ function recordChatStarted() {
   scheduleStatsSave();
 }
 
+// ── 🏆 Most active registered users (stats page, admin login only) ────────
+// Per account, since the last reset: time on the site (while any of their
+// tabs is open, counted a minute at a time), visits (coming back after 30+
+// minutes away counts as a new one) and on how many different days they
+// came. Just these counts — not what they did, which pages, or when.
+// Guests and the Support account aren't counted.
+const ACTIVITY_TICK_MS = 60_000;
+const VISIT_GAP_MS = 30 * 60_000;
+function countsAsActivity(lc) { const u = registeredUsers.get(lc); return !!(u && !u.isGuest && !u.isAdmin); }
+function activityOf(lc) {
+  let a = stats.users.get(lc);
+  if (!a) stats.users.set(lc, (a = { ms: 0, visits: 0, days: 0, lastDay: null, lastAt: 0 }));
+  return a;
+}
+function activityDay(a) {
+  const day = todayKey();
+  if (a.lastDay !== day) { a.days++; a.lastDay = day; }
+}
+// A tab of a registered account just connected.
+function recordUserOnline(lc) {
+  if (!countsAsActivity(lc)) return;
+  const a = activityOf(lc), now = Date.now();
+  if (now - a.lastAt > VISIT_GAP_MS) a.visits++;
+  // Not being counted already (another open tab, a reconnect)? The clock starts now.
+  if (now - a.lastAt > ACTIVITY_TICK_MS) a.lastAt = now;
+  activityDay(a);
+  statsDirty = true;
+  scheduleStatsSave();
+}
+// Every minute: the time since the last count goes to everyone still online.
+setInterval(() => {
+  const now = Date.now();
+  let any = false;
+  for (const [lc, socks] of onlineRegSockets) {
+    if (!socks.size || !countsAsActivity(lc)) continue;
+    const a = activityOf(lc);
+    if (!a.visits) a.visits = 1; // online through a reset
+    a.ms += Math.max(0, Math.min(now - a.lastAt, ACTIVITY_TICK_MS));
+    a.lastAt = now;
+    activityDay(a);
+    any = true;
+  }
+  if (any) { statsDirty = true; scheduleStatsSave(); }
+}, ACTIVITY_TICK_MS).unref();
+
 // 🗑 Reset (admin, from the stats page): every counted number starts again
 // from zero — visitors, new/returning, peaks, chats, messages, games, page
-// opens, devices, time on site. Totals that are simply what exists right
+// opens, devices, time on site, the most active members. Totals that are simply what exists right
 // now (accounts, friendships, stored messages, who's online) aren't
 // counters and stay as they are.
 function resetStats() {
   stats.days.clear();
   stats.allTimeIPs = new Set();
+  stats.users.clear();
   stats.resetAt = Date.now();
   stats.extendedSince = todayKey();
   // The people online at this moment are the new "most online" so far.
@@ -4492,6 +4543,22 @@ app.get(ROUTE.statsApi, (req, res) => {
 
 
 // POST <statsReset route> — the 🗑 button on the stats page (admin login only).
+// GET <statsTopUsers route> — 🏆 the registered accounts that use the site
+// most (admin login only; the stats page itself is public). The top 20 by
+// time, by visits and by days — the page shows whichever is picked.
+app.get(ROUTE.statsTopUsers, ownerOnly, (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const rows = [];
+  for (const [lc, a] of stats.users) {
+    const u = registeredUsers.get(lc);
+    if (!u || u.isGuest || u.isAdmin) continue;
+    rows.push({ username: u.username, avatar: u.avatar || DEFAULT_AVATAR, vip: isVip(u), online: !!onlineRegSockets.get(lc)?.size,
+      ms: a.ms || 0, visits: a.visits || 0, days: a.days || 0, lastAt: a.lastAt || null });
+  }
+  const top = (k) => rows.slice().sort((x, y) => y[k] - x[k] || y.ms - x.ms).slice(0, 20);
+  res.json({ users: [...new Set([...top("ms"), ...top("visits"), ...top("days")])], counted: rows.length, since: stats.resetAt || null });
+});
+
 app.post(ROUTE.statsReset, ownerOnly, (req, res) => {
   resetStats();
   console.log(`[STATS] All statistics reset by the admin (IP ${getClientIP(req)})`);
@@ -4506,6 +4573,8 @@ app.get(ROUTE.stats, (req, res) => {
   // Only someone logged into the admin panel (in this browser) gets the
   // reset button — the page itself is public.
   const RESET = hasValidAdminSession(req) ? ROUTE.statsReset : "";
+  // 🏆 Names of the most active members — the admin's copy only, too.
+  const TOP = hasValidAdminSession(req) ? ROUTE.statsTopUsers : "";
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -4577,6 +4646,19 @@ th { color:var(--gold); font-weight:700; } th:first-child, td:first-child { text
 .empty { color:var(--muted); font-size:.85em; padding:18px 4px; text-align:center; }
 .pill { display:inline-block; padding:2px 9px; border-radius:999px; background:rgba(214,168,79,.12); border:1px solid var(--line); color:var(--gold); font-size:.78em; }
 footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; text-align:center; }
+.top-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; }
+.top-tabs button { border:1px solid var(--line); background:rgba(255,255,255,.04); color:var(--muted); border-radius:999px; padding:6px 12px; font:inherit; font-size:.8em; font-weight:700; cursor:pointer; }
+.top-tabs button.on { background:rgba(214,168,79,.18); color:var(--gold); border-color:rgba(244,217,143,.5); }
+#topTable td { vertical-align:middle; }
+#topTable .rk { color:var(--muted); width:28px; }
+#topTable th:nth-child(2), #topTable td:nth-child(2) { text-align:left; }
+@media (max-width:600px) { #topTable th, #topTable td { padding:7px 5px; } #topTable .who img { width:26px; height:26px; } }
+#topTable .who { display:flex; align-items:center; gap:9px; font-weight:700; font-size:1.05em; }
+#topTable .who img { width:30px; height:30px; border-radius:50%; object-fit:cover; flex-shrink:0; box-shadow:0 0 0 1.5px var(--line); }
+#topTable .who .vip { font-size:.72em; padding:1px 7px; border-radius:999px; color:#2b1a00; background:linear-gradient(135deg,#fff1b8,#ffcf4d 55%,#d99a1c); }
+#topTable .on-now { color:#62e3b3; }
+#topTable td.sorted { color:var(--gold); font-weight:800; }
+#topTable tr.medal td.rk { font-size:1.15em; }
 </style>
 </head>
 <body>
@@ -4596,6 +4678,11 @@ footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; 
 
   <h2>All time</h2>
   <div class="kpis" id="totals"></div>
+
+  ${TOP ? `<h2>🏆 Most active members</h2>
+  <p class="note" id="topNote">Registered accounts that spend the most time on the site and come back the most. Only you see this list (admin login).</p>
+  <div class="card"><div class="top-tabs" id="topTabs"><button type="button" data-k="ms" class="on">⏱ Time on site</button><button type="button" data-k="visits">🔁 Visits</button><button type="button" data-k="days">📅 Days active</button></div>
+    <div class="tbl-wrap"><table id="topTable"></table></div></div>` : ""}
 
   <h2>Visitors per day</h2>
   <p class="note">Last 14 days (Tbilisi time). New = first visit ever; returning = seen before.</p>
@@ -4638,11 +4725,12 @@ footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; 
   <h2>Day by day</h2>
   <div class="card"><div class="tbl-wrap"><table id="table"></table></div></div>
 
-  <footer>Totals only: this page never shows names, messages or IP addresses.<br>Refreshes automatically every 30 seconds.</footer>
+  <footer>${TOP ? "Everyone else sees totals only — the most active members list is shown only to you (admin login)." : "Totals only: this page never shows names, messages or IP addresses."}<br>Refreshes automatically every 30 seconds.</footer>
 </div>
 <script>
 var API = "${API}";
 var RESET = "${RESET}";
+var TOP = "${TOP}";
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 function fmt(n) { return (Number(n) || 0).toLocaleString("en-US"); }
@@ -4775,11 +4863,43 @@ function render(d) {
   $("table").innerHTML = "<tr><th>Day</th><th>Visitors</th><th>New</th><th>Returning</th><th>Sessions</th><th>Avg time</th><th>Chats</th><th>Messages</th><th>Sign-ups</th><th>Peak online</th><th>Busiest hour</th><th>Came back</th></tr>" + rows;
 }
 
+// 🏆 Most active members (admin only — the server checks the login too)
+var topData = null, topKey = "ms";
+function renderTop() {
+  var el = $("topTable"); if (!el || !topData) return;
+  var rows = (topData.users || []).slice().sort(function (a, b) { return (b[topKey] - a[topKey]) || (b.ms - a.ms); }).slice(0, 20)
+    .filter(function (u) { return u[topKey] > 0; });
+  $("topNote").textContent = "Registered accounts that spend the most time on the site and come back the most — " +
+    (topData.since ? "counted since the reset on " + when(new Date(topData.since).toISOString()) : "counting started with this update") +
+    ". A visit = coming back after 30+ minutes away. " + fmt(topData.counted) + " accounts counted so far. Only you see this list (admin login).";
+  if (!rows.length) { el.innerHTML = '<tr><td class="empty">Nobody counted yet — it fills in as members use the site.</td></tr>'; return; }
+  var medal = ["🥇", "🥈", "🥉"];
+  var cls = function (k) { return k === topKey ? ' class="sorted"' : ""; };
+  el.innerHTML = "<tr><th>#</th><th>Member</th><th>⏱ Time</th><th>🔁 Visits</th><th>📅 Days</th><th>Last seen</th></tr>" + rows.map(function (u, i) {
+    return '<tr' + (i < 3 ? ' class="medal"' : "") + '><td class="rk">' + (medal[i] || i + 1) + '</td><td><div class="who"><img src="/' + esc(u.avatar) + '" alt="">' + esc(u.username) +
+      (u.vip ? ' <span class="vip">👑 VIP</span>' : "") + '</div></td><td' + cls("ms") + '>' + dur(u.ms / 1000) + '</td><td' + cls("visits") + '>' + fmt(u.visits) + '</td><td' + cls("days") + '>' + fmt(u.days) +
+      '</td><td>' + (u.online ? '<span class="on-now">🟢 online now</span>' : u.lastAt ? when(new Date(u.lastAt).toISOString()) : "–") + '</td></tr>';
+  }).join("");
+}
+function loadTop() {
+  if (!TOP) return;
+  fetch(TOP, { cache: "no-store", credentials: "same-origin" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (d) { topData = d; renderTop(); })
+    .catch(function () { if (!topData) $("topTable").innerHTML = '<tr><td class="empty">Could not load — log in to the admin panel in this browser.</td></tr>'; });
+}
+if ($("topTabs")) $("topTabs").addEventListener("click", function (e) {
+  var b = e.target.closest("button"); if (!b) return;
+  topKey = b.getAttribute("data-k");
+  [].forEach.call(this.querySelectorAll("button"), function (x) { x.classList.toggle("on", x === b); });
+  renderTop();
+});
 function load() {
   fetch(API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(render).catch(function () { $("updated").textContent = "Could not load — retrying…"; });
+  loadTop();
 }
 function refreshNow() {
   var b = $("refreshBtn"); b.disabled = true; b.textContent = "↻ Refreshing…";
+  loadTop();
   fetch(API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(render)
     .catch(function () { $("updated").textContent = "Could not load — try again"; })
     .then(function () { b.disabled = false; b.textContent = "↻ Refresh"; });
@@ -4787,7 +4907,7 @@ function refreshNow() {
 // 🗑 Admin only (the server checks the admin login too).
 function resetAll() {
   if (!RESET) return;
-  if (!confirm("Reset ALL statistics to zero?\\n\\nVisitors, new/returning, most online, chats, messages, games, page opens, devices and time on site will all start counting again from now. Accounts, friendships and stored messages are not touched.\\n\\nThis can't be undone.")) return;
+  if (!confirm("Reset ALL statistics to zero?\\n\\nVisitors, new/returning, most online, chats, messages, games, page opens, devices, time on site and the most active members will all start counting again from now. Accounts, friendships and stored messages are not touched.\\n\\nThis can't be undone.")) return;
   var b = $("resetBtn"); b.disabled = true; b.textContent = "🗑 Resetting…";
   fetch(RESET, { method: "POST", credentials: "same-origin" })
     .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -5428,6 +5548,7 @@ function renameAccount(oldLc, newName) {
   authReservedNames.delete(oldLc); authReservedNames.add(newLc);
   for (const [, e] of authTokens) if (e.usernameLower === oldLc) e.usernameLower = newLc;
   if (onlineRegSockets.has(oldLc)) { onlineRegSockets.set(newLc, onlineRegSockets.get(oldLc)); onlineRegSockets.delete(oldLc); }
+  if (stats.users.has(oldLc)) { stats.users.set(newLc, stats.users.get(oldLc)); stats.users.delete(oldLc); statsDirty = true; scheduleStatsSave(); }
   // everyone else's friends / pending requests / blocks
   for (const [, u] of registeredUsers) for (const k of ["friends", "pendingRequests", "blockedUsers"]) if (Array.isArray(u[k])) u[k] = u[k].map(swap);
   for (const [, u] of registeredUsers) if (u.trinder) for (const k of ["likes", "passes", "matches"]) if (Array.isArray(u.trinder[k])) u.trinder[k] = u.trinder[k].map(swap);
@@ -11263,6 +11384,7 @@ io.on("connection", (socket) => {
       onlineRegSockets.set(entry.usernameLower, new Set());
     }
     onlineRegSockets.get(entry.usernameLower).add(socket.id);
+    recordUserOnline(entry.usernameLower);
 
     socket.join(`user:${entry.usernameLower}`);
     socket.emit("auth:authenticated", { username: user.username, friends: user.friends || [], pendingRequests: pendingNames(user), avatar: user.avatar || DEFAULT_AVATAR, bio: user.bio || "", streaks: getStreaksForFriends(entry.usernameLower, user.friends || []), isAdmin: !!user.isAdmin, isPro: !!user.isPro, adFreeUntil: user.adFreeUntil || 0, appearOffline: !!user.appearOffline, blockedUsers: user.blockedUsers || [] });
@@ -11350,6 +11472,7 @@ io.on("connection", (socket) => {
     authUsersDirty = true; scheduleSave();
     if (!onlineRegSockets.has(entry.usernameLower)) onlineRegSockets.set(entry.usernameLower, new Set());
     onlineRegSockets.get(entry.usernameLower).add(socket.id);
+    recordUserOnline(entry.usernameLower);
     socket.join(`user:${entry.usernameLower}`);
     socket.emit("auth:authenticated", { username: user.username, friends: user.friends || [], pendingRequests: pendingNames(user), avatar: user.avatar || DEFAULT_AVATAR, bio: user.bio || "", streaks: getStreaksForFriends(entry.usernameLower, user.friends || []), isAdmin: !!user.isAdmin, isPro: !!user.isPro, adFreeUntil: user.adFreeUntil || 0, appearOffline: !!user.appearOffline, blockedUsers: user.blockedUsers || [] });
     console.log(`[AUTH] ${user.username} logged in via auth:token`);

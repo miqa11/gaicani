@@ -29,12 +29,12 @@ const DATA_FILES = [
   "forum_posts.json",
   "friend_streaks.json",
   "notifications.json",
-  "stats.json",
+  "stats.json",             // also 🏆 each account's time on site / visits / days
   "banned_ips.json",
   "banned_user_agents.json",
   "temp_bans.json",         // 24h blocks still running (with the reason shown)
-  "support_ai.json",
-  "ad_filter.json",         // 🚫 banned phrases + the log of who was banned for them        // 🛟 Support AI: answers from random chat, on/off, who said "don't ask again"
+  "support_ai.json",        // 🛟 Support AI: answers from random chat, on/off, who said "don't ask again"
+  "ad_filter.json",         // 🚫 banned phrases + the log of who was banned for them
 ];
 const MEDIA_DIR = "private-photos";               // voice messages and photos
 const MEDIA_NAME = /^[A-Za-z0-9_-]{8,100}\.[A-Za-z0-9]{2,5}$/;
