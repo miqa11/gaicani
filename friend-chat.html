@@ -626,6 +626,14 @@
       text-align: right;
     }
     .fc-char-count.warning { color: #f23f42; }
+    /* Long message on a phone: the extra buttons fold away (and the counter
+       until the limit is near) so the text box gets the row. */
+    @media (max-width: 600px) {
+      #fc-input-bar.long-text #fc-question-btn,
+      #fc-input-bar.long-text #fc-photo-btn,
+      #fc-input-bar.long-text #fc-voice-btn,
+      #fc-input-bar.long-text .fc-char-count:not(.warning) { display: none !important; }
+    }
 
     /* ── Reply quote (rendered inside a bubble) ── */
     .fc-reply-quote {
@@ -2542,11 +2550,20 @@ button, textarea, input { font-family: inherit; }
   })();
 
   /* ── Input handlers ──────────────────────────────────────────── */
-  elInput.addEventListener("input", () => {
-    /* Auto-resize */
+  function fitFCInput() {
     elInput.style.height = "auto";
     elInput.style.height = Math.min(elInput.scrollHeight, 120) + "px";
     elInput.style.overflowY = elInput.scrollHeight > 120 ? "auto" : "hidden";
+  }
+  elInput.addEventListener("input", () => {
+    /* Auto-resize */
+    fitFCInput();
+    /* Long text (a second line): on a phone ?, 📷 and 🎤 fold away so the
+       box gets the row (#fc-input-bar.long-text). They come back once the
+       box is empty (updateFCSendButtonMode) — not on every line change, or
+       the row would jump back and forth as the wider box needs fewer lines. */
+    const bar = $("fc-input-bar");
+    if (elInput.value && !bar.classList.contains("long-text") && elInput.scrollHeight > 54) { bar.classList.add("long-text"); fitFCInput(); }
 
     updateFCCharCount();
     updateFCSendButtonMode();
@@ -2567,6 +2584,7 @@ button, textarea, input { font-family: inherit; }
     const hasText = elInput.value.trim().length > 0;
     $("fc-send").style.display = hasText ? "flex" : "none";
     $("fc-heart-send").style.display = hasText ? "none" : "flex";
+    if (!elInput.value) $("fc-input-bar").classList.remove("long-text");
   }
   $("fc-heart-send").addEventListener("click", () => {
     if (!socket?.connected) return;

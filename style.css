@@ -3023,3 +3023,15 @@ body.vip-partner .pfc-crown {
 }
 body.vip-partner.rc-theme-light .site-name { -webkit-text-fill-color: initial; background: linear-gradient(135deg, #fff1b8 0%, #ffcf4d 60%, #d99a1c 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 body.vip-partner.rc-theme-light .reg-menu-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 207, 77, 0.3); color: #ffe39a; }
+
+/* ── Long messages on a phone ────────────────────────────────────────────
+   The buttons sit at the bottom, next to the last line (send included —
+   it used to float at the top of a tall box), and once the text needs a
+   second line the ? and 📷 buttons fold away so the box gets the room
+   (script.js adds .long-text; it comes off when the box is empty). ── */
+@media (max-width: 600px) {
+  .chat-input-row { align-items: flex-end; }
+  #sendBtn { align-self: flex-end; }
+  .chat-input-row.long-text #questionBtn,
+  .chat-input-row.long-text #photoBtn { display: none; }
+}

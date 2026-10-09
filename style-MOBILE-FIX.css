@@ -142,7 +142,7 @@ html, body {
   .chat-input-row {
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
     gap: 7px;
-    align-items: center;
+    align-items: flex-end; /* beside the last line when a long message grows the box */
   }
 
   .chat-input textarea,

@@ -751,6 +751,7 @@ function setInputsEnabled(enabled) {
     // Clear any text typed during a race (e.g. keyboard still open while searching)
     messageInput.value = "";
     messageInput.style.height = "auto";
+    messageInput.parentElement.classList.remove("long-text");
     charCount.textContent = "";
     charCount.classList.remove("warning");
     messageInput.blur();
@@ -1301,6 +1302,7 @@ function sendMessage() {
   messageInput.value = "";
   messageInput.style.height = "auto";
   messageInput.style.overflowY = "hidden";
+  messageInput.parentElement.classList.remove("long-text");
   charCount.textContent = "";
   charCount.classList.remove("warning");
   clearReply();
@@ -2166,11 +2168,21 @@ messageInput.addEventListener("keydown", (e) => {
   }
 });
 
-messageInput.addEventListener("input", () => {
-  // Auto-resize textarea
+function resizeMessageInput() {
   messageInput.style.height = "auto";
   messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + "px";
   messageInput.style.overflowY = messageInput.scrollHeight > 120 ? "auto" : "hidden";
+}
+messageInput.addEventListener("input", () => {
+  // Auto-resize textarea
+  resizeMessageInput();
+  // Long text (a second line): on a phone the ? and 📷 buttons fold away so
+  // the box gets the row (.chat-input-row.long-text in style.css). They come
+  // back once the box is empty — not on every line change, or the row would
+  // jump back and forth as the wider box fits the text on fewer lines.
+  const row = messageInput.parentElement;
+  if (!messageInput.value) row.classList.remove("long-text");
+  else if (!row.classList.contains("long-text") && messageInput.scrollHeight > 54) { row.classList.add("long-text"); resizeMessageInput(); }
 
   // Character counter
   const len = messageInput.value.length;
