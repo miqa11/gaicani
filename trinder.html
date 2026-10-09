@@ -70,6 +70,8 @@ button, input, select, textarea { font-family:inherit; }
 .swipes .dots { display:flex; gap:5px; }
 .swipes .dots i { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.14); }
 .swipes .dots i.on { background:linear-gradient(135deg,#ff7aa0,var(--rose)); box-shadow:0 0 8px rgba(255,77,125,.6); }
+.swipes.vip { color:#ffe39a; }
+.swipes .vip-crown { width:24px; height:24px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 1.5px #ffcf4d, 0 0 10px rgba(255,200,60,.6); }
 .out { display:flex; align-items:center; gap:10px; margin:12px 0 0; padding:10px 12px; border-radius:16px; background:var(--plate); border:1px solid var(--line); color:#e4dcf7; font-size:.86em; line-height:1.4; }
 .out .big { font-size:1.6em; flex-shrink:0; }
 .out .txt { flex:1; min-width:0; }
@@ -169,6 +171,16 @@ select.in { appearance:none; -webkit-appearance:none; }
 .match-pics .b { right:calc(50% - 116px); transform:rotate(8deg); animation:inR .55s cubic-bezier(.2,.9,.2,1.1) both; }
 .match-pics .h { position:absolute; left:50%; top:52px; transform:translateX(-50%); font-size:2.6em; animation:pop .5s .35s cubic-bezier(.2,.9,.3,1.4) both; }
 .match-box p { color:#e4dcf7; line-height:1.55; margin:0 0 16px; }
+/* 👑 matched with a VIP member — the screen turns gold */
+.match-crown { display:none; }
+.match-ov.vip { background:radial-gradient(520px 380px at 50% 38%,rgba(255,214,102,.55),transparent 70%),
+  radial-gradient(900px 600px at 50% 110%,rgba(201,140,28,.45),transparent 70%), linear-gradient(165deg,#3a2504,#1f1402 55%,#120b01); }
+.match-ov.vip .match-title { background:linear-gradient(90deg,#fff4c2,#ffcf4d 45%,#e09a1b); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.match-ov.vip .match-crown { display:block; width:78px; height:78px; margin:0 auto 6px; border-radius:50%; object-fit:cover;
+  box-shadow:0 0 0 2px #ffcf4d, 0 0 34px rgba(255,200,60,.75); }
+.match-ov.vip .match-pics img { box-shadow:0 0 0 3px #ffcf4d, 0 0 24px rgba(255,200,60,.5), 0 18px 40px -16px rgba(0,0,0,.9); }
+.match-ov.vip .match-box p { color:#fff1cc; }
+.match-ov.vip .btn.primary { background:linear-gradient(135deg,#fff1b8,#ffcf4d 50%,#d99a1c); color:#2b1a00; box-shadow:0 12px 26px -12px rgba(255,190,60,.9); }
 @keyframes inL { from { transform:translateX(-120px) rotate(-30deg); opacity:0; } to { transform:rotate(-8deg); opacity:1; } }
 @keyframes inR { from { transform:translateX(120px) rotate(30deg); opacity:0; } to { transform:rotate(8deg); opacity:1; } }
 @keyframes pop { from { transform:translateX(-50%) scale(0); } to { transform:translateX(-50%) scale(1); } }
@@ -297,6 +309,7 @@ select.in { appearance:none; -webkit-appearance:none; }
 
 <div class="match-ov" id="matchOv" hidden>
   <div class="match-box" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <img class="match-crown" src="/vip-crown.jpg" alt="">
     <div class="match-title" id="mTitle">მატჩი!</div>
     <div class="match-pics"><img class="a" id="mMe" alt=""><img class="b" id="mThem" alt=""><div class="h">💞</div></div>
     <p id="mText"></p>
@@ -385,11 +398,23 @@ select.in { appearance:none; -webkit-appearance:none; }
   // ── 5 likes a day (✕ is unlimited) ──────────────────────────────────────
   var swipes = { left: 5, max: 5, resetAt: 0 }, outTimer = null;
   function setSwipes(r) {
+    // 👑 VIP members like as much as they want
+    if (r && r.likesUnlimited) { swipes = { left: Infinity, max: 0, resetAt: 0, unlimited: true }; paintSwipes(); return; }
     if (!r || typeof r.likesLeft !== "number") return;
     swipes = { left: r.likesLeft, max: r.likesMax || 5, resetAt: r.likesResetAt || 0 };
     paintSwipes();
   }
   function paintSwipes() {
+    if (swipes.unlimited) {
+      $("swipeDots").innerHTML = '<img class="vip-crown" src="/vip-crown.jpg" alt="">';
+      $("swipesText").textContent = "VIP — ულიმიტო ლაიქები";
+      $("swipesBar").classList.add("vip");
+      $("btnLike").classList.remove("spent");
+      $("deckOut").hidden = true;
+      $("swipesBar").hidden = $("deckActions").hidden;
+      return;
+    }
+    $("swipesBar").classList.remove("vip");
     var dots = "";
     for (var i = 0; i < swipes.max; i++) dots += '<i class="' + (i < swipes.left ? "on" : "") + '"></i>';
     $("swipeDots").innerHTML = dots;
@@ -743,7 +768,12 @@ select.in { appearance:none; -webkit-appearance:none; }
   function celebrate(m) {
     $("mMe").src = "/" + ((state && state.avatar) || "avatar1.png");
     $("mThem").src = "/" + m.avatar;
-    $("mText").textContent = "შენ და " + (m.name || m.username) + " ერთმანეთს მოეწონეთ — ახლა მეგობრები ხართ და შეგიძლიათ პირადად მიწეროთ.";
+    // 👑 Matched with a VIP member (and you aren't one): a golden screen, so you know
+    var vip = !!m.isPro && !(state && state.isPro);
+    $("matchOv").classList.toggle("vip", vip);
+    $("mTitle").textContent = vip ? "VIP მატჩი!" : "მატჩი!";
+    $("mText").textContent = "შენ და " + (m.name || m.username) + " ერთმანეთს მოეწონეთ — ახლა მეგობრები ხართ და შეგიძლიათ პირადად მიწეროთ." +
+      (vip ? " 👑 " + (m.name || m.username) + " VIP წევრია." : "");
     $("mChat").href = "/friend-chat.html?friend=" + encodeURIComponent(m.username);
     var ov = $("matchOv"); ov.hidden = false;
     ov.querySelectorAll(".a, .b, .h").forEach(function (x) { x.style.animation = "none"; void x.offsetWidth; x.style.animation = ""; });

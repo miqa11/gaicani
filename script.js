@@ -409,6 +409,15 @@ function addPartnerFoundCard(name, isVip) {
   const statusEl       = document.createElement("div");
   statusEl.className   = "pfc-status";
   statusEl.textContent = "პარტნიორი ნაპოვნია";
+  // 👑 a VIP partner — the crown shows on the gold card (body.vip-partner)
+  if (isVip && document.body.classList.contains("vip-partner")) {
+    statusEl.textContent = "👑 VIP მომხმარებელს ესაუბრები";
+    const crown = document.createElement("img");
+    crown.className = "pfc-crown";
+    crown.src = "/vip-crown.jpg";
+    crown.alt = "";
+    card.appendChild(crown);
+  }
 
   info.appendChild(nameEl);
   info.appendChild(statusEl);
@@ -757,13 +766,16 @@ function updateBlockBtn() {
   if (reportBtn) reportBtn.disabled = !(partnerConnected || canBlockDisconnected) || isSupportName(partnerName || lastPartnerName);
 }
 
-function setPartnerNameDisplay(name, isVip) {
+function setPartnerNameDisplay(name, partnerVip) {
+  // 👑 Talking to a VIP member (and you aren't one) — the chat turns gold
+  // (body.vip-partner in style.css). Off again as soon as the chat ends.
+  document.body.classList.toggle("vip-partner", !!(name && partnerVip && !isVip()));
   const el = document.getElementById("partnerNameDisplay");
   if (!el) return;
   el.innerHTML = ""; // clear, then rebuild with safe DOM nodes below
   if (name) {
     el.appendChild(document.createTextNode(`👤 ${name}`));
-    if (isVip) {
+    if (partnerVip) {
       const vip = document.createElement("span");
       vip.className = "vip-badge";
       vip.innerHTML = "VIP <span class=\"pro-star\">⭐</span>";
@@ -1731,7 +1743,7 @@ socket.on("partnerReconnected", (data) => {
   canBlockDisconnected   = false;
   removeReconnectingMessage();
   clearPartnerAwayCountdown();
-  setPartnerNameDisplay(partnerName);
+  setPartnerNameDisplay(partnerName, partnerIsVip);
   setInputsEnabled(true);
   // Explicitly unlock — race-safe double-clear
   messageInput.disabled        = false;
@@ -1802,7 +1814,10 @@ function refreshPhotoBtn() {
   b.disabled = !partnerConnected || isSupportName(partnerName);
 }
 socket.on("auth:authenticated", () => setTimeout(refreshPhotoBtn, 0));
-socket.on("auth:proStatusChanged", () => setTimeout(refreshPhotoBtn, 0));
+socket.on("auth:proStatusChanged", () => setTimeout(() => {
+  refreshPhotoBtn();
+  if (partnerConnected) setPartnerNameDisplay(partnerName, partnerIsVip); // became VIP → no more gold
+}, 0));
 const sentPhotos = new Map(); // offer id → its status line
 const PHOTO_STATE = { accepted: "✅ დაგეთანხმა — ახლა უყურებს", viewed: "👁 ნახა — ფოტო გაქრა",
   declined: "🚫 ფოტოზე უარი თქვა", expired: "⌛ არ უპასუხა — ფოტო გაუქმდა" };

@@ -1312,6 +1312,14 @@ body.guest-mode .profile-actions { display: none; }
 .ap-shop-head { grid-column: 1 / -1; margin: 8px 0 2px; padding: 8px 10px; border-radius: 12px; font-size: .78em; font-weight: 800;
   color: #f4d98f; background: linear-gradient(135deg, rgba(214,168,79,.2), rgba(214,168,79,.06)); border: 1px solid rgba(214,168,79,.45); }
 .avatar-picker-option.shop-pic { box-shadow: 0 0 0 2px rgba(214,168,79,.7); }
+/* 👑 VIP: the crown picture and the pictures that are free for VIP */
+.ap-vip-head, .ap-free-head { grid-column: 1 / -1; margin: 8px 0 2px; padding: 8px 10px; border-radius: 12px; font-size: .78em; font-weight: 800;
+  color: #ffe39a; background: linear-gradient(135deg, rgba(255,203,72,.18), rgba(140,90,10,.18)); border: 1px solid rgba(255,203,72,.45); }
+.ap-vip-head { margin-top: 0; }
+.avatar-picker-option.vip-pic { box-shadow: 0 0 0 2px #ffcf4d, 0 0 14px rgba(255,200,60,.55); }
+.avatar-picker-option.free-pic { box-shadow: 0 0 0 2px rgba(255,207,77,.6); }
+.ap-vip, .ap-free { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); white-space: nowrap; padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 900; color: #2b1a00; background: linear-gradient(135deg, #fff1b8, #ffcf4d 55%, #d99a1c); box-shadow: 0 2px 6px rgba(0,0,0,.5); }
 .ap-price { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); white-space: nowrap; padding: 1px 6px; border-radius: 999px;
   font-size: 10px; font-weight: 900; color: #1c1408; background: linear-gradient(135deg, #f4d98f, #d6a84f); box-shadow: 0 2px 6px rgba(0,0,0,.5); }
 /* 🛒 buy window */
@@ -1626,7 +1634,7 @@ body.guest-mode .profile-actions { display: none; }
       </button>
       <div class="pa-panel" id="themePickerSection" hidden>
         <div class="pa-panel-head">
-          <span>ყველა ხედავს · 🪙 თითო სტილი 5,000 მონეტა</span>
+          <span id="themePanelNote">ყველა ხედავს · 🪙 თითო სტილი 5,000 მონეტა</span>
           <button class="pa-close" type="button" data-close="changeThemeBtn">დახურვა ✕</button>
         </div>
         <div class="theme-grid" id="themePickerGrid"></div>
@@ -2100,6 +2108,8 @@ body.guest-mode .profile-actions { display: none; }
     const STREAK_AVATARS = { "avatar25.jpg": 7, "avatar26.jpg": 10, "avatar27.jpg": 14, "avatar28.jpg": 21 };
     // 🪙 Pictures bought with coins — same prices as SHOP_AVATARS in server.js.
     const SHOP_AVATARS = { "avatar29.jpg": 5000, "avatar30.jpg": 10000, "avatar31.jpg": 15000, "avatar32.jpg": 20000 };
+    // 👑 The crown — only VIP members can wear it (VIP_AVATAR in server.js).
+    const VIP_AVATAR = "avatar-vip.jpg";
     const fmtCoins = (n) => Number(n || 0).toLocaleString("en-US");
     const shortCoins = (n) => (n >= 1000 && n % 1000 === 0 ? n / 1000 + "k" : fmtCoins(n));
     const AVATAR_DIR = "/";
@@ -2121,9 +2131,38 @@ body.guest-mode .profile-actions { display: none; }
       containerEl.innerHTML = "";
       const best = (dailySt && dailySt.best) || 0;
       const owned = new Set((shop && shop.ownedAvatars) || []);
+      // 👑 VIP members: every picture is free, and the crown is theirs.
+      const vip = shop ? !!shop.vip : !!(authUser && authUser.isPro);
+      if (vip) {
+        const head = document.createElement("div");
+        head.className = "ap-vip-head";
+        head.textContent = "👑 VIP ხარ — ყველა სურათი უფასოა, გვირგვინი კი მხოლოდ VIP-ებისთვისაა";
+        containerEl.appendChild(head);
+      }
       // 🛟 The Support account's own picture — offered to Support only.
-      const pics = authUser && authUser.isAdmin ? [SUPPORT_AVATAR, ...AVAILABLE_AVATARS] : AVAILABLE_AVATARS;
+      const pics = [...(authUser && authUser.isAdmin ? [SUPPORT_AVATAR] : []), ...(vip ? [VIP_AVATAR] : []), ...AVAILABLE_AVATARS];
       pics.forEach(file => {
+        if (vip && file !== SUPPORT_AVATAR) {
+          const paid = !!(STREAK_AVATARS[file] || SHOP_AVATARS[file]);
+          if (paid && !containerEl.querySelector(".ap-free-head")) {
+            const head = document.createElement("div");
+            head.className = "ap-free-head";
+            head.textContent = "🎁 VIP-ისთვის უფასოდ";
+            containerEl.appendChild(head);
+          }
+          const tag = file === VIP_AVATAR ? '<span class="ap-vip">👑 VIP</span>' : paid ? '<span class="ap-free">👑 უფასო</span>' : "";
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "avatar-picker-option" + (file === VIP_AVATAR ? " vip-pic" : paid ? " free-pic" : "") + (file === selected ? " selected" : "");
+          btn.innerHTML = `<img src="${AVATAR_DIR}${file}" alt="avatar" loading="lazy" />` + tag;
+          btn.addEventListener("click", () => {
+            containerEl.querySelectorAll(".avatar-picker-option").forEach(b => b.classList.remove("selected"));
+            btn.classList.add("selected");
+            onPick(file);
+          });
+          containerEl.appendChild(btn);
+          return;
+        }
         const price = SHOP_AVATARS[file];
         if (price) {
           if (!shop) return; // prices not loaded yet
@@ -2252,6 +2291,8 @@ body.guest-mode .profile-actions { display: none; }
       const T = window.GaicaniThemes;
       if (!grid || !T) return;
       const unlocked = new Set(state.unlocked || []);
+      const note = document.getElementById("themePanelNote");
+      if (note) note.textContent = state.vip ? "ყველა ხედავს · 👑 VIP ხარ — ყველა სტილი უფასოა" : "ყველა ხედავს · 🪙 თითო სტილი 5,000 მონეტა";
       const pic = authUser?.avatar ? `<img src="${AVATAR_DIR}${esc(authUser.avatar)}" alt="" loading="lazy" />` : "";
       grid.innerHTML = T.list.map(t => `
         <button type="button" class="theme-opt${t.id === state.current ? " selected" : ""}${unlocked.has(t.id) ? "" : " locked"}" data-theme="${t.id}"
@@ -2744,8 +2785,10 @@ function profileChipsHTML(p) {
       // 🎁 Coins gifted by the admin (or changed elsewhere) — the counter follows.
       socket.on("coins:changed", ({ coins } = {}) => paintCoins(coins));
 
-      socket.on("auth:proStatusChanged", ({ isPro }) => {
+      socket.on("auth:proStatusChanged", ({ isPro, avatar }) => {
         if (authUser) authUser.isPro = !!isPro;
+        // VIP ended: a picture that was only free for VIP went back to the default
+        if (authUser && avatar && avatar !== authUser.avatar) { authUser.avatar = avatar; paintUserAvatar(); }
         renderVipBadge(!!isPro);
         loadMyTheme(); // a VIP style only shows while you're VIP
       });

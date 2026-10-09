@@ -128,6 +128,8 @@
    VISUAL ONLY — no script, id or behaviour changes. Applies to the DEFAULT
    chat theme only: the light, pink, ocean and sunset themes look exactly
    as before. Remove this <style> block to get the previous look back.
+   The chat-area rules marked :not(.vip-partner) step aside while you talk
+   to a VIP member — the chat turns gold then (end of style.css).
    ═══════════════════════════════════════════════════════════════════════ */
 @property --gc-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) {
@@ -142,18 +144,18 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) button, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) textarea, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) input, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) select { font-family: inherit; }
 
 /* ── Top bar ── */
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .top-bar { background: rgba(19,15,38,.88); border-bottom: 1px solid rgba(214,168,79,.22); box-shadow: 0 10px 26px -14px rgba(0,0,0,.8); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .top-bar { background: rgba(19,15,38,.88); border-bottom: 1px solid rgba(214,168,79,.22); box-shadow: 0 10px 26px -14px rgba(0,0,0,.8); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .site-name {
   background: linear-gradient(180deg,#fff4d2 0%,var(--gold-lt) 45%,var(--gold) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
   font-weight: 900; letter-spacing: .05em;
 }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #onlineCount { color: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) #onlineCount { color: var(--gold-lt); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #onlineCount::before {
   content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; vertical-align: middle;
   border-radius: 50%; background: var(--emerald); box-shadow: 0 0 8px rgba(31,193,138,.9);
 }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .partner-name-display { color: #ff8aa1; background: rgba(227,59,95,.13); border: 1px solid rgba(227,59,95,.42); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .partner-name-display { color: #ff8aa1; background: rgba(227,59,95,.13); border: 1px solid rgba(227,59,95,.42); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .user-name-display { color: #cbb0ff; background: rgba(157,92,255,.14); border: 1px solid rgba(157,92,255,.44); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reg-menu-btn { background: rgba(255,255,255,.05); border: 1px solid rgba(214,168,79,.40); color: var(--gold-lt); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reg-menu-dropdown {
@@ -183,31 +185,31 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .my-page-btn { background: linear-gradient(135deg,#3f5cff,#2c38b8); box-shadow: 0 8px 18px -8px rgba(79,108,255,.85), inset 0 1px 0 rgba(255,255,255,.2); }
 
 /* ── Chat surface ── */
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #chat.chat-container {
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) #chat.chat-container {
   background:
     radial-gradient(700px 420px at 50% -80px, rgba(79,108,255,.17), transparent 70%),
     radial-gradient(600px 520px at 110% 110%, rgba(157,92,255,.09), transparent 70%),
     #130f26 !important;   /* the default theme writes #1c1e24 inline; other themes keep their own */
 }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-container::-webkit-scrollbar-thumb { background: #2c2552; }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .message-content {
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .message-content {
   background: linear-gradient(180deg,#2f2858,#241e46); color: #f3eeff;
   border: 1px solid rgba(214,168,79,.14);
   box-shadow: 0 8px 18px -12px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.05);
 }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .message-content.you {
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .message-content.you {
   background: radial-gradient(120% 140% at 0% 0%,rgba(255,255,255,.18),transparent 50%), linear-gradient(135deg,#5b77ff,#6d4dff 60%,#8b55ff);
   color: #fff; border-color: rgba(244,217,143,.34);
   box-shadow: 0 12px 24px -14px rgba(109,77,255,.95), inset 0 1px 0 rgba(255,255,255,.22);
 }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .timestamp, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .inline-ts { color: #9f96c6; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .timestamp, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .inline-ts { color: #9f96c6; }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .react-btn, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reply-btn { background: #261f47; border: 1px solid rgba(214,168,79,.30); color: var(--gold-lt); }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .system-message { color: #a79fcd; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .system-message { color: #a79fcd; }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .system-message-hint { color: #d2cbec; }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .system-message-disconnect { color: #ff8aa1; }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .system-message-reconnecting { color: var(--amber); }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .typing-indicator { background: linear-gradient(180deg,#2f2858,#241e46); border: 1px solid rgba(214,168,79,.14); }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .typing-indicator span { background: var(--gold-lt); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .typing-indicator { background: linear-gradient(180deg,#2f2858,#241e46); border: 1px solid rgba(214,168,79,.14); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .typing-indicator span { background: var(--gold-lt); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .question-card.you { background: linear-gradient(135deg,#3a2f86,#241e46); border-color: rgba(79,108,255,.55); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .question-card.partner { background: linear-gradient(135deg,#123d33,#241e46); border-color: rgba(31,193,138,.55); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .reply-quote.partner { background: rgba(214,168,79,.10); border-left-color: var(--gold); }
@@ -215,7 +217,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 
 /* ── The meeting moment: when a partner is found, the card's enamel border
       sweeps once around and settles. The one bold moment on this page. ── */
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .partner-found-card {
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .partner-found-card {
   border: 1.5px solid transparent; border-radius: 18px;
   background:
     radial-gradient(120% 100% at 0% 0%, rgba(79,108,255,.28), transparent 55%) padding-box,
@@ -225,9 +227,9 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
   animation: gc-meet 2.6s cubic-bezier(.2,.8,.2,1) 1 both;
 }
 @keyframes gc-meet { from { --gc-angle: -220deg; } to { --gc-angle: 150deg; } }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .pfc-avatar { box-shadow: 0 0 0 2px var(--gold), 0 0 0 5px rgba(214,168,79,.18), 0 10px 22px -8px rgba(0,0,0,.85); }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .pfc-name { color: #fff; font-weight: 900; }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .pfc-status { color: var(--emerald); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .pfc-avatar { box-shadow: 0 0 0 2px var(--gold), 0 0 0 5px rgba(214,168,79,.18), 0 10px 22px -8px rgba(0,0,0,.85); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .pfc-name { color: #fff; font-weight: 900; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .pfc-status { color: var(--emerald); }
 
 /* ── Cards in the chat feed ── */
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .register-promo-card {
@@ -244,12 +246,12 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-donate-btn { background: linear-gradient(135deg,#b07bff,#7c3aed); border-radius: 999px; box-shadow: 0 12px 26px -10px rgba(157,92,255,.9), inset 0 1px 0 rgba(255,255,255,.3); }
 
 /* ── Input bar (hairlines drawn with shadows so the auto-growing box keeps its exact size) ── */
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-input { background: rgba(19,15,38,.94); border-top: 1px solid rgba(214,168,79,.24); box-shadow: 0 -14px 32px -16px rgba(0,0,0,.85); }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-input textarea { background: #221c42; color: #f5f0ff; box-shadow: inset 0 0 0 1px rgba(214,168,79,.20); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .chat-input { background: rgba(19,15,38,.94); border-top: 1px solid rgba(214,168,79,.24); box-shadow: 0 -14px 32px -16px rgba(0,0,0,.85); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .chat-input textarea { background: #221c42; color: #f5f0ff; box-shadow: inset 0 0 0 1px rgba(214,168,79,.20); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-input textarea:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(244,217,143,.60), 0 0 0 3px rgba(214,168,79,.14); }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .chat-input textarea::placeholder { color: #8f87ad; }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) .chat-input textarea::placeholder { color: #8f87ad; }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .gif-btn, body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) .question-btn { background: #221c42; border: 1px solid rgba(214,168,79,.36); color: var(--gold-lt); }
-body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #sendBtn { background: var(--cta); box-shadow: 0 8px 18px -8px rgba(109,77,255,.95), inset 0 1px 0 rgba(255,255,255,.3); }
+body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset):not(.vip-partner) #sendBtn { background: var(--cta); box-shadow: 0 8px 18px -8px rgba(109,77,255,.95), inset 0 1px 0 rgba(255,255,255,.3); }
 body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme-sunset) #sendBtn:disabled { background: #2a2446; box-shadow: none; }
 
 /* ── Panels ── */

@@ -1998,6 +1998,9 @@ app.post(ROUTE.setPro, ownerOnly, (req, res) => {
   if (user.isGuest) return res.status(400).json({ error: "guests cannot be granted pro status" });
 
   user.isPro = pro;
+  // VIP ending: a picture that was only free for VIP goes back to the default
+  // (profile styles fall back by themselves — see effectiveTheme).
+  if (!pro && user.avatar && user.avatar !== SUPPORT_AVATAR && !avatarUnlocked(user, user.avatar)) user.avatar = DEFAULT_AVATAR;
   saveAuthUsers();
 
   // If they're online right now, tell their live session immediately —
@@ -2008,7 +2011,7 @@ app.post(ROUTE.setPro, ownerOnly, (req, res) => {
   if (sockets) {
     for (const sid of sockets) {
       const s = io.sockets.sockets.get(sid);
-      if (s) { s.emit("auth:proStatusChanged", { isPro: pro }); notified++; }
+      if (s) { s.emit("auth:proStatusChanged", { isPro: pro, avatar: user.avatar || DEFAULT_AVATAR }); notified++; }
     }
   }
 
@@ -4954,7 +4957,13 @@ function bestStreak(u) {
 // price of every profile style except the free default. See "shop:buy".
 const SHOP_AVATARS = { "avatar29.jpg": 5000, "avatar30.jpg": 10000, "avatar31.jpg": 15000, "avatar32.jpg": 20000 };
 const THEME_PRICE = 5000;
+// 👑 VIP members get every picture and profile style for free (for as long
+// as they're VIP), plus the crown picture that only VIPs can wear.
+const isVip = (u) => !!(u && u.isPro && !u.isGuest);
+const VIP_AVATAR = "avatar-vip.jpg";
 function avatarUnlocked(u, file) {
+  if (file === VIP_AVATAR) return isVip(u);
+  if (isVip(u)) return true;
   if (SHOP_AVATARS[file]) return !!(u && (u.ownedAvatars || []).includes(file));
   return !STREAK_AVATARS[file] || bestStreak(u) >= STREAK_AVATARS[file];
 }
@@ -5328,14 +5337,17 @@ function trinderWants(pref, gender) { return pref === "everyone" || (pref === "m
 // starts again at Georgian midnight. Liking back someone who already liked
 // you (a match) is always free.
 const TRINDER_DAILY_LIKES = 5;
-function trinderLikesLeft(t) {
+// 👑 VIP members like as much as they want.
+function trinderLikesLeft(t, me) {
+  if (isVip(me)) return Infinity;
   return t.dailyLikes && t.dailyLikes.day === georgiaDay() ? Math.max(0, TRINDER_DAILY_LIKES - (t.dailyLikes.n || 0)) : TRINDER_DAILY_LIKES;
 }
 function nextGeorgiaMidnight() {
   const g = Date.now() + 4 * 3600e3;            // Georgia is UTC+4 all year
   return g - (g % 86400000) + 86400000 - 4 * 3600e3;
 }
-function trinderLikeInfo(t) {
+function trinderLikeInfo(t, me) {
+  if (isVip(me)) return { likesLeft: null, likesMax: null, likesUnlimited: true };
   return { likesLeft: trinderLikesLeft(t), likesMax: TRINDER_DAILY_LIKES, likesResetAt: nextGeorgiaMidnight() };
 }
 
@@ -5347,7 +5359,7 @@ function trinderState(meLc, me) {
     .filter(([lc, u]) => u && !u.isGuest && (me.friends || []).includes(lc) && !trinderBlocked(me, meLc, u, lc))
     .map(([lc, u]) => ({ username: u.username, name: (u.trinder && u.trinder.profile && u.trinder.profile.name) || u.username, avatar: u.avatar || DEFAULT_AVATAR, online: isVisiblyOnline(lc) }));
   const pr = me.profile || {};
-  return { ...trinderLikeInfo(t), joined: !!t.active, complete: trinderProfileComplete(t.profile), profile: t.profile, avatar: me.avatar || DEFAULT_AVATAR, isPro: !!me.isPro,
+  return { ...trinderLikeInfo(t, me), joined: !!t.active, complete: trinderProfileComplete(t.profile), profile: t.profile, avatar: me.avatar || DEFAULT_AVATAR, isPro: !!me.isPro,
     likesCount: trinderPendingLikers(meLc, me).length, matches,
     prefill: { age: pr.age || null, gender: pr.gender || "", city: pr.city || "", job: pr.work || "", university: pr.study || "" } };
 }
@@ -6097,7 +6109,7 @@ function loadAuthUsers() {
   try {
     const obj = readJsonFile(USERS_FILE);
     for (const u of Object.values(obj)) {
-      if (!u.avatar || !(AVAILABLE_AVATARS.includes(u.avatar) || (u.avatar === SUPPORT_AVATAR && u.isAdmin))) u.avatar = DEFAULT_AVATAR;
+      if (!u.avatar || !(AVAILABLE_AVATARS.includes(u.avatar) || (u.avatar === SUPPORT_AVATAR && u.isAdmin) || (u.avatar === VIP_AVATAR && isVip(u)))) u.avatar = DEFAULT_AVATAR;
       // Stray requests from people who are already friends (the server used
       // to accept those) — they showed up as "pending" next to the friendship.
       if (Array.isArray(u.pendingRequests) && Array.isArray(u.friends)) u.pendingRequests = u.pendingRequests.filter(x => !u.friends.includes(x));
@@ -6465,12 +6477,13 @@ app.post("/api/auth/avatar", express.json({ limit: "1kb" }), (req, res) => {
     authTokens.delete(token);
     return res.status(401).json({ error: "Token expired" });
   }
-  if (typeof avatar !== "string" || !(AVAILABLE_AVATARS.includes(avatar) || avatar === SUPPORT_AVATAR))
+  if (typeof avatar !== "string" || !(AVAILABLE_AVATARS.includes(avatar) || avatar === SUPPORT_AVATAR || avatar === VIP_AVATAR))
     return res.status(400).json({ error: "არასწორი ავატარი" });
 
   const user = registeredUsers.get(entry.usernameLower);
   if (!user) return res.status(401).json({ error: "User not found" });
   if (avatar === SUPPORT_AVATAR && !user.isAdmin) return res.status(403).json({ error: "ეს სურათი მხოლოდ Support-ს ეკუთვნის" });
+  if (avatar === VIP_AVATAR && !isVip(user)) return res.status(403).json({ error: "👑 ეს სურათი მხოლოდ VIP წევრებისთვისაა" });
   if (!avatarUnlocked(user, avatar)) {
     return res.status(403).json({ error: SHOP_AVATARS[avatar]
       ? `🔒 ეს სურათი იყიდება — ${SHOP_AVATARS[avatar].toLocaleString("en-US")} მონეტა`
@@ -10758,7 +10771,7 @@ const PROFILE_THEME_IDS = ["default", "cobalt", "emerald", "ruby", "amethyst", "
 const isThemeId = (id) => PROFILE_THEME_IDS.includes(id);
 function themeUnlocked(u, id) {
   if (!isThemeId(id)) return false;
-  return id === "default" || !!(u && (u.ownedThemes || []).includes(id));
+  return id === "default" || isVip(u) || !!(u && (u.ownedThemes || []).includes(id));
 }
 // What a claim pushing the best streak from `before` to `after` just unlocked.
 function streakUnlocks(before, after) {
@@ -11139,6 +11152,7 @@ io.on("connection", (socket) => {
       coins: spendableCoins(me, socket._regUser.usernameLower),
       bestStreak: bestStreak(me),
       avatarLocks: STREAK_AVATARS,
+      vip: isVip(me), vipAvatar: VIP_AVATAR,
     });
   });
   // 🛒 Buy a profile style or a picture with your coins.
@@ -11685,7 +11699,7 @@ io.on("connection", (socket) => {
       pool.push([score, lc, u]);
     }
     pool.sort((a, b) => b[0] - a[0]);
-    ack({ ...trinderLikeInfo(t), cards: pool.slice(0, 15).map(([, lc, u]) => trinderCard(lc, u)) });
+    ack({ ...trinderLikeInfo(t, me), cards: pool.slice(0, 15).map(([, lc, u]) => trinderCard(lc, u)) });
   });
   socket.on("trinder:swipe", (data, ack) => {
     if (typeof ack !== "function") return;
@@ -11701,8 +11715,8 @@ io.on("connection", (socket) => {
     // Daily like limit — passes are free, and so is liking back someone who
     // already likes you (that's a match). Re-liking someone you already
     // like doesn't use another one.
-    if (action === "like" && !trinderOf(them).likes.includes(meLc) && !t.likes.includes(tLc)) {
-      if (trinderLikesLeft(t) <= 0) return ack({ error: "დღევანდელი 5 ლაიქი ამოიწურა — ხვალ ისევ გექნება 5", outOfLikes: true, ...trinderLikeInfo(t) });
+    if (action === "like" && !isVip(me) && !trinderOf(them).likes.includes(meLc) && !t.likes.includes(tLc)) {
+      if (trinderLikesLeft(t, me) <= 0) return ack({ error: "დღევანდელი 5 ლაიქი ამოიწურა — ხვალ ისევ გექნება 5", outOfLikes: true, ...trinderLikeInfo(t, me) });
       const today = georgiaDay();
       t.dailyLikes = t.dailyLikes && t.dailyLikes.day === today ? { day: today, n: (t.dailyLikes.n || 0) + 1 } : { day: today, n: 1 };
     }
@@ -11710,7 +11724,7 @@ io.on("connection", (socket) => {
     t.likes = t.likes.filter(x => x !== tLc); t.passes = t.passes.filter(x => x !== tLc);
     if (action === "pass" || trinderBlocked(me, meLc, them, tLc)) {
       t.passes.push(tLc); if (t.passes.length > 5000) t.passes.splice(0, t.passes.length - 5000);
-      saveAuthUsers(); return ack({ ok: true, ...trinderLikeInfo(t) });
+      saveAuthUsers(); return ack({ ok: true, ...trinderLikeInfo(t, me) });
     }
     t.likes.push(tLc);
     const tt = trinderOf(them);
@@ -11724,12 +11738,12 @@ io.on("connection", (socket) => {
       me.pendingRequests = (me.pendingRequests || []).filter(x => x !== tLc);
       them.pendingRequests = (them.pendingRequests || []).filter(x => x !== meLc);
       saveAuthUsers();
-      const cardMe = { username: me.username, name: t.profile.name, avatar: me.avatar || DEFAULT_AVATAR };
-      const cardThem = { username: them.username, name: tt.profile ? tt.profile.name : them.username, avatar: them.avatar || DEFAULT_AVATAR };
+      const cardMe = { username: me.username, name: t.profile.name, avatar: me.avatar || DEFAULT_AVATAR, isPro: isVip(me) };
+      const cardThem = { username: them.username, name: tt.profile ? tt.profile.name : them.username, avatar: them.avatar || DEFAULT_AVATAR, isPro: isVip(them) };
       io.to(`user:${tLc}`).emit("trinder:match", { with: cardMe, friends: them.friends, likesCount: trinderPendingLikers(tLc, them).length });
       pushNotification(tLc, { type: "trinder_match", from: me.username, fromLc: meLc, name: cardMe.name, link: "/trinder.html?tab=matches" });
       socket.to(`user:${meLc}`).emit("trinder:match", { with: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
-      return ack({ ok: true, ...trinderLikeInfo(t), match: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
+      return ack({ ok: true, ...trinderLikeInfo(t, me), match: cardThem, friends: me.friends, likesCount: trinderPendingLikers(meLc, me).length });
     }
     saveAuthUsers();
     // Tell them someone likes them — but not who (the notification doesn't
@@ -11739,7 +11753,7 @@ io.on("connection", (socket) => {
     // count = everyone currently waiting on them (same number as the Trinder
     // button), so re-swiping the same person can't inflate it.
     if (!likedBefore && likesCount > 0) pushNotification(tLc, { type: "trinder_like", count: likesCount, link: "/trinder.html?tab=likes" }, "trinder_like");
-    ack({ ok: true, ...trinderLikeInfo(t) });
+    ack({ ok: true, ...trinderLikeInfo(t, me) });
   });
   // Who liked me. VIP members see who; everyone else only gets blurred pictures
   // (no names are ever sent, so the blur can't be peeked behind).

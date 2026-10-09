@@ -2978,3 +2978,48 @@ body.rc-theme-light .chat-donate-text { color: #4b4f5a; }
 .guest-name-notice-sub { font-size: 0.88em; color: #96989d; }
 body.rc-theme-light .guest-name-notice { color: #2e3338; background: rgba(88,101,242,0.07); }
 body.rc-theme-light .guest-name-notice-sub { color: #6b7080; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   👑 TALKING TO A VIP MEMBER — the whole chat turns gold for the person
+   who isn't VIP, so they know. body.vip-partner is set by
+   setPartnerNameDisplay() in script.js and comes off when the chat ends.
+   Placed last (and !important on the chat area, whose background
+   picker sets an inline style) so it wins over every rc-theme.
+   ══════════════════════════════════════════════════════════════════════ */
+body.vip-partner { background: #160e02; color: #fff; }
+body.vip-partner .chat-container {
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(255, 214, 102, 0.30), transparent 62%),
+    radial-gradient(90% 55% at 100% 100%, rgba(214, 150, 30, 0.28), transparent 60%),
+    radial-gradient(70% 45% at 0% 70%, rgba(255, 190, 70, 0.14), transparent 60%),
+    linear-gradient(170deg, #3a2505 0%, #1f1403 48%, #2c1c04 100%) !important;
+  transition: background 0.5s ease;
+}
+body.vip-partner .top-bar { background: linear-gradient(90deg, rgba(64, 42, 6, 0.97), rgba(104, 72, 12, 0.97), rgba(64, 42, 6, 0.97)); border-bottom-color: rgba(255, 207, 77, 0.45); box-shadow: 0 1px 14px rgba(255, 190, 60, 0.18); }
+body.vip-partner .chat-input { background: rgba(46, 30, 5, 0.97); border-top-color: rgba(255, 207, 77, 0.35); box-shadow: 0 -2px 16px rgba(255, 190, 60, 0.12); }
+body.vip-partner .chat-input textarea { background: #2a1b04; color: #fff3d6; }
+body.vip-partner .chat-input textarea::placeholder { color: #b8995a; }
+body.vip-partner .message-content { background: rgba(70, 47, 9, 0.92); color: #fff3d6; box-shadow: inset 0 0 0 1px rgba(255, 207, 77, 0.22); }
+body.vip-partner .message-content.you { background: linear-gradient(135deg, #ffe08a 0%, #f2b93b 55%, #c98a17 100%); color: #2b1a00; box-shadow: none; }
+body.vip-partner .message-content.rc-photo { background: transparent; box-shadow: none; }
+body.vip-partner #sendBtn:not(:disabled) { background: linear-gradient(135deg, #ffd768 0%, #d99a1c 100%) !important; color: #2b1a00; }
+body.vip-partner .system-message { color: #e8c77a; }
+body.vip-partner .timestamp, body.vip-partner .seen-status { color: #bfa36a; }
+body.vip-partner #partnerNameDisplay { color: #ffe39a; background: rgba(255, 207, 77, 0.14); border: 1px solid rgba(255, 207, 77, 0.5); }
+body.vip-partner #onlineCount { color: #d9bd7c; }
+body.vip-partner .typing-indicator { background: rgba(70, 47, 9, 0.92); box-shadow: none; }
+body.vip-partner .typing-indicator span { background: #e8c77a; }
+body.vip-partner .partner-found-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 214, 102, 0.22), rgba(140, 90, 10, 0.25));
+  box-shadow: 0 0 0 1.5px rgba(255, 207, 77, 0.7), 0 8px 26px -8px rgba(255, 190, 60, 0.45);
+}
+body.vip-partner .pfc-avatar { box-shadow: 0 0 0 2px #ffcf4d, 0 0 14px rgba(255, 200, 60, 0.55); }
+body.vip-partner .pfc-status { color: #ffe39a; font-weight: 700; }
+.pfc-crown { display: none; }
+body.vip-partner .pfc-crown {
+  display: block; position: absolute; top: -14px; right: -10px; width: 40px; height: 40px; border-radius: 50%; object-fit: cover;
+  box-shadow: 0 0 0 1.5px #ffcf4d, 0 0 16px rgba(255, 200, 60, 0.7);
+}
+body.vip-partner.rc-theme-light .site-name { -webkit-text-fill-color: initial; background: linear-gradient(135deg, #fff1b8 0%, #ffcf4d 60%, #d99a1c 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+body.vip-partner.rc-theme-light .reg-menu-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 207, 77, 0.3); color: #ffe39a; }
