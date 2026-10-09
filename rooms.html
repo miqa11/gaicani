@@ -52,6 +52,13 @@
     button, a, [role="button"] { touch-action: manipulation; }
 
     #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; height: var(--app-height, 100dvh); }
+    /* iPhone keyboard: Safari keeps the page its full height and slides the
+       visible part down to the text box — the page then sat above what's
+       visible and the keyboard seemed to cover the whole chat. On phones the
+       page is pinned to the visible part instead (--vv-top, set below). */
+    @media (max-width: 699px) {
+      #app { position: fixed; left: 0; right: 0; top: var(--vv-top, 0px); }
+    }
 
     .rm-loading, .rm-center-screen {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -529,8 +536,14 @@
 <script>
   (function () {
     function setAppHeight() {
-      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      var vv = window.visualViewport;
+      var h = vv ? vv.height : window.innerHeight;
+      // Keep the newest message in view when the keyboard opens.
+      var m = document.getElementById("chatMessages");
+      var stick = m && m.scrollHeight - m.scrollTop - m.clientHeight < 80;
       document.documentElement.style.setProperty("--app-height", h + "px");
+      document.documentElement.style.setProperty("--vv-top", (vv ? Math.max(0, Math.round(vv.offsetTop)) : 0) + "px");
+      if (stick) requestAnimationFrame(function () { m.scrollTop = m.scrollHeight; });
     }
     setAppHeight();
     if (window.visualViewport) {

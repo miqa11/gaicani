@@ -869,6 +869,14 @@
       }
     }
 
+    /* iPhone keyboard: Safari keeps the page its full height and slides the
+       visible part down to the text box — the page then sat above what's
+       visible and the keyboard seemed to cover the whole chat. On phones the
+       page is pinned to the visible part instead (--vv-top, set below). */
+    @media (max-width: 699px) {
+      #app { position: fixed; left: 0; right: 0; top: var(--vv-top, 0px); }
+    }
+
     /* Sideways phones count as "wide" too, but are only ~390px tall — use the
        whole screen instead of a framed card at 92% of the height. */
     @media (min-width: 700px) and (max-height: 500px) {
@@ -1174,8 +1182,14 @@ button, textarea, input { font-family: inherit; }
   // interactive-widget=resizes-content).
   (function () {
     function setAppHeight() {
-      var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      var vv = window.visualViewport;
+      var h = vv ? vv.height : window.innerHeight;
+      // Keep the newest message in view when the keyboard opens.
+      var m = document.getElementById("fc-messages");
+      var stick = m && m.scrollHeight - m.scrollTop - m.clientHeight < 80;
       document.documentElement.style.setProperty("--app-height", h + "px");
+      document.documentElement.style.setProperty("--vv-top", (vv ? Math.max(0, Math.round(vv.offsetTop)) : 0) + "px");
+      if (stick) requestAnimationFrame(function () { m.scrollTop = m.scrollHeight; });
     }
     setAppHeight();
     if (window.visualViewport) {
