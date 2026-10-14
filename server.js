@@ -375,7 +375,6 @@ const AD_TEXT_OF = Object.assign({}, require("./server-spamguard").TEXT_OF, {
   "sendQuestion": (d) => d && d.text,           // random chat question card
   "setBio":       (d) => (typeof d === "string" ? d : ""),
   "status:set":   (d) => d && d.text,           // 24h text status
-  "rooms:createPoll": (d) => d && [d.question].concat(d.options || []).join(" "),
 });
 function attachAdFilter(socket) {
   socket.use((packet, next) => {
@@ -832,7 +831,7 @@ function getOrCreateDay(key) {
       ips: new Set(), sessions: 0, totalDurationMs: 0,
       chats: 0, hours, peakOnline: 0, peakOnlineAt: null,
       newIPs: new Set(),
-      counters: {},                       // messages, forum, games … (see bumpStat)
+      counters: {},                       // messages, games … (see bumpStat)
       devices: newDeviceSets(),           // unique visitors per device type
       pages: {},                          // page opens per page
     });
@@ -1690,6 +1689,10 @@ app.get("/private-photos/:file", async (req, res) => {
 
 // ⚡ Pages are sent with fingerprinted script/style/picture addresses, and
 // those files may then be kept for a year — see server-assets.js.
+// Rooms and the Forum were removed. Old links, bookmarks and saved pages go to
+// the dashboard instead of an error.
+app.get(["/rooms.html", "/forum.html"], (req, res) => res.redirect(301, "/dashboard.html"));
+
 const assets = require("./server-assets").mountAssets(app, { root: __dirname });
 app.use(express.static(path.join(__dirname), {
   setHeaders(res, filePath) {
@@ -1932,8 +1935,7 @@ app.get(ROUTE.regUsers, ownerOnly, (req, res) => {
 // POST <deleteUser route>?username=x[&banIp=false]  — admin removal of an account.
 //
 // Deliberately HARSHER than the self-serve deletion in /api/auth/delete-account:
-//   * self-delete ANONYMISES forum/room content so conversations stay readable
-//   * this DELETES it, because it exists to remove an abuser's output entirely
+//   * the account's data is removed outright, and its last IP is banned
 // It also bans the account's last known IP by default. Pass banIp=false to
 // delete without banning (e.g. removing a duplicate or test account).
 app.post(ROUTE.deleteUser, ownerOnly, (req, res) => {
@@ -1948,31 +1950,6 @@ app.post(ROUTE.deleteUser, ownerOnly, (req, res) => {
   if (user.isAdmin) return res.status(403).json({ error: "cannot delete an admin account" });
 
   const lastIP = user.lastIP || null;
-  let removedPosts = 0, removedComments = 0, removedRoomMsgs = 0;
-
-  // ── forum: remove their posts outright, and their comments elsewhere ──
-  for (const [postId, post] of [...forumPosts]) {
-    if (post.authorLc === lc) { forumPosts.delete(postId); removedPosts++; continue; }
-    if (Array.isArray(post.comments)) {
-      const before = post.comments.length;
-      post.comments = post.comments.filter(c => c.authorLc !== lc);
-      removedComments += before - post.comments.length;
-    }
-    if (post.votes) delete post.votes[lc];
-  }
-
-  // ── rooms: strip their messages and membership ──
-  for (const [, room] of chatRooms) {
-    if (Array.isArray(room.messages)) {
-      const before = room.messages.length;
-      room.messages = room.messages.filter(m => m.fromLc !== lc);
-      removedRoomMsgs += before - room.messages.length;
-      for (const m of room.messages) if (m.votes) delete m.votes[lc]; // 📊 their poll answers
-    }
-    if (Array.isArray(room.members)) room.members = room.members.filter(m => m !== lc);
-    if (Array.isArray(room.bannedUsers)) room.bannedUsers = room.bannedUsers.filter(b => b !== lc);
-    if (room.lastRead) delete room.lastRead[lc];
-  }
 
   // ── private data and social graph ──
   for (const [roomId, room] of privateRooms) {
@@ -2014,12 +1991,11 @@ app.post(ROUTE.deleteUser, ownerOnly, (req, res) => {
   }
 
   forgetNotificationsOf(lc);
-  saveAuthUsers(); savePrivateMsgs(); saveStreaks(); saveChatRooms(); saveForum();
-  console.log(`[ADMIN] Deleted account "${username}" — ${removedPosts} post(s), ${removedComments} comment(s), ${removedRoomMsgs} room message(s), ${kicked} socket(s) kicked, IP ${bannedIp || "not banned"}`);
+  saveAuthUsers(); savePrivateMsgs(); saveStreaks();
+  console.log(`[ADMIN] Deleted account "${username}" — ${kicked} socket(s) kicked, IP ${bannedIp || "not banned"}`);
 
   res.json({
     success: true, username,
-    removedPosts, removedComments, removedRoomMsgs,
     kickedSockets: kicked, bannedIp,
   });
 });
@@ -2540,7 +2516,7 @@ async function loadOverview() {
       api("GET", R.tempBansList).catch(function () { return []; })
     ]);
     var st = res[0], lv = st.live || {}, cm = st.community || {}, days = st.days || [], today = days[days.length - 1] || {}, ct = today.counters || {};
-    var msgs = (ct.msgRandom || 0) + (ct.msgPrivate || 0) + (ct.msgRooms || 0);
+    var msgs = (ct.msgRandom || 0) + (ct.msgPrivate || 0);
     var reports = ovCount(res[1]) + ovCount(res[2]), bans = ovCount(res[3]), blocks = ovCount(res[4]);
     document.getElementById("ovBody").innerHTML =
       '<div class="ov-group">Right now</div><div class="ov-grid">' +
@@ -2580,7 +2556,7 @@ async function loadOverview() {
     <label>Phrase to ban — e.g. an advertised site</label>
     <input type="text" id="adPhrase" placeholder="SEV•GE" maxlength="210" onkeydown="if (event.key === 'Enter') addAdPhrase()" />
     <button class="do-ban-btn" onclick="addAdPhrase()">🚫 Ban this phrase</button>
-    <p class="hint">Caught however it's written: <code>SEV•GE</code> also catches <code>sev.ge</code>, <code>sev ge</code>, <code>S E V G E</code>, <code>s3v-g3</code> and look-alike letters. For an exact regular expression write it between slashes, e.g. <code>/promo[0-9]+/</code>. Checked in random chat, rooms, forum, game chats, private chat (not end-to-end encrypted ones — nobody can read those), polls, 24h statuses and bios. The message never goes out and the sender's IP is banned forever (undo below). You — your own IP and the Support account — are never banned.</p>
+    <p class="hint">Caught however it's written: <code>SEV•GE</code> also catches <code>sev.ge</code>, <code>sev ge</code>, <code>S E V G E</code>, <code>s3v-g3</code> and look-alike letters. For an exact regular expression write it between slashes, e.g. <code>/promo[0-9]+/</code>. Checked in random chat, game chats, private chat (not end-to-end encrypted ones — nobody can read those), polls, 24h statuses and bios. The message never goes out and the sender's IP is banned forever (undo below). You — your own IP and the Support account — are never banned.</p>
     <div id="adPhrases"></div>
   </div>
   <div id="adBans">Loading...</div>
@@ -2596,7 +2572,7 @@ async function loadOverview() {
       : `<div class="crypt-off">⚠️ Private chats are <b>not encrypted</b> yet${chatCrypt.keyTooShort ? " (CHAT_KEY is too short — it needs " + chatCrypt.minLength + "+ characters)" : ""}. To turn it on: Render → your service → <b>Environment</b> → add <b>CHAT_KEY</b> with the value below → Save (the server restarts by itself). Save the same value in a safe place too.<code class="crypt-key">${crypto.randomBytes(32).toString("base64url")}</code></div>`}
     ${privMsgsLocked ? `<div class="crypt-off">⚠️ The saved private chats couldn't be opened — ${privMsgsLocked.code === "NO_KEY" ? "CHAT_KEY isn't set on this server" : privMsgsLocked.code === "WRONG_KEY" ? "they were locked with a different CHAT_KEY" : "the file is damaged"}. They were kept aside as <code>${privMsgsLocked.file}</code>. Set the right CHAT_KEY, then restore your backup to bring them back.</div>` : ""}
     <a class="backup-dl" href="${ROUTE.backup}" download>⬇ Download backup</a>
-    <p class="hint">One file with everything: accounts (with their passwords, scrambled), friends, coins, streaks, profiles, private chats, voice messages, rooms, forum, notifications, stats and bans. Keep it private — it holds everyone's private messages.</p>
+    <p class="hint">One file with everything: accounts (with their passwords, scrambled), friends, coins, streaks, profiles, private chats, voice messages, notifications, stats and bans. Keep it private — it holds everyone's private messages.</p>
     <label for="restoreFile">Restore from a backup file (.tar.gz)</label>
     <input type="file" id="restoreFile" accept=".gz,.tgz,application/gzip" />
     <button class="backup-up" id="restoreBtn" onclick="restoreBackup()">⬆ Restore this backup</button>
@@ -2811,8 +2787,8 @@ async function deleteUser(username) {
   const warn = [
     'Delete the account: ' + username,
     '',
-    'This permanently removes the account, deletes their forum posts,',
-    'comments and room messages, and bans their last known IP.',
+    'This permanently removes the account and its data,',
+    'and bans their last known IP.',
     '',
     'This cannot be undone.'
   ].join(String.fromCharCode(10));
@@ -2821,9 +2797,6 @@ async function deleteUser(username) {
     const r = await api('POST', R.deleteUser + '?username=' + encodeURIComponent(username));
     const nl = String.fromCharCode(10);
     alert('Deleted ' + username + nl + nl +
-          'posts: ' + r.removedPosts + nl +
-          'comments: ' + r.removedComments + nl +
-          'room messages: ' + r.removedRoomMsgs + nl +
           'IP banned: ' + (r.bannedIp || 'none on file'));
     loadAll();
   } catch (e) { alert('Failed: ' + e.message); }
@@ -2969,7 +2942,6 @@ async function addAdPhrase() {
   loadAdFilter();
 }
 const AD_WHERE = { "message": "random chat", "sendQuestion": "random chat question", "setBio": "bio", "status:set": "24h status",
-  "rooms:send": "room", "rooms:createPoll": "poll", "forum:createPost": "forum post", "forum:comment": "forum comment",
   "privateMsg:send": "private chat", "poker:chat": "poker chat", "blackjack:chat": "blackjack chat", "chess:chat": "chess chat",
   "checkers:chat": "checkers chat", "joker:chat": "joker chat", "imposter:chat": "imposter chat" };
 function fmtWhen(ts) { return ts ? new Date(ts).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""; }
@@ -4501,8 +4473,6 @@ app.get(ROUTE.statsApi, (req, res) => {
     if (st.count > 0 && st.lastDate && st.lastDate >= yesterday) { activeStreaks++; if (st.count > longestStreak) longestStreak = st.count; }
   }
   let privateMessagesStored = 0; for (const [, r] of privateRooms) privateMessagesStored += (r.messages || []).length;
-  let roomMessagesStored = 0;    for (const [, r] of chatRooms) roomMessagesStored += (r.messages || []).length;
-  let forumComments = 0;         for (const [, fp] of forumPosts) forumComments += (fp.comments || []).length;
 
   // Right now
   const regOnline = new Set(), guestOnline = new Set();
@@ -4526,8 +4496,8 @@ app.get(ROUTE.statsApi, (req, res) => {
     live: { registered: regOnline.size, guests: guestOnline.size, chatting, waiting: waitingQueue.length },
     community: {
       accounts, vip, newAccounts7d, friendships: Math.round(friendLinks / 2), activeStreaks, longestStreak,
-      privateConversations: privateRooms.size, privateMessagesStored, rooms: chatRooms.size, roomMessagesStored,
-      forumPosts: forumPosts.size, forumComments, profilesFilled, gender, ageGroups,
+      privateConversations: privateRooms.size, privateMessagesStored,
+      profilesFilled, gender, ageGroups,
       // Counts only — no addresses: how many different IPs the accounts last
       // used, and how many IPs are shared by 2+ accounts (same person or home).
       accountIPs: {
@@ -4706,11 +4676,10 @@ footer { color:var(--muted); font-size:.76em; margin-top:28px; line-height:1.6; 
   <h2>Activity</h2>
   <p class="note" id="sinceNote"></p>
   <div class="card"><h3>Messages per day</h3>
-    <div class="legend"><span><i style="background:var(--c-new)"></i>Random chat</span><span><i style="background:var(--c-sess)"></i>Private chat</span><span><i style="background:var(--c-teal)"></i>Rooms</span><span><i style="background:var(--c-amber)"></i>Private photos</span></div>
+    <div class="legend"><span><i style="background:var(--c-new)"></i>Random chat</span><span><i style="background:var(--c-sess)"></i>Private chat</span><span><i style="background:var(--c-amber)"></i>Private photos</span></div>
     <div id="chMsgs"></div></div>
   <div class="grid2">
     <div class="card"><h3>Games played (last 14 days)</h3><div id="games"></div></div>
-    <div class="card"><h3>Forum (last 14 days)</h3><div id="forum"></div></div>
     <div class="card"><h3>Devices</h3><p class="note" style="margin:2px 0 10px">Share of daily visitors, last 14 days.</p><div id="devices"></div></div>
     <div class="card"><h3>Most opened pages (last 14 days)</h3><div id="pages"></div></div>
   </div>
@@ -4774,8 +4743,8 @@ function sumCounter(days, key) { return days.reduce(function (s, d) { return s +
 
 var GAMES = [["poker", "🃏 Poker"], ["joker", "🎴 Joker"], ["chess", "♟️ Chess"], ["checkers", "⚫ Checkers"], ["blackjack", "🂡 Blackjack"], ["imposter", "🕵️ Imposter"], ["drawGuess", "🎨 Draw & Guess"], ["flappy", "🐤 Flappy Bird"]];
 var DEVICES = [["ios", "📱 iPhone / iPad", "#cfc6ee"], ["android", "🤖 Android", "#1fc18a"], ["windows", "🪟 Windows", "#4f6cff"], ["mac", "💻 Mac", "#9d5cff"], ["linux", "🐧 Linux", "#f0b93a"], ["other", "❓ Other", "#8f87ad"]];
-var PAGE_NAMES = { "/": "Random chat", "/index.html": "Random chat", "/dashboard.html": "Dashboard", "/friend-chat.html": "Private chat", "/rooms.html": "Rooms",
-  "/forum.html": "Forum", "/poker.html": "Poker", "/joker.html": "Joker", "/chess.html": "Chess", "/checkers.html": "Checkers", "/blackjack.html": "Blackjack",
+var PAGE_NAMES = { "/": "Random chat", "/index.html": "Random chat", "/dashboard.html": "Dashboard", "/friend-chat.html": "Private chat", 
+  "/poker.html": "Poker", "/joker.html": "Joker", "/chess.html": "Chess", "/checkers.html": "Checkers", "/blackjack.html": "Blackjack",
   "/imposter.html": "Imposter", "/draw-guess.html": "Draw & Guess", "/flappy-bird.html": "Flappy Bird", "/install.html": "Install app", "/privacy.html": "Privacy", "/terms.html": "Terms" };
 
 function render(d) {
@@ -4833,10 +4802,8 @@ function render(d) {
   bars($("chMsgs"), labels, [
     { color: "var(--c-new)", values: days.map(function (x) { return (x.counters || {}).msgRandom || 0; }) },
     { color: "var(--c-sess)", values: days.map(function (x) { return (x.counters || {}).msgPrivate || 0; }) },
-    { color: "var(--c-teal)", values: days.map(function (x) { return (x.counters || {}).msgRooms || 0; }) },
     { color: "var(--c-amber)", values: days.map(function (x) { return (x.counters || {}).photoPrivate || 0; }) }], { tipLabels: dates });
   hbars($("games"), GAMES.map(function (g) { return { label: g[1], value: sumCounter(days, "game:" + g[0]), color: "var(--c-sess)" }; }).sort(function (a, b) { return b.value - a.value; }));
-  hbars($("forum"), [{ label: "📝 New posts", value: sumCounter(days, "forumPosts"), color: "var(--c-amber)" }, { label: "💬 Comments", value: sumCounter(days, "forumComments"), color: "var(--c-teal)" }]);
   hbars($("devices"), DEVICES.map(function (dv) { return { label: dv[1], value: days.reduce(function (s, x) { return s + ((x.devices || {})[dv[0]] || 0); }, 0), color: dv[2] }; }).sort(function (a, b) { return b.value - a.value; }), { share: true });
   var pages = {};
   days.forEach(function (x) { Object.keys(x.pages || {}).forEach(function (p) { var n = PAGE_NAMES[p] || p; pages[n] = (pages[n] || 0) + x.pages[p]; }); });
@@ -4844,7 +4811,6 @@ function render(d) {
 
   // community
   $("content").innerHTML = kpi(fmt(c.privateConversations), "private conversations", fmt(c.privateMessagesStored) + " messages kept") +
-    kpi(fmt(c.rooms), "rooms", fmt(c.roomMessagesStored) + " messages") + kpi(fmt(c.forumPosts), "forum posts", fmt(c.forumComments) + " comments") +
     kpi(fmt(c.profilesFilled), "profiles with details", c.accounts ? Math.round(c.profilesFilled / c.accounts * 100) + "% of accounts" : "");
   var g = c.gender || {};
   $("genderNote").textContent = "Only people who chose one (" + fmt((g.male || 0) + (g.female || 0)) + " of " + fmt(c.accounts) + " accounts).";
@@ -4855,7 +4821,7 @@ function render(d) {
   // table
   var rows = days.slice().reverse().map(function (x) {
     var ct = x.counters || {};
-    var msgs = (ct.msgRandom || 0) + (ct.msgPrivate || 0) + (ct.msgRooms || 0);
+    var msgs = (ct.msgRandom || 0) + (ct.msgPrivate || 0);
     return "<tr><td>" + esc(x.date) + "</td><td>" + fmt(x.uniqueIPs) + "</td><td>" + fmt(x.newIPs) + "</td><td>" + fmt(x.returningIPs) + "</td><td>" + fmt(x.sessions) +
       "</td><td>" + dur(x.avgSessionSec) + "</td><td>" + fmt(x.chats) + "</td><td>" + fmt(msgs) + "</td><td>" + fmt(x.signups) + "</td><td>" + fmt(x.peakOnline) +
       "</td><td>" + (x.peakHour && x.peakHour.uniqueIPs ? x.peakHour.label : "–") + "</td><td>" + (x.nextDayReturn === null ? "–" : x.nextDayReturn + "%") + "</td></tr>";
@@ -5099,17 +5065,9 @@ const SUPPORT_AVATAR = "avatar-support.jpg";
 const USERS_FILE        = path.join(DATA_PATH, "registered_users.json");
 const PRIV_MSGS_FILE    = path.join(DATA_PATH, "private_messages.json");
 const STREAKS_FILE      = path.join(DATA_PATH, "friend_streaks.json");
-const ROOMS_FILE        = path.join(DATA_PATH, "chat_rooms.json");
-const FORUM_FILE        = path.join(DATA_PATH, "forum_posts.json");
 const NOTIF_FILE        = path.join(DATA_PATH, "notifications.json");
 const PRIVATE_MSG_TTL   = 30 * 60 * 60 * 1000; // 30 h — auto-delete
 const AUTH_TOKEN_TTL    = 7  * 24 * 60 * 60 * 1000; // 7 days
-const ROOM_MSG_CAP      = 200; // per-room stored history — oldest trimmed past this
-const ROOM_NAME_MAX     = 80;
-const FORUM_TITLE_MAX   = 120;
-const FORUM_BODY_MAX    = 5000;
-const FORUM_COMMENT_MAX = 2000;
-const FORUM_COMMENT_CAP = 500; // per-post stored comments — oldest trimmed past this
 
 // ── In-memory stores ─────────────────────────────────────────────────────────
 const registeredUsers   = new Map(); // lowerUsername → userObj
@@ -5125,19 +5083,6 @@ const GUEST_TOKEN_TTL   = 4 * 60 * 60 * 1000; // 4h — a guest's REST token out
 const FRIEND_REQUEST_DECLINE_COOLDOWN_MS = parseInt(process.env.FRIEND_REQUEST_DECLINE_COOLDOWN_MS, 10) || 24 * 60 * 60 * 1000;
 const friendRequestDeclineCooldown = new Map(); // "senderLc|recipientLc" → expiry timestamp
 const friendStreaks     = new Map(); // roomId → { count, lastDate, lastFrom: { usernameLower: "YYYY-MM-DD" } }
-
-// ── Rooms ("ოთახები" — Discord-style topic rooms) ──────────────────────────
-// roomId → { id, name, createdBy, createdByUsername, createdAt,
-//            members: [usernameLower...], bannedUsers: [usernameLower...],
-//            messages: [{ id, fromLc, fromUsername, text, ts }] }
-const chatRooms = new Map();
-
-// ── Forum ("ფორუმი" — Reddit-style posts/comments) ─────────────────────────
-// postId → { id, title, body, authorLc, authorUsername, createdAt,
-//            votes: { usernameLower: 1 | -1 },
-//            comments: [{ id, body, authorLc, authorUsername, createdAt, votes: {} }] }
-// Moderated by the same isAdmin account that runs Rooms.
-const forumPosts = new Map();
 
 // ── Notifications (🔔 next to "გამოსვლა" on ჩემი გვერდი) ───────────────────
 // usernameLower → { seenAt, items: [{ id, type, key, from, fromLc, name,
@@ -5568,21 +5513,6 @@ function renameAccount(oldLc, newName) {
     friendStreaks.delete(id); if (st.lastFrom) swapKey(st.lastFrom);
     friendStreaks.set(privRoomId(swap(parts[0]), swap(parts[1])), st);
   }
-  // rooms
-  for (const [, r] of chatRooms) {
-    if (r.createdBy === oldLc) { r.createdBy = newLc; r.createdByUsername = newName; }
-    r.members = (r.members || []).map(swap); r.bannedUsers = (r.bannedUsers || []).map(swap);
-    for (const m of r.messages || []) {
-      if (m.fromLc === oldLc) { m.fromLc = newLc; m.fromUsername = newName; }
-      if (m.votes) swapKey(m.votes); // 📊 their poll answers stay theirs
-    }
-  }
-  // forum posts, comments and their votes
-  for (const [, p] of forumPosts) {
-    if (p.authorLc === oldLc) { p.authorLc = newLc; p.authorUsername = newName; }
-    if (p.votes) swapKey(p.votes);
-    for (const c of p.comments || []) { if (c.authorLc === oldLc) { c.authorLc = newLc; c.authorUsername = newName; } if (c.votes) swapKey(c.votes); }
-  }
   // admin report history + small per-user records
   if (accountReportLog.has(oldLc)) { accountReportLog.set(newLc, accountReportLog.get(oldLc)); accountReportLog.delete(oldLc); }
   for (const [, arr] of accountReportLog) for (const e of arr || []) { if (e.reportedBy === oldLc) e.reportedBy = newLc; else if (e.reportedBy === oldName) e.reportedBy = newName; }
@@ -5601,7 +5531,7 @@ function renameAccount(oldLc, newName) {
     if (it.type === "message" || it.type === "friend_accept" || (it.type === "support" && /^\/friend-chat/.test(it.link || ""))) it.link = `/friend-chat.html?friend=${encodeURIComponent(newName)}`;
   }
   notifDirty = true;
-  saveAuthUsers(); savePrivateMsgs(); saveStreaks(); saveChatRooms(); saveForum();
+  saveAuthUsers(); savePrivateMsgs(); saveStreaks();
   return { oldName, newName };
 }
 
@@ -5706,7 +5636,7 @@ function getOnlineRegisteredUsers(excludeLc) {
   return list;
 }
 
-// ── Banned-word filter (room names, room chat, forum posts & comments) ───────
+// ── Banned-word filter (names, profile text and chat) ───────────────────────
 // Matching rules, and why they're built this way:
 //
 //  * Unicode-aware WORD BOUNDARIES, not plain substring search. This matters:
@@ -5797,31 +5727,6 @@ function findBannedWord(text) {
 
 const ABUSE_WORD_MESSAGE = "ამ სიტყვის გამოყენება აკრძალულია — გთხოვთ, შეცვალოთ ტექსტი.";
 
-// ── Rooms helpers ─────────────────────────────────────────────────────────────
-// ── 📊 Room polls ───────────────────────────────────────────────────────────
-// Only counts are ever shown — never who voted for what.
-function pollCounts(m) {
-  const counts = m.options.map(() => 0);
-  for (const v of Object.values(m.votes || {})) if (counts[v] !== undefined) counts[v]++;
-  return counts;
-}
-function pollPublic(m, viewerLc) {
-  const counts = pollCounts(m);
-  const votes = m.votes || {};
-  return {
-    type: "poll",
-    question: m.question,
-    options: m.options.map((text, i) => ({ text, count: counts[i] })),
-    total: counts.reduce((a, b) => a + b, 0),
-    myVote: viewerLc && Object.prototype.hasOwnProperty.call(votes, viewerLc) ? votes[viewerLc] : null,
-  };
-}
-
-function isRoomAdmin(usernameLower) {
-  const u = registeredUsers.get(usernameLower);
-  return !!(u && u.isAdmin);
-}
-
 // ── 🪙 Coins — one balance for the whole site ──────────────────────────────
 // Poker, blackjack, the daily bonus, Flappy Bird rewards and the shop all
 // use the same user.coins: what you win in poker you can bet in blackjack or
@@ -5856,128 +5761,6 @@ function ensureCoins(user) {
 }
 // You can't sit at a poker and a blackjack table at the same time (see above).
 const AT_OTHER_TABLE_MSG = "ჯერ დაასრულე მეორე თამაში — მონეტები პოკერსა და ბლექჯეკში ერთია, ორივე მაგიდასთან ერთდროულად ვერ დაჯდები.";
-
-function makeRoomId() {
-  return `room_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// Sanitize a room name/topic the same way everywhere it's set (create + edit).
-function cleanRoomName(raw) {
-  return String(raw || "").slice(0, ROOM_NAME_MAX).replace(/<[^>]*>/g, "").trim();
-}
-
-// "Unread" for one specific room: newer than whichever is more specific —
-// this room's own per-room lastRead if the user has ever opened THIS room,
-// otherwise their general lastRoomsVisitAt (a one-time rollout baseline so
-// existing content doesn't all show as unread the moment this shipped).
-function roomUnreadFor(room, user, myLc) {
-  if (!myLc || room.bannedUsers.includes(myLc)) return false;
-  const lastRead = (room.lastRead && room.lastRead[myLc]) || (user && user.lastRoomsVisitAt) || 0;
-  return room.messages.some(m => m.fromLc !== myLc && new Date(m.ts).getTime() > lastRead);
-}
-function postUnreadFor(post, user, myLc) {
-  if (!myLc) return false;
-  const lastRead = (post.lastRead && post.lastRead[myLc]) || (user && user.lastForumVisitAt) || 0;
-  if (post.authorLc !== myLc && new Date(post.createdAt).getTime() > lastRead) return true;
-  return post.comments.some(c => c.authorLc !== myLc && new Date(c.createdAt).getTime() > lastRead);
-}
-
-function roomPublicSummary(room, forLc) {
-  const forUser = forLc ? registeredUsers.get(forLc) : null;
-  return {
-    id: room.id,
-    name: room.name,
-    createdByUsername: room.createdByUsername,
-    createdAt: room.createdAt,
-    memberCount: room.members.length,
-    isMember: forLc ? room.members.includes(forLc) : false,
-    isBanned: forLc ? room.bannedUsers.includes(forLc) : false,
-    lastMessageAt: room.messages.length ? room.messages[room.messages.length - 1].ts : null,
-    hasUnread: roomUnreadFor(room, forUser, forLc),
-  };
-}
-
-// viewerLc: who it's for — a poll tells each person which answer is theirs.
-function roomMessagePublic(m, viewerLc) {
-  // Avatar is looked up live from the account rather than stored on the
-  // message, so it stays correct for old messages after someone changes
-  // their picture (and so historical messages get one at all).
-  const author = registeredUsers.get(m.fromLc);
-  const out = {
-    id: m.id,
-    fromUsername: m.fromUsername,
-    text: m.text,
-    ts: m.ts,
-    avatar: author?.avatar || null,
-    isPro: !!author?.isPro,
-  };
-  if (m.type === "poll") Object.assign(out, pollPublic(m, viewerLc));
-  return out;
-}
-
-// Everyone currently online under this username, kicked out of a room's live
-// broadcast — used by admin ban/kick so it takes effect immediately even if
-// they have several tabs/devices open.
-function forceLeaveRoomSockets(usernameLower, roomId) {
-  const sockets = onlineRegSockets.get(usernameLower);
-  if (!sockets) return;
-  for (const sid of sockets) {
-    io.sockets.sockets.get(sid)?.leave(`roomchat:${roomId}`);
-  }
-}
-
-// ── Forum ("ფორუმი") helpers ─────────────────────────────────────────────────
-function makeForumPostId() {
-  return "fp_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
-}
-function makeForumCommentId() {
-  return "fc_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
-}
-function forumScore(votes) {
-  let s = 0;
-  for (const v of Object.values(votes || {})) s += v;
-  return s;
-}
-function cleanForumText(raw, maxLen) {
-  return String(raw || "").slice(0, maxLen).replace(/<[^>]*>/g, "").trim();
-}
-
-// Feed-list shape — no comments array (kept light for the listing screen).
-function forumPostSummary(post, forLc) {
-  const forUser = forLc ? registeredUsers.get(forLc) : null;
-  return {
-    id: post.id,
-    title: post.title,
-    authorUsername: post.authorUsername,
-    createdAt: post.createdAt,
-    score: forumScore(post.votes),
-    myVote: forLc ? (post.votes[forLc] || 0) : 0,
-    commentCount: post.comments.length,
-    hasUnread: postUnreadFor(post, forUser, forLc),
-    mine: !!forLc && post.authorLc === forLc,
-  };
-}
-
-function forumCommentPublic(c, forLc) {
-  return {
-    id: c.id,
-    body: c.body,
-    authorUsername: c.authorUsername,
-    createdAt: c.createdAt,
-    score: forumScore(c.votes),
-    myVote: forLc ? (c.votes[forLc] || 0) : 0,
-    mine: !!forLc && c.authorLc === forLc,
-  };
-}
-
-// Full detail shape — includes body + every comment, for the post-detail screen.
-function forumPostFull(post, forLc) {
-  return {
-    ...forumPostSummary(post, forLc),
-    body: post.body,
-    comments: post.comments.map(c => forumCommentPublic(c, forLc)),
-  };
-}
 
 // ── Crypto helpers ────────────────────────────────────────────────────────────
 // IMPORTANT: these use the ASYNC pbkdf2 (not pbkdf2Sync). On a small CPU
@@ -6106,8 +5889,6 @@ const SAVE_DEBOUNCE_MS = 5000;
 let authUsersDirty = false;
 let privMsgsDirty = false;
 let streaksDirty = false;
-let roomsDirty = false;
-let forumDirty = false;
 let notifDirty = false;
 let saveTimer = null;
 
@@ -6117,8 +5898,6 @@ function scheduleSave() {
     if (authUsersDirty) _saveAuthUsersToDisk();
     if (privMsgsDirty) _savePrivateMsgsToDisk();
     if (streaksDirty) _saveStreaksToDisk();
-    if (roomsDirty) _saveChatRoomsToDisk();
-    if (forumDirty) _saveForumToDisk();
     if (notifDirty) _saveNotificationsToDisk();
     saveTimer = null;
   }, SAVE_DEBOUNCE_MS);
@@ -6158,30 +5937,6 @@ function _saveAuthUsersToDisk() {
   } catch (e) {
     console.error("[AUTH] save failed:", e.message);
     // Keep dirty flag set, will retry on next interval
-  }
-}
-
-function _saveChatRoomsToDisk() {
-  const obj = {};
-  for (const [id, r] of chatRooms) obj[id] = r;
-  try {
-    writeFileAtomic(ROOMS_FILE, JSON.stringify(obj));
-    roomsDirty = false;
-  } catch (e) {
-    console.error("[ROOMS] save failed:", e.message);
-    roomsDirty = true;
-  }
-}
-
-function _saveForumToDisk() {
-  const obj = {};
-  for (const [id, p] of forumPosts) obj[id] = p;
-  try {
-    writeFileAtomic(FORUM_FILE, JSON.stringify(obj));
-    forumDirty = false;
-  } catch (e) {
-    console.error("[FORUM] save failed:", e.message);
-    forumDirty = true;
   }
 }
 
@@ -6289,40 +6044,6 @@ function saveStreaks() {
   streaksDirty = true;
   scheduleSave();
 }
-function loadChatRooms() {
-  try {
-    const obj = readJsonFile(ROOMS_FILE);
-    for (const [id, r] of Object.entries(obj)) {
-      r.members      = Array.isArray(r.members) ? r.members : [];
-      r.bannedUsers   = Array.isArray(r.bannedUsers) ? r.bannedUsers : [];
-      r.messages      = Array.isArray(r.messages) ? r.messages : [];
-      chatRooms.set(id, r);
-    }
-    console.log(`[ROOMS] Loaded ${chatRooms.size} room(s)`);
-  } catch { /* first run */ }
-}
-function saveChatRooms() {
-  roomsDirty = true;
-  scheduleSave();
-}
-
-function loadForum() {
-  try {
-    const obj = readJsonFile(FORUM_FILE);
-    for (const [id, p] of Object.entries(obj)) {
-      p.votes    = p.votes && typeof p.votes === "object" ? p.votes : {};
-      p.comments = Array.isArray(p.comments) ? p.comments : [];
-      for (const c of p.comments) c.votes = c.votes && typeof c.votes === "object" ? c.votes : {};
-      forumPosts.set(id, p);
-    }
-    console.log(`[FORUM] Loaded ${forumPosts.size} post(s)`);
-  } catch { /* first run */ }
-}
-function saveForum() {
-  forumDirty = true;
-  scheduleSave();
-}
-
 function loadNotifications() {
   try {
     const obj = readJsonFile(NOTIF_FILE);
@@ -6337,7 +6058,7 @@ function loadNotifications() {
   } catch { /* first run */ }
 }
 
-// ── Seed the fixed Rooms administrator account ─────────────────────────────
+// ── Seed the fixed staff (Support) account ──────────────────────────────────
 // Runs once at startup. If the account already exists (e.g. loaded from disk
 // on a restart) its password is left untouched — only the isAdmin flag is
 // guaranteed to be set. Override via env vars if you'd rather not keep the
@@ -6350,7 +6071,7 @@ function loadNotifications() {
 //
 // The administrator account is "Support", with its own picture. It used to be
 // ADMINISTRATOR1121 (or whatever ADMIN_USERNAME said): that account is renamed
-// once — renameAccount() carries its friends, chats, rooms and posts over —
+// once — renameAccount() carries its friends and chats over —
 // so the same password still logs in, now as "Support".
 const SUPPORT_USERNAME = "Support";
 const SUPPORT_NO_REQUESTS = "Support-ს მეგობრად ვერ დაამატებ";
@@ -6431,8 +6152,6 @@ async function seedAdminAccount() {
 loadAuthUsers();
 loadPrivateMsgs();
 loadStreaks();
-loadChatRooms();
-loadForum();
 loadNotifications();
 loadStats();
 // server.listen() below is deliberately deferred until this resolves — closes
@@ -6713,10 +6432,6 @@ app.post("/api/auth/login", authLimiter, express.json({ limit: "5kb" }), async (
 // What happens to the user's content:
 //   * Personal data (private messages, friendships, streaks, blocks, reports)
 //     is DELETED outright.
-//   * Forum posts/comments and room messages are ANONYMISED, not deleted, so
-//     conversations other people took part in don't get holes punched in them.
-//     The author becomes "წაშლილი მომხმარებელი" and authorLc is set to a
-//     sentinel that no real account can ever match.
 //   * The username is released, so it can be registered again later.
 app.post("/api/auth/delete-account", authLimiter, express.json({ limit: "2kb" }), async (req, res) => {
   const token = req.headers.authorization?.replace("Bearer ", "") || req.body?.token;
@@ -6757,32 +6472,6 @@ app.post("/api/auth/delete-account", authLimiter, express.json({ limit: "2kb" })
     if (roomId.split("::").includes(lc)) friendStreaks.delete(roomId);
   }
 
-  // 3. Chat rooms: drop membership, anonymise anything they wrote
-  for (const [, room] of chatRooms) {
-    if (Array.isArray(room.members)) room.members = room.members.filter(m => m !== lc);
-    if (Array.isArray(room.bannedUsers)) room.bannedUsers = room.bannedUsers.filter(b => b !== lc);
-    if (Array.isArray(room.messages)) {
-      for (const m of room.messages) {
-        if (m.fromLc === lc) { m.fromLc = DELETED_LC; m.fromUsername = DELETED_LABEL; }
-        if (m.votes) delete m.votes[lc]; // 📊 their poll answers
-      }
-    }
-    if (room.lastRead) delete room.lastRead[lc];
-  }
-
-  // 4. Forum: anonymise posts and comments, strip their votes
-  for (const [, post] of forumPosts) {
-    if (post.authorLc === lc) { post.authorLc = DELETED_LC; post.authorUsername = DELETED_LABEL; }
-    if (post.votes) delete post.votes[lc];
-    if (post.lastRead) delete post.lastRead[lc];
-    if (Array.isArray(post.comments)) {
-      for (const c of post.comments) {
-        if (c.authorLc === lc) { c.authorLc = DELETED_LC; c.authorUsername = DELETED_LABEL; }
-        if (c.votes) delete c.votes[lc];
-      }
-    }
-  }
-
   // 5. Moderation records tied to the account
   if (typeof accountReportLog !== "undefined") accountReportLog.delete(lc);
 
@@ -6804,8 +6493,6 @@ app.post("/api/auth/delete-account", authLimiter, express.json({ limit: "2kb" })
   saveAuthUsers();
   savePrivateMsgs();
   saveStreaks();
-  saveChatRooms();
-  saveForum();
 
   console.log(`[ACCOUNT] "${displayName}" deleted their own account`);
   res.json({ success: true });
@@ -6865,8 +6552,8 @@ app.post("/api/users/avatars", express.json({ limit: "2kb" }), (req, res) => {
   res.json({ avatars: out });
 });
 
-// Small shared helper for the Rooms REST endpoints below — every one of them
-// requires a valid, non-expired Bearer token (registered users only).
+// Small shared helper for REST endpoints that need a valid, non-expired
+// Bearer token (registered users only).
 function requireRegAuth(req, res) {
   const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
   if (!token) { res.status(401).json({ error: "No token" }); return null; }
@@ -6925,111 +6612,6 @@ app.get("/api/users/profile", (req, res) => {
       theme: effectiveTheme(u),
     } : { theme: effectiveTheme(u) }),
   });
-});
-
-// GET /api/rooms — list every room. Open to any authenticated registered
-// user (rooms require no approval to see or join). Each room in the list
-// carries its own hasUnread flag — viewing the LIST doesn't mark anything
-// as read anymore; only actually opening a specific room does (see
-// rooms:join and the single-room endpoint below), so the badge on each
-// room stays lit until you've actually looked at that one.
-app.get("/api/rooms", (req, res) => {
-  const auth = requireRegAuth(req, res);
-  if (!auth) return;
-
-  const list = [...chatRooms.values()]
-    .map(r => roomPublicSummary(r, auth.usernameLower))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  res.json({ rooms: list, isAdmin: !!auth.user.isAdmin });
-});
-
-// GET /api/rooms/unread — does this user have unread Rooms activity
-// anywhere? Read-only, for the dashboard badge. True if any individual
-// room's hasUnread is true.
-app.get("/api/rooms/unread", (req, res) => {
-  const auth = requireRegAuth(req, res);
-  if (!auth) return;
-
-  // Lazily initialize on first-ever check so existing users don't suddenly
-  // see a flood of "unread" for content that predates this feature — this
-  // is only ever used as a fallback for rooms they haven't specifically
-  // opened yet (see roomUnreadFor).
-  if (!auth.user.lastRoomsVisitAt) { auth.user.lastRoomsVisitAt = Date.now(); authUsersDirty = true; scheduleSave(); }
-
-  let unread = false;
-  for (const room of chatRooms.values()) {
-    if (roomUnreadFor(room, auth.user, auth.usernameLower)) { unread = true; break; }
-  }
-  res.json({ unread });
-});
-
-// GET /api/rooms/:roomId/messages — history for one room. A user the admin
-// has banned from this specific room is refused, same as everyone else who
-// isn't a registered user at all. Fetching this marks THIS room read.
-app.get("/api/rooms/:roomId/messages", (req, res) => {
-  const auth = requireRegAuth(req, res);
-  if (!auth) return;
-
-  const room = chatRooms.get(req.params.roomId);
-  if (!room) return res.status(404).json({ error: "ოთახი ვერ მოიძებნა" });
-  if (room.bannedUsers.includes(auth.usernameLower)) {
-    return res.status(403).json({ error: "ადმინისტრატორმა შეგზღუდათ ამ ოთახში წვდომა" });
-  }
-
-  room.lastRead = room.lastRead || {};
-  room.lastRead[auth.usernameLower] = Date.now();
-  saveChatRooms();
-
-  res.json({
-    room: roomPublicSummary(room, auth.usernameLower),
-    messages: room.messages.map((m) => roomMessagePublic(m, auth.usernameLower)),
-  });
-});
-
-// GET /api/forum/posts?sort=new|top — feed listing. Open to any
-// authenticated registered user, same "no approval needed" spirit as Rooms.
-// Each post carries its own hasUnread flag — same "only opening the
-// specific post marks it read" behavior as Rooms above.
-app.get("/api/forum/posts", (req, res) => {
-  const auth = requireRegAuth(req, res);
-  if (!auth) return;
-
-  const list = [...forumPosts.values()].map(p => forumPostSummary(p, auth.usernameLower));
-  if (req.query.sort === "top") list.sort((a, b) => b.score - a.score || new Date(b.createdAt) - new Date(a.createdAt));
-  else list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-  res.json({ posts: list, isAdmin: !!auth.user.isAdmin });
-});
-
-// GET /api/forum/unread — does this user have unread Forum activity
-// anywhere? Read-only, mirrors /api/rooms/unread above.
-app.get("/api/forum/unread", (req, res) => {
-  const auth = requireRegAuth(req, res);
-  if (!auth) return;
-
-  if (!auth.user.lastForumVisitAt) { auth.user.lastForumVisitAt = Date.now(); authUsersDirty = true; scheduleSave(); }
-
-  let unread = false;
-  for (const post of forumPosts.values()) {
-    if (postUnreadFor(post, auth.user, auth.usernameLower)) { unread = true; break; }
-  }
-  res.json({ unread });
-});
-
-// GET /api/forum/posts/:postId — full post + every comment, for the detail screen.
-app.get("/api/forum/posts/:postId", (req, res) => {
-  const auth = requireRegAuth(req, res);
-  if (!auth) return;
-
-  const post = forumPosts.get(req.params.postId);
-  if (!post) return res.status(404).json({ error: "პოსტი ვერ მოიძებნა" });
-
-  post.lastRead = post.lastRead || {};
-  post.lastRead[auth.usernameLower] = Date.now();
-  saveForum();
-
-  res.json({ post: forumPostFull(post, auth.usernameLower), isAdmin: !!auth.user.isAdmin });
 });
 
 // Same 10-a-minute ceiling the socket route has (friend requests are stored
@@ -11480,7 +11062,7 @@ io.on("connection", (socket) => {
   });
 
   // ── auth:guest — a temporary, throwaway identity for someone who hasn't
-  // registered, so they can still play games and browse Rooms/Forum with
+  // registered, so they can still play games with
   // the same interface a registered user sees. Lives only in memory for
   // as long as this socket is connected: never written to disk (see the
   // isGuest skip in _saveAuthUsersToDisk), and cleaned up on disconnect
@@ -11550,7 +11132,7 @@ io.on("connection", (socket) => {
 
     // Also issue a short-lived REST token (reusing the same authTokens /
     // requireRegAuth path real accounts use) so the client can fetch
-    // read-only Forum/Rooms content over REST, not just sockets. Tracked
+    // read-only content over REST, not just sockets. Tracked
     // for cleanup alongside the rest of the guest session on disconnect.
     const guestToken = authToken();
     authTokens.set(guestToken, { usernameLower: lc, expiry: Date.now() + GUEST_TOKEN_TTL, isGuest: true });
@@ -12353,8 +11935,8 @@ io.on("connection", (socket) => {
   });
 
   // ── privateMsg:sendPhoto — pro users only, private chat with an EXISTING
-  // mutual friend only. Deliberately NOT available in random chat, rooms,
-  // or forum — see the scoping note at the top of this feature. Checked
+  // mutual friend only. Deliberately NOT available in random chat —
+  // see the scoping note at the top of this feature. Checked
   // more strictly than the plain text handler above: friendship is verified
   // in BOTH directions here rather than assumed from room membership, since
   // image content warrants the extra certainty.
@@ -14244,423 +13826,6 @@ io.on("connection", (socket) => {
 
   socket.on("blackjack:leave", () => cleanupBjForSocket(socket.id));
 
-  // ══════════════════════════════════════════════════════════════════════
-  // Rooms ("ოთახები") — Discord-style topic rooms, registered users only.
-  // Opening a room in the client auto-joins it (rooms:join): no separate
-  // approval step, matches "no approval required to join a room". Reading
-  // history is allowed for any registered user regardless of membership —
-  // membership just tracks who's a current member (shown in the member
-  // list, and what a Leave button clears). Sending requires you either be
-  // a member already or join automatically as part of the send.
-  // ══════════════════════════════════════════════════════════════════════
-
-  socket.on("rooms:join", ({ roomId }) => {
-    if (!socket._regUser) return;
-    const room = chatRooms.get(roomId);
-    if (!room) { socket.emit("rooms:error", { message: "ოთახი ვერ მოიძებნა" }); return; }
-    const lc = socket._regUser.usernameLower;
-    if (room.bannedUsers.includes(lc)) {
-      socket.emit("rooms:error", { message: "ადმინისტრატორმა შეგზღუდათ ამ ოთახში მონაწილეობა" });
-      return;
-    }
-
-    socket.join(`roomchat:${roomId}`);
-    if (!room.members.includes(lc)) {
-      room.members.push(lc);
-      saveChatRooms();
-      socket.to(`roomchat:${roomId}`).emit("rooms:memberJoined", { roomId, username: socket._regUser.username });
-    }
-
-    room.lastRead = room.lastRead || {};
-    room.lastRead[lc] = Date.now();
-    saveChatRooms();
-
-    const amAdmin = isRoomAdmin(lc);
-    socket.emit("rooms:room", {
-      room: roomPublicSummary(room, lc),
-      messages: room.messages.map((m) => roomMessagePublic(m, lc)),
-      isAdmin: amAdmin,
-      members: room.members.map(m => registeredUsers.get(m)?.username || m),
-      bannedUsers: amAdmin ? room.bannedUsers.map(m => registeredUsers.get(m)?.username || m) : undefined,
-    });
-  });
-
-  socket.on("rooms:leave", ({ roomId }) => {
-    if (!socket._regUser) return;
-    const room = chatRooms.get(roomId);
-    socket.leave(`roomchat:${roomId}`);
-    if (!room) return;
-    const lc = socket._regUser.usernameLower;
-    if (room.members.includes(lc)) {
-      room.members = room.members.filter(m => m !== lc);
-      saveChatRooms();
-      io.to(`roomchat:${roomId}`).emit("rooms:memberLeft", { roomId, username: socket._regUser.username });
-    }
-    socket.emit("rooms:left", { roomId });
-  });
-
-  socket.on("rooms:send", ({ roomId, text }) => {
-    if (!socket._regUser || typeof text !== "string") return;
-    if (socket._regUser.isGuest) { socket.emit("guest:registerRequired", { feature: "roomsWrite" }); return; }
-    const room = chatRooms.get(roomId);
-    if (!room) { socket.emit("rooms:error", { message: "ოთახი ვერ მოიძებნა" }); return; }
-    const lc = socket._regUser.usernameLower;
-    if (room.bannedUsers.includes(lc)) {
-      socket.emit("rooms:error", { message: "ადმინისტრატორმა შეგზღუდათ ამ ოთახში მონაწილეობა" });
-      return;
-    }
-
-    const clean = text.slice(0, MSG_MAX).replace(/<[^>]*>/g, "").trim();
-    if (!clean) return;
-    if (findBannedWord(clean)) { socket.emit("rooms:error", { message: ABUSE_WORD_MESSAGE }); return; }
-    if (mediaRateLimited(socket, "roomMsg", 10, 10_000)) {
-      socket.emit("rooms:error", { message: "ძალიან ბევრი შეტყობინება — ცოტა დაელოდე." });
-      return;
-    }
-
-    // Sending implies joining — matches the "no approval needed" join flow
-    // and means you never have to think about joining as a separate step.
-    if (!room.members.includes(lc)) {
-      room.members.push(lc);
-      socket.join(`roomchat:${roomId}`);
-      io.to(`roomchat:${roomId}`).emit("rooms:memberJoined", { roomId, username: socket._regUser.username });
-    }
-
-    const msg = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      fromLc: lc,
-      fromUsername: socket._regUser.username,
-      text: clean,
-      ts: new Date().toISOString(),
-    };
-    room.messages.push(msg);
-    bumpStat("msgRooms");
-    if (room.messages.length > ROOM_MSG_CAP) room.messages.shift();
-    saveChatRooms();
-
-    io.to(`roomchat:${roomId}`).emit("rooms:message", { roomId, message: roomMessagePublic(msg) });
-  });
-
-  // ── 📊 Polls: the admin asks a question with 2–6 answers; members vote
-  // once and can change or take back their vote. Counts only, never names.
-  socket.on("rooms:createPoll", ({ roomId, question, options } = {}, ack) => {
-    const reply = typeof ack === "function" ? ack : () => {};
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) return reply({ error: "მხოლოდ ადმინისტრატორს შეუძლია გამოკითხვის შექმნა" });
-    const room = chatRooms.get(roomId);
-    if (!room) return reply({ error: "ოთახი ვერ მოიძებნა" });
-    const clean = (v, max) => String(v || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, max);
-    const q = clean(question, 200);
-    const opts = [...new Set((Array.isArray(options) ? options : []).map((o) => clean(o, 80)).filter(Boolean))].slice(0, 6);
-    if (!q) return reply({ error: "ჩაწერე კითხვა" });
-    if (opts.length < 2) return reply({ error: "საჭიროა მინიმუმ 2 განსხვავებული პასუხი" });
-    const lc = socket._regUser.usernameLower;
-    if (!room.members.includes(lc)) room.members.push(lc);
-    socket.join(`roomchat:${roomId}`);
-    const msg = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      fromLc: lc,
-      fromUsername: socket._regUser.username,
-      type: "poll",
-      text: "📊 " + q, // what older pages and the room list show
-      question: q,
-      options: opts,
-      votes: {},
-      ts: new Date().toISOString(),
-    };
-    room.messages.push(msg);
-    if (room.messages.length > ROOM_MSG_CAP) room.messages.shift();
-    saveChatRooms();
-    io.to(`roomchat:${roomId}`).emit("rooms:message", { roomId, message: roomMessagePublic(msg, null) });
-    reply({ ok: true, id: msg.id });
-  });
-
-  socket.on("rooms:pollVote", ({ roomId, messageId, option } = {}, ack) => {
-    const reply = typeof ack === "function" ? ack : () => {};
-    if (!socket._regUser) return reply({ error: "შედი სისტემაში" });
-    if (socket._regUser.isGuest) { socket.emit("guest:registerRequired", { feature: "roomsWrite" }); return reply({ error: "ხმის მისაცემად საჭიროა რეგისტრაცია" }); }
-    const room = chatRooms.get(roomId);
-    if (!room) return reply({ error: "ოთახი ვერ მოიძებნა" });
-    const lc = socket._regUser.usernameLower;
-    if (room.bannedUsers.includes(lc)) return reply({ error: "ადმინისტრატორმა შეგზღუდათ ამ ოთახში მონაწილეობა" });
-    if (mediaRateLimited(socket, "pollVote", 20, 10_000)) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან" });
-    const m = room.messages.find((x) => x.id === messageId && x.type === "poll");
-    if (!m) return reply({ error: "გამოკითხვა ვერ მოიძებნა" });
-    m.votes = m.votes || {};
-    const idx = option === null || option === undefined ? null : Number(option);
-    if (idx === null || m.votes[lc] === idx) delete m.votes[lc]; // tapping your own answer again takes the vote back
-    else if (Number.isInteger(idx) && idx >= 0 && idx < m.options.length) m.votes[lc] = idx;
-    else return reply({ error: "არასწორი პასუხი" });
-    saveChatRooms();
-    const pub = pollPublic(m, lc);
-    io.to(`roomchat:${roomId}`).emit("rooms:pollUpdate", { roomId, messageId, counts: pub.options.map((o) => o.count), total: pub.total });
-    reply({ ok: true, myVote: pub.myVote, counts: pub.options.map((o) => o.count), total: pub.total });
-  });
-
-  // ── Admin-only room management ──────────────────────────────────────────
-  // Every handler below re-checks isRoomAdmin() itself — a client can never
-  // grant itself admin by editing local state or replaying a captured
-  // request, since the flag is looked up fresh from registeredUsers.
-
-  socket.on("rooms:create", ({ name }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("rooms:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია ოთახის შექმნა" });
-      return;
-    }
-    const clean = cleanRoomName(name);
-    if (!clean) { socket.emit("rooms:error", { message: "ოთახის სახელი სავალდებულოა" }); return; }
-    if (findBannedWord(clean)) { socket.emit("rooms:error", { message: ABUSE_WORD_MESSAGE }); return; }
-
-    const room = {
-      id: makeRoomId(),
-      name: clean,
-      createdBy: socket._regUser.usernameLower,
-      createdByUsername: socket._regUser.username,
-      createdAt: new Date().toISOString(),
-      members: [],
-      bannedUsers: [],
-      messages: [],
-    };
-    chatRooms.set(room.id, room);
-    saveChatRooms();
-    io.emit("rooms:updated");
-    socket.emit("rooms:created", { roomId: room.id });
-  });
-
-  socket.on("rooms:edit", ({ roomId, name }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("rooms:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია ოთახის რედაქტირება" });
-      return;
-    }
-    const room = chatRooms.get(roomId);
-    if (!room) { socket.emit("rooms:error", { message: "ოთახი ვერ მოიძებნა" }); return; }
-    const clean = cleanRoomName(name);
-    if (!clean) { socket.emit("rooms:error", { message: "ოთახის სახელი სავალდებულოა" }); return; }
-    if (findBannedWord(clean)) { socket.emit("rooms:error", { message: ABUSE_WORD_MESSAGE }); return; }
-
-    room.name = clean;
-    saveChatRooms();
-    io.emit("rooms:updated");
-    io.to(`roomchat:${roomId}`).emit("rooms:roomEdited", { roomId, name: room.name });
-  });
-
-  socket.on("rooms:delete", ({ roomId }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("rooms:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია ოთახის წაშლა" });
-      return;
-    }
-    const room = chatRooms.get(roomId);
-    if (!room) { socket.emit("rooms:error", { message: "ოთახი ვერ მოიძებნა" }); return; }
-
-    io.to(`roomchat:${roomId}`).emit("rooms:roomDeleted", { roomId });
-    io.in(`roomchat:${roomId}`).socketsLeave(`roomchat:${roomId}`);
-    chatRooms.delete(roomId);
-    saveChatRooms();
-    io.emit("rooms:updated");
-  });
-
-  // The admin can delete any message; everyone else can delete their own.
-  socket.on("rooms:deleteMessage", ({ roomId, messageId } = {}) => {
-    if (!socket._regUser) return;
-    const room = chatRooms.get(roomId);
-    if (!room) return;
-    const target = room.messages.find(m => m.id === messageId);
-    if (!target) return;
-    const me = socket._regUser.usernameLower;
-    if (!isRoomAdmin(me) && (socket._regUser.isGuest || target.fromLc !== me)) {
-      socket.emit("rooms:error", { message: "მხოლოდ საკუთარი შეტყობინების წაშლა შეგიძლია" });
-      return;
-    }
-    const before = room.messages.length;
-    room.messages = room.messages.filter(m => m.id !== messageId);
-    if (room.messages.length === before) return; // nothing removed
-    saveChatRooms();
-    io.to(`roomchat:${roomId}`).emit("rooms:messageDeleted", { roomId, messageId });
-  });
-
-  socket.on("rooms:kickUser", ({ roomId, username }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("rooms:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია მომხმარებლის ამოღება" });
-      return;
-    }
-    const room = chatRooms.get(roomId);
-    if (!room || typeof username !== "string") return;
-    const targetLc = username.toLowerCase().trim();
-
-    room.members = room.members.filter(m => m !== targetLc);
-    saveChatRooms();
-    forceLeaveRoomSockets(targetLc, roomId);
-    io.to(`user:${targetLc}`).emit("rooms:kicked", { roomId, roomName: room.name });
-    io.to(`roomchat:${roomId}`).emit("rooms:memberLeft", { roomId, username });
-  });
-
-  socket.on("rooms:banUser", ({ roomId, username }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("rooms:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია მომხმარებლის დაბლოკვა" });
-      return;
-    }
-    const room = chatRooms.get(roomId);
-    if (!room || typeof username !== "string") return;
-    const targetLc = username.toLowerCase().trim();
-    if (targetLc === socket._regUser.usernameLower) return; // can't ban yourself
-
-    if (!room.bannedUsers.includes(targetLc)) room.bannedUsers.push(targetLc);
-    room.members = room.members.filter(m => m !== targetLc);
-    saveChatRooms();
-    forceLeaveRoomSockets(targetLc, roomId);
-    io.to(`user:${targetLc}`).emit("rooms:banned", { roomId, roomName: room.name });
-    io.to(`roomchat:${roomId}`).emit("rooms:memberLeft", { roomId, username });
-  });
-
-  socket.on("rooms:unbanUser", ({ roomId, username }) => {
-    if (!socket._regUser || !isRoomAdmin(socket._regUser.usernameLower)) {
-      socket.emit("rooms:error", { message: "მხოლოდ ადმინისტრატორს შეუძლია შეზღუდვის მოხსნა" });
-      return;
-    }
-    const room = chatRooms.get(roomId);
-    if (!room || typeof username !== "string") return;
-    const targetLc = username.toLowerCase().trim();
-
-    room.bannedUsers = room.bannedUsers.filter(u => u !== targetLc);
-    saveChatRooms();
-    socket.emit("rooms:unbanned", { roomId, username });
-  });
-
-  // ══════════════════════════════════════════════════════════════════════
-  // Forum ("ფორუმი") — Reddit-style posts/comments/voting, registered users
-  // only, moderated by the same isAdmin account that runs Rooms. Live
-  // updates are broadcast to everyone (io.emit) since the forum isn't a
-  // joined "room" the way chat rooms are — anyone with the page open should
-  // see new posts/comments/scores land in real time. Per-viewer vote state
-  // (myVote) is only ever sent back to the voter themselves, never broadcast.
-  // ══════════════════════════════════════════════════════════════════════
-
-  socket.on("forum:createPost", ({ title, body }) => {
-    if (!socket._regUser) return;
-    if (socket._regUser.isGuest) { socket.emit("guest:registerRequired", { feature: "forumWrite" }); return; }
-    const cleanTitle = cleanForumText(title, FORUM_TITLE_MAX);
-    const cleanBody = cleanForumText(body, FORUM_BODY_MAX);
-    if (!cleanTitle) { socket.emit("forum:error", { message: "სათაური სავალდებულოა" }); return; }
-    if (findBannedWord(cleanTitle) || findBannedWord(cleanBody)) {
-      socket.emit("forum:error", { message: ABUSE_WORD_MESSAGE }); return;
-    }
-    if (mediaRateLimited(socket, "forumPost", 5, 60_000)) {
-      socket.emit("forum:error", { message: "ძალიან ბევრი პოსტი — ცოტა დაელოდე." });
-      return;
-    }
-
-    const post = {
-      id: makeForumPostId(),
-      title: cleanTitle,
-      body: cleanBody,
-      authorLc: socket._regUser.usernameLower,
-      authorUsername: socket._regUser.username,
-      createdAt: new Date().toISOString(),
-      votes: {},
-      comments: [],
-    };
-    forumPosts.set(post.id, post);
-    bumpStat("forumPosts");
-    saveForum();
-
-    io.emit("forum:postCreated", { post: forumPostSummary(post, null) });
-    socket.emit("forum:postCreatedAck", { postId: post.id });
-  });
-
-  // The admin can delete anything; everyone else can delete what they wrote.
-  const forumCanDelete = (authorLc) => !!socket._regUser && (isRoomAdmin(socket._regUser.usernameLower) ||
-    (!socket._regUser.isGuest && authorLc === socket._regUser.usernameLower));
-  socket.on("forum:deletePost", ({ postId } = {}) => {
-    const target = forumPosts.get(postId);
-    if (!target) return;
-    if (!forumCanDelete(target.authorLc)) {
-      socket.emit("forum:error", { message: "მხოლოდ საკუთარი პოსტის წაშლა შეგიძლია" });
-      return;
-    }
-    forumPosts.delete(postId);
-    saveForum();
-    io.emit("forum:postDeleted", { postId });
-  });
-
-  socket.on("forum:comment", ({ postId, body }) => {
-    if (!socket._regUser) return;
-    if (socket._regUser.isGuest) { socket.emit("guest:registerRequired", { feature: "forumWrite" }); return; }
-    const post = forumPosts.get(postId);
-    if (!post) { socket.emit("forum:error", { message: "პოსტი ვერ მოიძებნა" }); return; }
-    const cleanBody = cleanForumText(body, FORUM_COMMENT_MAX);
-    if (!cleanBody) return;
-    if (findBannedWord(cleanBody)) { socket.emit("forum:error", { message: ABUSE_WORD_MESSAGE }); return; }
-
-    if (mediaRateLimited(socket, "forumComment", 10, 10_000)) {
-      socket.emit("forum:error", { message: "ძალიან ბევრი კომენტარი — ცოტა დაელოდე." });
-      return;
-    }
-
-    const comment = {
-      id: makeForumCommentId(),
-      body: cleanBody,
-      authorLc: socket._regUser.usernameLower,
-      authorUsername: socket._regUser.username,
-      createdAt: new Date().toISOString(),
-      votes: {},
-    };
-    post.comments.push(comment);
-    bumpStat("forumComments");
-    if (post.comments.length > FORUM_COMMENT_CAP) post.comments.shift();
-    saveForum();
-
-    io.emit("forum:commentAdded", { postId, comment: forumCommentPublic(comment, null) });
-  });
-
-  socket.on("forum:deleteComment", ({ postId, commentId } = {}) => {
-    const post = forumPosts.get(postId);
-    if (!post) return;
-    const target = post.comments.find(c => c.id === commentId);
-    if (!target) return;
-    if (!forumCanDelete(target.authorLc)) {
-      socket.emit("forum:error", { message: "მხოლოდ საკუთარი კომენტარის წაშლა შეგიძლია" });
-      return;
-    }
-    const before = post.comments.length;
-    post.comments = post.comments.filter(c => c.id !== commentId);
-    if (post.comments.length === before) return;
-    saveForum();
-    io.emit("forum:commentDeleted", { postId, commentId });
-  });
-
-  // direction: 1 (upvote), -1 (downvote), 0 (remove my vote)
-  socket.on("forum:vote", ({ postId, direction }) => {
-    if (!socket._regUser) return;
-    if (socket._regUser.isGuest) { socket.emit("guest:registerRequired", { feature: "forumWrite" }); return; }
-    const post = forumPosts.get(postId);
-    if (!post) return;
-    const dir = Number(direction);
-    if (![1, -1, 0].includes(dir)) return;
-    const lc = socket._regUser.usernameLower;
-
-    if (dir === 0) delete post.votes[lc]; else post.votes[lc] = dir;
-    saveForum();
-
-    socket.emit("forum:myVoteUpdated", { postId, myVote: dir });
-    io.emit("forum:scoreUpdated", { postId, score: forumScore(post.votes) });
-  });
-
-  socket.on("forum:voteComment", ({ postId, commentId, direction }) => {
-    if (!socket._regUser) return;
-    const post = forumPosts.get(postId);
-    if (!post) return;
-    const comment = post.comments.find(c => c.id === commentId);
-    if (!comment) return;
-    const dir = Number(direction);
-    if (![1, -1, 0].includes(dir)) return;
-    const lc = socket._regUser.usernameLower;
-
-    if (dir === 0) delete comment.votes[lc]; else comment.votes[lc] = dir;
-    saveForum();
-
-    socket.emit("forum:myVoteUpdated", { postId, commentId, myVote: dir });
-    io.emit("forum:scoreUpdated", { postId, commentId, score: forumScore(comment.votes) });
-  });
-
   // ── Disconnect ───────────────────────────────────────────────────────────
   socket.on("disconnect", () => {
     console.log(`[SOCKET] Disconnected: ${socket.id}`);
@@ -14776,8 +13941,6 @@ function flushAllSaves() {
   if (authUsersDirty) _saveAuthUsersToDisk();
   if (privMsgsDirty) _savePrivateMsgsToDisk();
   if (statsDirty) _saveStatsToDisk();
-  if (roomsDirty) _saveChatRoomsToDisk();
-  if (forumDirty) _saveForumToDisk();
   if (notifDirty) _saveNotificationsToDisk();
   if (streaksDirty) _saveStreaksToDisk();
 }

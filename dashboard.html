@@ -213,8 +213,6 @@
     .nav-card:active { transform: scale(0.98); }
     .nav-card .nav-card-icon { font-size: 1.3em; margin-bottom: 4px; }
     .nav-card .nav-card-sub { font-size: 0.72em; font-weight: 600; color: rgba(255,255,255,0.75); }
-    .nav-card--rooms { background: linear-gradient(160deg, #4650d6, #2f3699); }
-    .nav-card--forum { background: linear-gradient(160deg, #ff7452, #d43f28); }
 
     /* ── Games — quiet, systematic grid. One accent stripe + icon badge per
        game rather than a full loud gradient card; the boldness budget went
@@ -493,20 +491,6 @@
     @keyframes unreadPulse {
       0%, 100% { transform: scale(1);   opacity: 1; }
       50%       { transform: scale(1.3); opacity: 0.7; }
-    }
-
-    /* ── Unread badge on the Rooms / Forum nav buttons ── */
-    .nav-unread-dot {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 12px;
-      height: 12px;
-      background: var(--danger);
-      border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.9);
-      pointer-events: none;
-      animation: unreadPulse 1.4s ease-in-out infinite;
     }
 
     /* ── Blocked section ── */
@@ -980,8 +964,6 @@ html, body {
   border: 1.5px solid transparent; border-radius: 18px; font-stretch: 86%;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 14px 30px -18px rgba(0,0,0,.9);
 }
-.nav-card--rooms { background: radial-gradient(120% 100% at 0% 0%,rgba(255,255,255,.16),transparent 50%) padding-box, linear-gradient(160deg,#5a74ff,#2c38b8) padding-box, var(--cloison) border-box; }
-.nav-card--forum { background: radial-gradient(120% 100% at 0% 0%,rgba(255,255,255,.16),transparent 50%) padding-box, linear-gradient(160deg,#ff5f80,#b8183f) padding-box, var(--cloison) border-box; }
 .install-cta-title { font-stretch: 86%; }
 
 /* ── Games: each tile is an enamel inlay in its own jewel colour ── */
@@ -1763,7 +1745,7 @@ body.guest-mode .profile-actions { display: none; }
       <span class="tc-badge" id="trinderLikes" hidden>0</span>
     </a>
 
-    <!-- Rooms & Forum — side by side, distinct from the game grid below -->
+    <!-- Profile & Games — side by side, distinct from the game grid below -->
     <div class="nav-row" data-view="home">
       <a href="#profile" id="profileNavBtn" class="nav-card nav-card--profile">
         <span class="nav-card-icon">👤</span>
@@ -1775,16 +1757,6 @@ body.guest-mode .profile-actions { display: none; }
         თამაშები
         <span class="nav-card-sub" id="gamesNavSub">8 თამაში</span>
         <span class="nav-card-live" id="gamesLiveBadge" hidden></span>
-      </a>
-      <a href="/rooms.html" id="roomsNavBtn" class="nav-card nav-card--rooms">
-        <span class="nav-card-icon">🗨️</span>
-        ოთახები
-        <span class="nav-card-sub">& დებატები</span>
-      </a>
-      <a href="/forum.html" id="forumNavBtn" class="nav-card nav-card--forum">
-        <span class="nav-card-icon">💬</span>
-        ფორუმი
-        <span class="nav-card-sub">დისკუსიები</span>
       </a>
     </div>
 
@@ -1976,7 +1948,6 @@ body.guest-mode .profile-actions { display: none; }
       <div class="danger-zone-body">
         <div class="danger-zone-text">
           ანგარიშის წაშლა საბოლოოა. წაიშლება შენი პირადი მიმოწერა, მეგობრები და პროგრესი.
-          ფორუმსა და ოთახებში დაწერილი ტექსტი დარჩება, მაგრამ ავტორის სახელის გარეშე.
         </div>
         <button class="btn-delete-account" id="deleteAccountBtn">ანგარიშის წაშლა</button>
       </div>
@@ -2487,8 +2458,6 @@ body.guest-mode .profile-actions { display: none; }
     const GUEST_FEATURE_MESSAGES = {
       privateChat: "პირადი ჩატისთვის საჭიროა რეგისტრაცია",
       addFriend: "მეგობრების დასამატებლად საჭიროა რეგისტრაცია",
-      roomsWrite: "ოთახებში წერისთვის საჭიროა რეგისტრაცია — კითხვა შეგიძლიათ სტუმრადაც",
-      forumWrite: "ფორუმზე წერისთვის საჭიროა რეგისტრაცია — კითხვა შეგიძლიათ სტუმრადაც",
     };
     function promptGuestToRegister(feature) {
       const msg = GUEST_FEATURE_MESSAGES[feature] || "ამისთვის საჭიროა რეგისტრაცია";
@@ -2769,7 +2738,7 @@ function profileChipsHTML(p) {
         renderPendingRequests(pendingRequests || []);
         renderBlocked();
         paintUserBio();
-        if (!isGuest) { fetchUnreadFriends(); fetchRoomsAndForumUnread(); }
+        if (!isGuest) { fetchUnreadFriends(); }
         socket.emit("users:listOnline");
         socket.emit("drawGuess:listPublicRooms");
         socket.emit("poker:listPublicRooms");
@@ -3057,33 +3026,6 @@ function profileChipsHTML(p) {
           markUnreadDot(lc);
         });
       } catch (_) { /* silent — non-critical */ }
-    }
-
-    /* ── Same idea, for the Rooms & Forum nav buttons ──────────────── */
-    async function fetchRoomsAndForumUnread() {
-      try {
-        const { token } = loadAuth();
-        if (!token) return;
-        const [roomsRes, forumRes] = await Promise.all([
-          fetch("/api/rooms/unread", { headers: { Authorization: `Bearer ${token}` } }),
-          fetch("/api/forum/unread", { headers: { Authorization: `Bearer ${token}` } }),
-        ]);
-        if (roomsRes.ok) {
-          const { unread } = await roomsRes.json();
-          if (unread) addNavUnreadDot("roomsNavBtn");
-        }
-        if (forumRes.ok) {
-          const { unread } = await forumRes.json();
-          if (unread) addNavUnreadDot("forumNavBtn");
-        }
-      } catch (_) { /* silent — non-critical */ }
-    }
-    function addNavUnreadDot(btnId) {
-      const btn = document.getElementById(btnId);
-      if (!btn || btn.querySelector(".nav-unread-dot")) return;
-      const dot = document.createElement("span");
-      dot.className = "nav-unread-dot";
-      btn.appendChild(dot);
     }
 
     /* ── Render friends list ─────────────────────────────────────── */
