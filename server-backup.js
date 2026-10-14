@@ -1,5 +1,5 @@
 // ── 💾 Backup & restore of all site data (admin panel) ──────────────────────
-// Download: one .tar.gz with every account, private chat, room, forum post,
+// Download: one .tar.gz with every account, private chat,
 // streak, notification, stat, ban list and voice/photo file — everything a
 // fresh server needs to carry on as if nothing happened. It's a standard
 // archive (7-Zip / WinRAR / tar open it). Logs are left out on purpose.
@@ -25,8 +25,6 @@ const zlib = require("zlib");
 const DATA_FILES = [
   "registered_users.json",  // accounts, passwords (hashed), friends, coins, streaks, profiles, Trinder
   "private_messages.json",
-  "chat_rooms.json",
-  "forum_posts.json",
   "friend_streaks.json",
   "notifications.json",
   "stats.json",             // also 🏆 each account's time on site / visits / days

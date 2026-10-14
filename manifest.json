@@ -1,7 +1,7 @@
 {
   "name": "GAICANI",
   "short_name": "GAICANI",
-  "description": "შემთხვევითი ჩათი, თამაშები, ოთახები და ფორუმი — ერთ ადგილას",
+  "description": "შემთხვევითი ჩათი, თამაშები და მეგობრები — ერთ ადგილას",
   "start_url": "/dashboard.html?source=pwa",
   "scope": "/",
   "display": "standalone",

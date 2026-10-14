@@ -1,7 +1,7 @@
 // ── 🤖 A captcha for whoever sends the same message again and again ───────────
 // Per IP address: when the exact same text is sent REPEAT_LIMIT times among
 // that IP's last WINDOW_MSGS messages (within WINDOW_MS) — in random chat,
-// rooms, the forum, game chats or private chats — the next messages wait
+// game chats or private chats — the next messages wait
 // until a captcha is solved: four digits drawn as a distorted picture.
 // Nothing is blocked, muted or banned: once it's solved, the waiting
 // messages go out and chatting goes on as before.
@@ -69,9 +69,6 @@ function captchaImage(code) {
 const TEXT_OF = {
   "message":          (m) => (typeof m === "string" ? m : m && m.text),   // random chat
   "privateMsg:send":  (d) => (!d ? "" : d.e2e ? null : d.message),
-  "rooms:send":       (d) => d && d.text,
-  "forum:createPost": (d) => d && [d.title, d.body].filter(Boolean).join("\n"),
-  "forum:comment":    (d) => d && d.body,
   "poker:chat":       (d) => d && d.text,
   "blackjack:chat":   (d) => d && d.text,
   "chess:chat":       (d) => d && d.text,

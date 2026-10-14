@@ -1,6 +1,6 @@
 // ── 🚫 Ad filter — banned phrases set in the admin panel ─────────────────────
 // The admin adds phrases like "SEV•GE". Anyone who then sends a message
-// containing one (random chat, rooms, forum, game chats, private chat that
+// containing one (random chat, game chats, private chat that
 // isn't end-to-end) is banned by IP at once, and the message never goes out.
 // Each ban is logged — who, which IP, when, what they wrote and which phrase
 // caught it — so the admin can see it and undo a mistake.
