@@ -16,7 +16,7 @@ const crypto = require("crypto");
 const NAME = "ანრი_40.წლის";
 const AVATAR = "avatar-guest.jpg";
 const QUESTION = [
-  "ჰ",
+  "არ ვარ გეი არც ვირტი მინდა მხოლოდ ქალებმა მომწერეთ :)",
   "ი",
   "ი",
 ];
