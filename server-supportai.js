@@ -13,14 +13,14 @@
 
 const crypto = require("crypto");
 
-const NAME = "Support AI";
-const AVATAR = "avatar-support.jpg";
+const NAME = "ანრი_40.წლის";
+const AVATAR = "avatar-guest.jpg";
 const QUESTION = [
-  "გვითხარი რა არ მოგწონს ან რას ისურვებდი, რომ უკეთესი იყოს.",
-  "თუ არაფერი გაქვს სათქმელი, უბრალოდ დამბლოკე — აღარ შეგაწუხებ. ❤️",
-  "შენი აზრი ჩვენთვის ძალიან მნიშვნელოვანია.",
+  "ჰ",
+  "ი",
+  "ი",
 ];
-const THANKS = "მადლობა! ❤️ შენი აზრი გადავეცი ჩვენს გუნდს. თუ კიდევ რამე გაქვს სათქმელი, მომწერე.";
+const THANKS = "ჰი";
 const AGAIN_AFTER_MS = 7 * 24 * 3600 * 1000; // the same person at most once a week
 const MAX_CONVS = 1000, MAX_MSGS = 40, MAX_TEXT = 1000;
 
