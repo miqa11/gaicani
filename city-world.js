@@ -23,6 +23,7 @@
     { id: "radio", x: 255, y: 455, w: 245, h: 195, name: "რადიო 99.9", sign: "FM 99.9", color: "#ffb84f", type: "radio" },
     { id: "balcony-house", x: 760, y: 440, w: 280, h: 205, name: "მეზობლების სახლი", sign: "სახლი", color: "#d175ff", type: "house" },
     { id: "marani", x: 1260, y: 430, w: 305, h: 210, name: "მარანი", sign: "მარანი", color: "#ff6457", type: "cafe", enterable: true },
+    { id: "neon-casino", x: 1575, y: 430, w: 150, h: 210, name: "ღამის კაზინო", sign: "CASINO 99", color: "#ff58d2", type: "casino", enterable: true },
     { id: "internet-cafe", x: 1740, y: 435, w: 320, h: 205, name: "ინტერნეტ კაფე 1999", sign: "INTERNET", color: "#66ddff", type: "internet", enterable: true },
     { id: "cassette-shop", x: 2205, y: 425, w: 220, h: 210, name: "კასეტების მაღაზია", sign: "კასეტა", color: "#e84fa5", type: "shop" },
     { id: "bakery", x: 265, y: 875, w: 340, h: 205, name: "ღამის საცხობი", sign: "ცხელი პური", color: "#ffb34e", type: "bakery", enterable: true },
@@ -78,6 +79,33 @@
     { x: 525, y: 760 }, { x: 950, y: 790 }, { x: 1190, y: 785 }, { x: 1620, y: 790 },
     { x: 2075, y: 790 }, { x: 2360, y: 1140 }, { x: 925, y: 1195 }, { x: 1980, y: 1195 }
   ];
+  const casino = {
+    id: "neon-casino", width: 1000, height: 680, spawn: { x: 500, y: 615 },
+    stations: [
+      { id: "tbilisi", type: "slot", x: 145, y: 245, label: "Neon Tbilisi" },
+      { id: "internet", type: "slot", x: 320, y: 245, label: "Retro Internet Café" },
+      { id: "cat", type: "slot", x: 495, y: 245, label: "Lucky Cat" },
+      { id: "express", type: "slot", x: 670, y: 245, label: "Midnight Express" },
+      { id: "poker", type: "poker", x: 325, y: 495, label: "Poker" },
+      { id: "blackjack", type: "blackjack", x: 610, y: 495, label: "Blackjack" },
+      { id: "bar", type: "npc", x: 845, y: 475, label: "Dato the dealer" }
+    ],
+    blockers: [
+      { x: 99, y: 128, w: 92, h: 102 }, { x: 274, y: 128, w: 92, h: 102 },
+      { x: 449, y: 128, w: 92, h: 102 }, { x: 624, y: 128, w: 92, h: 102 },
+      { x: 235, y: 366, w: 180, h: 105 }, { x: 520, y: 366, w: 180, h: 105 },
+      { x: 758, y: 318, w: 178, h: 48 }
+    ]
+  };
+  function casinoIsWalkable(x, y, radius) {
+    const r = Number.isFinite(radius) ? radius : 11;
+    if (x < 42 + r || y < 68 + r || x > casino.width - 42 - r || y > casino.height - 34 - r) return false;
+    for (let i = 0; i < casino.blockers.length; i++) {
+      const b = casino.blockers[i];
+      if (x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h) return false;
+    }
+    return true;
+  }
   function isWalkable(x, y, radius) {
     const r = Number.isFinite(radius) ? radius : 11;
     if (x < r || y < r || x > width - r || y > height - r) return false;
@@ -97,5 +125,6 @@
     return best;
   }
   return { width: width, height: height, tile: 48, districts: districts, buildings: buildings, landmarks: landmarks,
-    blockers: blockers, npcs: npcs, props: props, spawns: spawns, isWalkable: isWalkable, districtAt: districtAt };
+    blockers: blockers, npcs: npcs, props: props, spawns: spawns, casino: casino, casinoIsWalkable: casinoIsWalkable,
+    isWalkable: isWalkable, districtAt: districtAt };
 });

@@ -1313,8 +1313,9 @@
       acceptBtn.onclick = () => { bar.classList.remove("show"); socket.emit("poker:join", { roomId }); };
       declineBtn.onclick = () => { bar.classList.remove("show"); socket.emit("poker:declineInvite", { roomId }); };
     });
-    socket.on("poker:inviteSent", ({ invited, cooldown }) => {
+    socket.on("poker:inviteSent", ({ invited, cooldown, blocked }) => {
       if (invited && invited.length) showToast("მოწვევა გაეგზავნა: " + invited.join(", "));
+      if (blocked && blocked.length) showToast("მოწვევა გამოტოვებულია დაბლოკვის გამო: " + blocked.join(", "));
       if (cooldown && cooldown.length) showToast(cooldown.join(", ") + " ცოტა ხნის წინ უარი განაცხადა — სცადე მოგვიანებით.");
     });
     socket.on("poker:inviteDeclined", ({ username: who }) => showToast(`${who}-მ უარყო მოწვევა.`));

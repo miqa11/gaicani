@@ -1010,8 +1010,9 @@
       acceptBtn.onclick = () => { bar.style.display = "none"; socket.emit("blackjack:join", { roomId }); };
       declineBtn.onclick = () => { bar.style.display = "none"; socket.emit("blackjack:declineInvite", { roomId }); };
     });
-    socket.on("blackjack:inviteSent", ({ invited, cooldown }) => {
+    socket.on("blackjack:inviteSent", ({ invited, cooldown, blocked }) => {
       if (invited && invited.length) showToast("მოწვევა გაეგზავნა: " + invited.join(", "));
+      if (blocked && blocked.length) showToast("მოწვევა გამოტოვებულია დაბლოკვის გამო: " + blocked.join(", "));
       if (cooldown && cooldown.length) showToast(cooldown.join(", ") + " ცოტა ხნის წინ უარი განაცხადა — სცადე მოგვიანებით.");
     });
     socket.on("blackjack:inviteDeclined", ({ username: who }) => showToast(`${who}-მ უარყო მოწვევა.`));

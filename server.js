@@ -4,6 +4,7 @@ const { Server } = require("socket.io");
 const path       = require("path");
 const cityWorld  = require("./city-world.js");
 const { createCityGameEngine } = require("./city-game-engine.js");
+const { createCityCasinoEngine } = require("./city-casino-engine.js");
 const fs         = require("fs");
 
 // ── Persistent data directory ───────────────────────────────────────────────
@@ -10504,15 +10505,18 @@ function spendableCoins(user, lc) {
   const betWaiting = !at.poker && at.room.phase === "betting" ? (at.seat.bet || 0) : 0;
   return Math.max(0, at.seat.stack - betWaiting);
 }
-function changeCoins(user, lc, delta) {
+function changeCoins(user, lc, delta, options = {}) {
   const at = coinSeat(lc);
   if (!at) ensureCoins(user);
   user.coins += delta;
   if (at) {
     at.seat.stack += delta;
-    if (at.poker) broadcastPokerRoom(at.room); else broadcastBjRoom(at.room);
+    if (options.broadcast !== false) {
+      if (at.poker) broadcastPokerRoom(at.room); else broadcastBjRoom(at.room);
+    }
   }
-  saveAuthUsers();
+  if (options.save !== false) saveAuthUsers();
+  return at;
 }
 function grantCoins(user, lc, amount) {
   changeCoins(user, lc, amount);
@@ -12564,6 +12568,7 @@ io.on("connection", (socket) => {
 
   socket.on("poker:invite", ({ toUsernames }) => {
     if (!socket._regUser) return;
+    if (socket._regUser.isGuest) { socket.emit("poker:error", { message:"რეგისტრაცია ან შესვლა გჭირდება მონეტებზე თამაშისთვის." }); return; }
     const hostLc = socket._regUser.usernameLower;
     const hostUser = registeredUsers.get(hostLc);
     if (!hostUser) return;
@@ -12604,6 +12609,7 @@ io.on("connection", (socket) => {
     const list = Array.isArray(toUsernames) ? toUsernames.filter(u => typeof u === "string").slice(0, POKER_MAX_PLAYERS) : [];
     const invited = [];
     const cooldown = [];
+    const blocked = [];
     const now = Date.now();
     for (const uname of list) {
       const lc = uname.toLowerCase();
@@ -12613,7 +12619,8 @@ io.on("connection", (socket) => {
       if (!isVisiblyOnline(lc)) continue;
 
       const targetUser = registeredUsers.get(lc);
-      if (!targetUser) continue;
+      if (!targetUser || targetUser.isGuest) continue;
+      if (trinderBlocked(hostUser, hostLc, targetUser, lc)) { blocked.push(targetUser.username); continue; }
 
       const cdKey = `${hostLc}|${lc}`;
       const cdExpiry = pokerDeclineCooldown.get(cdKey);
@@ -12632,7 +12639,7 @@ io.on("connection", (socket) => {
 
     socket.join(`pokerroom:${room.id}`);
     socket.emit("poker:room", pokerRoomStateForViewer(room, hostLc));
-    socket.emit("poker:inviteSent", { invited, cooldown });
+    socket.emit("poker:inviteSent", { invited, cooldown, blocked });
     broadcastPublicPokerRooms();
   });
 
@@ -12646,6 +12653,7 @@ io.on("connection", (socket) => {
   // always exactly what they'd bring to a table right now.
   socket.on("poker:getBalance", () => {
     if (!socket._regUser) return;
+    if (socket._regUser.isGuest) { socket.emit("poker:error", { message:"რეგისტრაცია ან შესვლა გჭირდება მონეტებზე თამაშისთვის." }); return; }
     const user = registeredUsers.get(socket._regUser.usernameLower);
     if (!user) return;
     settlePendingCoins(user, socket._regUser.usernameLower);
@@ -12679,6 +12687,7 @@ io.on("connection", (socket) => {
   // tables" list. Brings your full current coin balance to the table.
   socket.on("poker:join", ({ roomId }) => {
     if (!socket._regUser) return;
+    if (socket._regUser.isGuest) { socket.emit("poker:error", { message:"რეგისტრაცია ან შესვლა გჭირდება მონეტებზე თამაშისთვის." }); return; }
     const lc = socket._regUser.usernameLower;
     const user = registeredUsers.get(lc);
     if (!user) return;
@@ -13631,6 +13640,7 @@ io.on("connection", (socket) => {
 
   socket.on("blackjack:invite", ({ toUsernames }) => {
     if (!socket._regUser) return;
+    if (socket._regUser.isGuest) { socket.emit("blackjack:error", { message:"რეგისტრაცია ან შესვლა გჭირდება მონეტებზე თამაშისთვის." }); return; }
     const hostLc = socket._regUser.usernameLower;
     const hostUser = registeredUsers.get(hostLc);
     if (!hostUser) return;
@@ -13665,6 +13675,7 @@ io.on("connection", (socket) => {
     const list = Array.isArray(toUsernames) ? toUsernames.filter(u => typeof u === "string").slice(0, 20) : [];
     const invited = [];
     const cooldown = [];
+    const blocked = [];
     const now = Date.now();
     for (const uname of list) {
       const lc = uname.toLowerCase();
@@ -13674,7 +13685,8 @@ io.on("connection", (socket) => {
       if (!isVisiblyOnline(lc)) continue;
 
       const targetUser = registeredUsers.get(lc);
-      if (!targetUser) continue;
+      if (!targetUser || targetUser.isGuest) continue;
+      if (trinderBlocked(hostUser, hostLc, targetUser, lc)) { blocked.push(targetUser.username); continue; }
 
       const cdKey = `${hostLc}|${lc}`;
       const cdExpiry = bjDeclineCooldown.get(cdKey);
@@ -13693,7 +13705,7 @@ io.on("connection", (socket) => {
 
     socket.join(`bjroom:${room.id}`);
     socket.emit("blackjack:room", bjRoomStateForViewer(room));
-    socket.emit("blackjack:inviteSent", { invited, cooldown });
+    socket.emit("blackjack:inviteSent", { invited, cooldown, blocked });
     broadcastPublicBjRooms();
   });
 
@@ -13717,6 +13729,7 @@ io.on("connection", (socket) => {
 
   socket.on("blackjack:join", ({ roomId }) => {
     if (!socket._regUser) return;
+    if (socket._regUser.isGuest) { socket.emit("blackjack:error", { message:"რეგისტრაცია ან შესვლა გჭირდება მონეტებზე თამაშისთვის." }); return; }
     const lc = socket._regUser.usernameLower;
     const user = registeredUsers.get(lc);
     if (!user) return;
@@ -13986,8 +13999,11 @@ for (const [, u] of registeredUsers) {
 // Public nicknames and positions exist only while a socket is connected. No
 // city location history is written to disk or attached to account records.
 const CITY_ROOM = "city:night";
+const CITY_CASINO_ROOM = "citycasino:neon-casino";
 const cityPlayers = new Map();
 const cityGameEngine = createCityGameEngine({ io, players:cityPlayers, registeredUsers, roomName:CITY_ROOM });
+const cityCasinoEngine = createCityCasinoEngine({ io, registeredUsers, spendableCoins, ensureCoins, settlePendingCoins,
+  changeCoins, saveAuthUsers, syncCoinSeat: at => { if (at.poker) broadcastPokerRoom(at.room); else broadcastBjRoom(at.room); }, georgiaDay });
 const citySignals = new Map(), cityNotes = new Map(), cityRides = new Map(), cityDuels = new Map(), cityWineChats = new Map();
 const CITY_ICEBREAKERS = ["რომელი სიმღერა გახანგრძლივებდა ამ ღამეს?","თბილისში შენი საყვარელი ღამის ადგილი სად არის?","გვიან ღამით ხინკალი თუ დილის ყავა?"];
 let cityRideSequence=0, cityLastTick = Date.now(), cityLastEphemeralCleanup=0;
@@ -13997,6 +14013,8 @@ function cityPublicPlayer(p) {
     action: p.action, interiorId: p.interiorId || null, rideId: p.rideId || null, gameId:p.gameId||null, gameStartedAt:p.gameStartedAt||0 };
 }
 function cityList() { return Array.from(cityPlayers.values(), cityPublicPlayer); }
+function cityCasinoPublicPlayer(p) { return { id:p.id, name:p.name, color:p.color, x:p.casinoX, y:p.casinoY, dir:p.dir, action:p.action, message:p.message, messageUntil:p.messageUntil }; }
+function cityCasinoList() { return Array.from(cityPlayers.values()).filter(p => p.interiorId === "neon-casino").map(cityCasinoPublicPlayer); }
 function cityFind(socket) { return cityPlayers.get(socket.id); }
 function citySignalList() { return Array.from(citySignals.values()); }
 function cityNoteList() { return Array.from(cityNotes.values(), n => ({ id:n.id, authorId:n.authorId, name:n.name, x:n.x, y:n.y, expiresAt:n.expiresAt })); }
@@ -14027,15 +14045,27 @@ function cityBeginRide(ride) {
 function cityRemove(socketId) {
   const p = cityPlayers.get(socketId); if (!p) return;
   cityGameEngine.remove(socketId);
+  if (p.interiorId === "neon-casino") io.to(CITY_CASINO_ROOM).emit("city:casino:playerLeft", { id:socketId });
   if(p.rideId)cityLeaveRide(socketId,"მგზავრი კაბინიდან გავიდა.");
   cityPlayers.delete(socketId);citySignals.delete(socketId);for(const [key,note] of cityNotes)if(note.authorId===socketId)cityNotes.delete(key);cityPushSignals();cityPushNotes();
   io.to(CITY_ROOM).emit("city:playerLeft", { id: socketId });
-  const oldSocket = io.sockets.sockets.get(socketId); if (oldSocket) oldSocket.leave(CITY_ROOM);
+  const oldSocket = io.sockets.sockets.get(socketId); if (oldSocket) { oldSocket.leave(CITY_ROOM); oldSocket.leave(CITY_CASINO_ROOM); }
 }
 setInterval(() => {
   const now = Date.now(), dt = Math.min(0.08, Math.max(0, (now - cityLastTick) / 1000));
   cityLastTick = now;
   for (const p of cityPlayers.values()) {
+    if (p.interiorId === "neon-casino" && !p.rideId && !p.gameId) {
+      let dx=p.casinoInputX||0,dy=p.casinoInputY||0;
+      const length=Math.hypot(dx,dy);if(length>1){dx/=length;dy/=length;}
+      if(Math.abs(dx)+Math.abs(dy)<0.01){if(p.actionUntil<=now)p.action="idle";continue;}
+      if(Math.abs(dx)>Math.abs(dy))p.dir=dx<0?"left":"right";else p.dir=dy<0?"up":"down";
+      if(p.actionUntil<=now)p.action="walk";
+      const step=165*dt,nx=p.casinoX+dx*step,ny=p.casinoY+dy*step;
+      if(cityWorld.casinoIsWalkable(nx,p.casinoY,11))p.casinoX=nx;
+      if(cityWorld.casinoIsWalkable(p.casinoX,ny,11))p.casinoY=ny;
+      continue;
+    }
     if (p.interiorId || p.rideId || p.gameId) continue;
     let dx = p.inputX, dy = p.inputY;
     const length = Math.hypot(dx, dy);
@@ -14055,6 +14085,7 @@ setInterval(() => {
 const citySnapshotTimer = setInterval(() => {
   if(Date.now()-cityLastEphemeralCleanup>1000){cityLastEphemeralCleanup=Date.now();let sigChanged=false,noteChanged=false;for(const [id,x] of citySignals)if(x.expiresAt<=Date.now()){citySignals.delete(id);sigChanged=true}for(const [id,x] of cityNotes)if(x.expiresAt<=Date.now()){cityNotes.delete(id);noteChanged=true}for(const [id,x] of cityDuels)if(x.expiresAt<=Date.now())cityDuels.delete(id);for(const [id,expiresAt] of cityWineChats)if(expiresAt<=Date.now())cityWineChats.delete(id);if(sigChanged)cityPushSignals();if(noteChanged)cityPushNotes()}
   if (cityPlayers.size) io.to(CITY_ROOM).emit("city:snapshot", { players: cityList() });
+  if (cityPlayers.size) io.to(CITY_CASINO_ROOM).emit("city:casino:snapshot", { players:cityCasinoList() });
 }, 120);
 citySnapshotTimer.unref();
 
@@ -14108,15 +14139,26 @@ io.on("connection", (socket) => {
     const p = cityFind(socket);
     const reply = typeof ack === "function" ? ack : () => {};
     if (!p) return reply({ error: "ქალაქში ჯერ არ ხარ." });
-    if (p.interiorId || p.rideId || p.gameId) return reply({ error: "ქალაქში თამაშის დროს საჯარო შეტყობინებას ვერ გაგზავნი." });
+    if ((p.interiorId && p.interiorId !== "neon-casino") || p.rideId || p.gameId) return reply({ error: "ქალაქში თამაშის დროს საჯარო შეტყობინებას ვერ გაგზავნი." });
     const now = Date.now();
     if (now - p.lastMessageAt < 1200) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან." });
     const text = cleanShortText(data && data.text, 120);
     if (!text) return reply({ error: "შეტყობინება ცარიელია." });
     if (findBannedWord(text)) return reply({ error: ABUSE_WORD_MESSAGE });
     p.lastMessageAt = now;
-    io.to(CITY_ROOM).emit("city:message", { id: p.id, name: p.name, text: text });
+    p.message=text;p.messageUntil=now+5000;
+    io.to(p.interiorId === "neon-casino" ? CITY_CASINO_ROOM : CITY_ROOM).emit("city:message", { id: p.id, name: p.name, text: text });
     reply({ ok: true });
+  });
+
+  socket.on("city:casino:reaction", (data, ack) => {
+    const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{};
+    const messages={celebrate:"🎉 Lucky night!",laugh:"😂 დილერი ისევ სძინავს!",again:"🎰 One more spin!"};
+    const text=data&&messages[data.id];
+    if(!p||p.interiorId!=="neon-casino")return reply({error:"კაზინოს სტუმრებს შეუძლიათ რეაქციების გაგზავნა."});
+    if(Date.now()-(p.lastCasinoReactionAt||0)<1400)return reply({error:"ცოტა მოიცადე."});
+    p.lastCasinoReactionAt=Date.now();p.message=text;p.messageUntil=Date.now()+4000;
+    io.to(CITY_CASINO_ROOM).emit("city:message",{id:p.id,name:p.name,text});reply({ok:true});
   });
 
 
@@ -14197,19 +14239,38 @@ io.on("connection", (socket) => {
     const p = cityFind(socket);
     if (!p || p.gameId) return;
     const id = data && typeof data.buildingId === "string" ? data.buildingId : null;
-    if (!id) { p.interiorId = null; p.inputX = 0; p.inputY = 0; return; }
+    if (!id) {
+      if(p.interiorId==="neon-casino"){io.to(CITY_CASINO_ROOM).emit("city:casino:playerLeft",{id:p.id});socket.leave(CITY_CASINO_ROOM);p.casinoInputX=p.casinoInputY=0;}
+      p.interiorId = null; p.inputX = 0; p.inputY = 0; p.action="idle"; return;
+    }
     const building = cityWorld.buildings.find(b => b.id === id && b.enterable);
     if (!building) return;
     const doorX = building.x + building.w * 0.72 + 9, doorY = building.y + building.h + 15;
     if (Math.hypot(p.x - doorX, p.y - doorY) > 130) return;
+    if(p.interiorId==="neon-casino"&&id!=="neon-casino"){io.to(CITY_CASINO_ROOM).emit("city:casino:playerLeft",{id:p.id});socket.leave(CITY_CASINO_ROOM);p.casinoInputX=p.casinoInputY=0;}
     p.interiorId = id; p.inputX = 0; p.inputY = 0; p.action = "idle";
+    if (id === "neon-casino") {
+      const floor=cityWorld.casino, spawn=floor.spawn;
+      p.casinoX=spawn.x;p.casinoY=spawn.y;p.casinoInputX=p.casinoInputY=0;
+      socket.join(CITY_CASINO_ROOM);
+      socket.emit("city:casino:joined",{self:cityCasinoPublicPlayer(p),players:cityCasinoList()});
+      socket.to(CITY_CASINO_ROOM).emit("city:casino:playerJoined",cityCasinoPublicPlayer(p));
+    }
+  });
+
+  socket.on("city:casino:input", (data, ack) => {
+    const p=cityFind(socket),now=Date.now();if(!p||p.interiorId!=="neon-casino"||p.rideId||p.gameId)return;
+    const x=Number(data&&data.x),y=Number(data&&data.y),nx=Number.isFinite(x)?Math.max(-1,Math.min(1,x)):0,ny=Number.isFinite(y)?Math.max(-1,Math.min(1,y)):0;
+    if(Math.abs(nx)+Math.abs(ny)<.01){const wasMoving=Math.abs(p.casinoInputX||0)+Math.abs(p.casinoInputY||0)>.01;p.casinoInputX=p.casinoInputY=0;p.action="idle";p.actionUntil=0;p.lastCasinoInputAt=now;if(typeof ack==="function")ack({x:p.casinoX,y:p.casinoY});if(wasMoving||typeof ack==="function")socket.emit("city:casino:stopped",{x:p.casinoX,y:p.casinoY});return}
+    if(now-(p.lastCasinoInputAt||0)<35)return;p.lastCasinoInputAt=now;p.casinoInputX=nx;p.casinoInputY=ny;
   });
 
   socket.on("city:emote", (data, ack) => {
     const p = cityFind(socket), targetId = data && typeof data.targetId === "string" ? data.targetId : "";
     const target = cityPlayers.get(targetId), emote = data && data.emote;
     const allowed = new Set(["wave", "dance", "highfive"]);
-    if (!p || !target || target === p || p.interiorId || target.interiorId || p.rideId || target.rideId || p.gameId || target.gameId || !allowed.has(emote)) {
+    const sameCasino=p&&target&&p.interiorId==="neon-casino"&&target.interiorId==="neon-casino";
+    if (!p || !target || target === p || ((p.interiorId||target.interiorId)&&!sameCasino) || p.rideId || target.rideId || p.gameId || target.gameId || !allowed.has(emote)) {
       if (typeof ack === "function") ack({ error: "მოთამაშე ახლოს აღარ არის." });
       return;
     }
@@ -14217,19 +14278,21 @@ io.on("connection", (socket) => {
       if (typeof ack === "function") ack({ error: "ერთი წამით მოიცადე." });
       return;
     }
-    if (Math.hypot(p.x - target.x, p.y - target.y) > 135) {
+    const px=sameCasino?p.casinoX:p.x,py=sameCasino?p.casinoY:p.y,tx=sameCasino?target.casinoX:target.x,ty=sameCasino?target.casinoY:target.y;
+    if (Math.hypot(px - tx, py - ty) > 135) {
       if (typeof ack === "function") ack({ error: "მოთამაშესთან ცოტა ახლოს მიდი." });
       return;
     }
     p.lastEmoteAt = Date.now(); p.action = emote; p.actionUntil = Date.now() + 1200;
     if (emote === "highfive") { target.action = emote; target.actionUntil = Date.now() + 1200; }
-    io.to(CITY_ROOM).emit("city:emote", {
+    io.to(sameCasino?CITY_CASINO_ROOM:CITY_ROOM).emit("city:emote", {
       from: { id: p.id, name: p.name }, to: { id: target.id, name: target.name }, emote: emote
     });
     if (typeof ack === "function") ack({ ok: true });
   });
 
   cityGameEngine.bind(socket);
+  cityCasinoEngine.bind(socket);
 
   socket.on("city:leave", () => cityRemove(socket.id));
   socket.on("disconnect", () => cityRemove(socket.id));

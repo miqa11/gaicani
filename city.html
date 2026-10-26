@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080a18">
   <meta name="description" content="Tbilisi 1999: Neon Nights — Gaicani-ს საერთო, ღამის ქალაქი.">
   <title>Tbilisi 1999: Neon Nights — GAICANI</title>
-  <link rel="stylesheet" href="/city.css?v=5">
+  <link rel="stylesheet" href="/city.css?v=6">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -90,6 +90,38 @@
         </div>
       </section>
 
+      <section class="city-casino-panel" id="cityCasinoPanel" hidden role="dialog" aria-modal="true" aria-labelledby="casinoTitle">
+        <div class="casino-window">
+          <header class="casino-header">
+            <div><small>TBILISI 1999 · NEON NIGHTS</small><h2 id="casinoTitle">ღამის კაზინო</h2></div>
+            <button type="button" id="casinoClose" aria-label="კაზინოს დახურვა">×</button>
+          </header>
+          <div class="casino-balances">
+            <div><small>ხელმისაწვდომი მონეტები</small><b id="casinoBalance">—</b></div>
+            <div><small>უფასო დატრიალებები</small><b id="casinoBonusCount">0</b></div>
+            <div><small>დღის აპარატი</small><b id="casinoFeatured">—</b></div>
+          </div>
+          <nav class="casino-tabs" aria-label="კაზინოს თამაშები">
+            <button type="button" data-casino-tab="slots">🎰 სლოტები</button>
+            <button type="button" data-casino-tab="poker">♠ Poker</button>
+            <button type="button" data-casino-tab="blackjack">♥ Blackjack</button>
+            <button type="button" data-casino-tab="history">📜 ისტორია</button>
+          </nav>
+          <div class="casino-content" id="casinoContent" aria-live="polite"></div>
+          <div class="casino-social">
+            <span>რეაქცია სტუმრებს:</span>
+            <button type="button" data-casino-reaction="celebrate">🎉 Lucky night!</button>
+            <button type="button" data-casino-reaction="laugh">😂 დილერი სძინავს</button>
+            <button type="button" data-casino-reaction="again">🎰 One more spin!</button>
+          </div>
+          <footer class="casino-footer">
+            <label><input type="checkbox" id="casinoSoundToggle"> ხმოვანი ეფექტები</label>
+            <label class="casino-volume">ხმა <input type="range" id="casinoVolume" min="0" max="100" value="25" aria-label="ხმოვანი ეფექტების ხმა"></label>
+            <p>მონეტები მხოლოდ ვირტუალური გასართობი ქულებია. მათი ყიდვა, განაღდება ან ფულად გადაცვლა შეუძლებელია.</p>
+          </footer>
+        </div>
+      </section>
+
       <section class="city-ride-overlay" id="cityRideOverlay" hidden aria-live="polite">
         <div class="city-ride-card"><b id="cityRideTitle">საბაგირო</b><span id="cityRideStatus"></span>
           <div class="city-ride-actions"><button type="button" id="cityRideSay">💬 მგზავრს მივწერო</button><button type="button" id="cityRideExit">დატოვება</button></div>
@@ -135,8 +167,9 @@
   </main>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/city-world.js?v=3"></script>
-  <script src="/city.js?v=5"></script>
+  <script src="/city-world.js?v=4"></script>
+  <script src="/city.js?v=6"></script>
   <script src="/city-game-ui.js?v=1"></script>
+  <script src="/city-casino-ui.js?v=1"></script>
 </body>
 </html>
