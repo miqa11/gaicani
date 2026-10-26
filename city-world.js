@@ -34,7 +34,18 @@
     { id: "all-night-shop", x: 585, y: 1310, w: 340, h: 205, name: "24 საათი", sign: "24/7", color: "#ffe260", type: "shop" },
     { id: "rooftop", x: 1100, y: 1315, w: 345, h: 205, name: "სახურავის კიბე", sign: "სახურავი ↑", color: "#ff61c7", type: "house", enterable: true },
     { id: "vinyl-club", x: 1590, y: 1325, w: 300, h: 195, name: "ვინილის კლუბი", sign: "VINYL", color: "#66e2ff", type: "music" },
-    { id: "river-cafe", x: 2035, y: 1320, w: 300, h: 195, name: "სანაპიროს კაფე", sign: "მტკვარი", color: "#64ddff", type: "cafe" }
+    { id: "river-cafe", x: 2035, y: 1320, w: 300, h: 195, name: "სანაპიროს კაფე", sign: "მტკვარი", color: "#64ddff", type: "cafe" },
+    { id: "blue-hour-apartments", x: 430, y: 120, w: 180, h: 190, name: "ლურჯი საათის სახლი", sign: "ლურჯი საათი", color: "#7588ff", type: "apartment" },
+    { id: "radio-bar", x: 1805, y: 115, w: 165, h: 195, name: "რადიო ბარი", sign: "FM 99", color: "#ff62c9", type: "music" },
+    { id: "late-shop", x: 2360, y: 120, w: 125, h: 190, name: "ღამის პატარა მაღაზია", sign: "24/7", color: "#ffe36b", type: "shop" },
+    { id: "bookshop", x: 505, y: 445, w: 230, h: 195, name: "ძველი წიგნების მაღაზია", sign: "წიგნები", color: "#e9a764", type: "shop" },
+    { id: "repair-shop", x: 1060, y: 445, w: 185, h: 195, name: "საათების სახელოსნო", sign: "შეკეთება", color: "#59cfe3", type: "shop" },
+    { id: "old-bank", x: 2070, y: 445, w: 120, h: 195, name: "ძველი ბანკი", sign: "ბანკი", color: "#d58bff", type: "house" },
+    { id: "record-booth", x: 610, y: 895, w: 110, h: 170, name: "კასეტების ჯიხური", sign: "კასეტა", color: "#ff70c8", type: "music" },
+    { id: "flower-flat", x: 2375, y: 900, w: 120, h: 175, name: "ყვავილების კუთხე", sign: "ყვავილი", color: "#ff87c5", type: "shop" },
+    { id: "courtyard-eight", x: 425, y: 1325, w: 140, h: 180, name: "ეზო №8", sign: "ეზო №8", color: "#c382ff", type: "courtyard" },
+    { id: "night-tailor", x: 945, y: 1325, w: 140, h: 180, name: "ღამის ატელიე", sign: "ატელიე", color: "#76e4ef", type: "shop" },
+    { id: "river-stairs", x: 2375, y: 1325, w: 125, h: 180, name: "სანაპიროს კიბე", sign: "მტკვარი", color: "#64ddff", type: "passage" }
   ];
   const blockers = buildings.map(function (b) { return { x: b.x, y: b.y, w: b.w, h: b.h }; });
   const npcs = [

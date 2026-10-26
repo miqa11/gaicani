@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080a18">
   <meta name="description" content="Tbilisi 1999: Neon Nights — Gaicani-ს საერთო, ღამის ქალაქი.">
   <title>Tbilisi 1999: Neon Nights — GAICANI</title>
-  <link rel="stylesheet" href="/city.css?v=1">
+  <link rel="stylesheet" href="/city.css?v=2">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -45,6 +45,10 @@
         <button type="button" class="dialog-close" id="playerCardClose" aria-label="დახურვა">×</button>
         <div class="player-card-heading"><span class="player-card-avatar">✦</span><div><small>ქალაქში შეგხვდა</small><b id="playerCardName"></b></div></div>
         <div class="player-actions">
+          <button type="button" id="playerMessageButton" hidden>💬 ტექსტის მიწერა</button>
+          <button type="button" id="playerAddFriendButton" hidden>➕ მეგობრად დამატება</button>
+          <button type="button" id="playerAcceptFriendButton" hidden>🤝 მოთხოვნის მიღება</button>
+          <small class="player-chat-note" id="playerChatNote" hidden></small>
           <button type="button" data-emote="wave">👋 მოქნევა</button>
           <button type="button" data-emote="dance">🎵 ცეკვა</button>
           <button type="button" data-emote="highfive">🖐 High-five</button>
@@ -77,7 +81,7 @@
   </main>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/city-world.js?v=1"></script>
-  <script src="/city.js?v=1"></script>
+  <script src="/city-world.js?v=2"></script>
+  <script src="/city.js?v=2"></script>
 </body>
 </html>
