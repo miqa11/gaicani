@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080a18">
   <meta name="description" content="Tbilisi 1999: Neon Nights — Gaicani-ს საერთო, ღამის ქალაქი.">
   <title>Tbilisi 1999: Neon Nights — GAICANI</title>
-  <link rel="stylesheet" href="/city.css?v=4">
+  <link rel="stylesheet" href="/city.css?v=5">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -47,6 +47,8 @@
         <div class="player-card-heading"><span class="player-card-avatar">✦</span><div><small>ქალაქში შეგხვდა</small><b id="playerCardName"></b></div></div>
         <div class="player-actions">
           <button type="button" id="playerSayButton">🗨 ქალაქში საუბარი</button>
+          <button type="button" id="playerGameButton">🎮 Play a Game</button>
+          <button type="button" id="playerGameBlockButton">🚫 თამაშის მოწვევების დაბლოკვა</button>
           <button type="button" id="playerWineButton" hidden>🍷 ღვინით გამასპინძლება</button>
           <button type="button" id="playerSwordButton" hidden>⚔️ ხმლით გამოწვევა</button>
           <button type="button" id="playerMessageButton" hidden>💌 პირადი ჩატი</button>
@@ -56,6 +58,35 @@
           <button type="button" data-emote="wave">👋 მოქნევა</button>
           <button type="button" data-emote="dance">🎵 ცეკვა</button>
           <button type="button" data-emote="highfive">🖐 High-five</button>
+        </div>
+      </section>
+
+      <section class="city-game-invite" id="cityGameInvite" hidden role="dialog" aria-modal="true" aria-labelledby="cityGameInviteTitle">
+        <div class="city-game-invite-card">
+          <span class="game-phone-kicker">GAICANI MOBILE · 1999</span>
+          <h2 id="cityGameInviteTitle">თამაშის მოწვევა</h2>
+          <p id="cityGameInviteText"></p>
+          <div class="city-game-invite-actions" id="cityGameInviteActions"></div>
+        </div>
+      </section>
+      <div class="city-game-dimmer" id="cityGameDimmer" hidden></div>
+      <section class="city-game-phone" id="cityGamePhone" hidden role="dialog" aria-modal="true" aria-labelledby="cityGameTitle">
+        <div class="city-game-device">
+          <div class="city-game-speaker"></div>
+          <header class="city-game-header">
+            <div><small>GAICANI MOBILE</small><h2 id="cityGameTitle">NEON GAMES</h2></div>
+            <button type="button" id="cityGameClose" aria-label="ქალაქში დაბრუნება">×</button>
+          </header>
+          <div class="city-game-playerline" id="cityGamePlayers"></div>
+          <div class="city-game-screen" id="cityGameScreen"></div>
+          <div class="city-game-reaction" id="cityGameReaction" hidden></div>
+          <footer class="city-game-footer">
+            <button type="button" data-game-reaction="Lucky win!">✨ Lucky win!</button>
+            <button type="button" data-game-reaction="Rematch?">🔁 Rematch?</button>
+            <button type="button" data-game-reaction="You got me!">😅 You got me!</button>
+            <button type="button" data-game-reaction="One more round!">🎉 One more!</button>
+          </footer>
+          <div class="city-game-homebar"></div>
         </div>
       </section>
 
@@ -105,6 +136,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/city-world.js?v=3"></script>
-  <script src="/city.js?v=4"></script>
+  <script src="/city.js?v=5"></script>
+  <script src="/city-game-ui.js?v=1"></script>
 </body>
 </html>

@@ -3,6 +3,7 @@ const http       = require("http");
 const { Server } = require("socket.io");
 const path       = require("path");
 const cityWorld  = require("./city-world.js");
+const { createCityGameEngine } = require("./city-game-engine.js");
 const fs         = require("fs");
 
 // ── Persistent data directory ───────────────────────────────────────────────
@@ -13986,13 +13987,14 @@ for (const [, u] of registeredUsers) {
 // city location history is written to disk or attached to account records.
 const CITY_ROOM = "city:night";
 const cityPlayers = new Map();
+const cityGameEngine = createCityGameEngine({ io, players:cityPlayers, registeredUsers, roomName:CITY_ROOM });
 const citySignals = new Map(), cityNotes = new Map(), cityRides = new Map(), cityDuels = new Map(), cityWineChats = new Map();
 const CITY_ICEBREAKERS = ["რომელი სიმღერა გახანგრძლივებდა ამ ღამეს?","თბილისში შენი საყვარელი ღამის ადგილი სად არის?","გვიან ღამით ხინკალი თუ დილის ყავა?"];
 let cityRideSequence=0, cityLastTick = Date.now(), cityLastEphemeralCleanup=0;
 const CITY_PALETTE = ["#bf75ef", "#58d8f2", "#f27ba9", "#e9a550", "#66d7a7", "#8d99ff", "#e66c52"];
 function cityPublicPlayer(p) {
   return { id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
-    action: p.action, interiorId: p.interiorId || null, rideId: p.rideId || null };
+    action: p.action, interiorId: p.interiorId || null, rideId: p.rideId || null, gameId:p.gameId||null, gameStartedAt:p.gameStartedAt||0 };
 }
 function cityList() { return Array.from(cityPlayers.values(), cityPublicPlayer); }
 function cityFind(socket) { return cityPlayers.get(socket.id); }
@@ -14024,6 +14026,7 @@ function cityBeginRide(ride) {
 }
 function cityRemove(socketId) {
   const p = cityPlayers.get(socketId); if (!p) return;
+  cityGameEngine.remove(socketId);
   if(p.rideId)cityLeaveRide(socketId,"მგზავრი კაბინიდან გავიდა.");
   cityPlayers.delete(socketId);citySignals.delete(socketId);for(const [key,note] of cityNotes)if(note.authorId===socketId)cityNotes.delete(key);cityPushSignals();cityPushNotes();
   io.to(CITY_ROOM).emit("city:playerLeft", { id: socketId });
@@ -14033,7 +14036,7 @@ setInterval(() => {
   const now = Date.now(), dt = Math.min(0.08, Math.max(0, (now - cityLastTick) / 1000));
   cityLastTick = now;
   for (const p of cityPlayers.values()) {
-    if (p.interiorId || p.rideId) continue;
+    if (p.interiorId || p.rideId || p.gameId) continue;
     let dx = p.inputX, dy = p.inputY;
     const length = Math.hypot(dx, dy);
     if (length > 1) { dx /= length; dy /= length; }
@@ -14064,7 +14067,7 @@ io.on("connection", (socket) => {
     }
     if (cityPlayers.has(socket.id)) {
       if (typeof ack === "function") ack({ ok: true });
-      socket.emit("city:joined", { self: cityPublicPlayer(cityPlayers.get(socket.id)), players: cityList(), signals:citySignalList(), notes:cityNoteList() });
+      socket.emit("city:joined", { self: cityPublicPlayer(cityPlayers.get(socket.id)), players: cityList(), signals:citySignalList(), notes:cityNoteList(), gameBlockedPlayers:cityGameEngine.blockedNames(cityPlayers.get(socket.id)) });
       return;
     }
     if (cityPlayers.size >= 120) {
@@ -14084,18 +14087,18 @@ io.on("connection", (socket) => {
       name: String(socket._regUser.username).slice(0, 20),
       color: CITY_PALETTE[Math.abs(hash) % CITY_PALETTE.length],
       x: spawn.x, y: spawn.y, dir: "down", action: "idle", actionUntil: 0,
-      inputX: 0, inputY: 0, lastInputAt: 0, lastEmoteAt: 0, lastMessageAt: 0, lastSignalAt:0, lastNoteAt:0, lastWineAt:0, lastDuelAt:0, lastRideMessageAt:0, lastMotherMessageAt:0, interiorId: null, rideId:null
+      inputX: 0, inputY: 0, lastInputAt: 0, lastEmoteAt: 0, lastMessageAt: 0, lastSignalAt:0, lastNoteAt:0, lastWineAt:0, lastDuelAt:0, lastRideMessageAt:0, lastMotherMessageAt:0, lastGameInviteAt:0, interiorId: null, rideId:null, gameId:null, gameStartedAt:0
     };
     cityPlayers.set(socket.id, p);
     socket.join(CITY_ROOM);
-    socket.emit("city:joined", { self: cityPublicPlayer(p), players: cityList(), signals:citySignalList(), notes:cityNoteList() });
+    socket.emit("city:joined", { self: cityPublicPlayer(p), players: cityList(), signals:citySignalList(), notes:cityNoteList(), gameBlockedPlayers:cityGameEngine.blockedNames(p) });
     socket.to(CITY_ROOM).emit("city:playerJoined", cityPublicPlayer(p));
     if (typeof ack === "function") ack({ ok: true });
   });
 
   socket.on("city:input", (data, ack) => {
     const p = cityFind(socket), now = Date.now();
-    if (!p || p.interiorId || p.rideId) return;
+    if (!p || p.interiorId || p.rideId || p.gameId) return;
     const x = Number(data && data.x), y = Number(data && data.y), nx=Number.isFinite(x)?Math.max(-1,Math.min(1,x)):0, ny=Number.isFinite(y)?Math.max(-1,Math.min(1,y)):0;
     if(Math.abs(nx)+Math.abs(ny)<0.01){const wasMoving=Math.abs(p.inputX)+Math.abs(p.inputY)>.01;p.inputX=p.inputY=0;p.action="idle";p.actionUntil=0;p.lastInputAt=now;if(typeof ack==="function")ack({x:p.x,y:p.y});if(wasMoving||typeof ack==="function")socket.emit("city:stopped",{x:p.x,y:p.y});return}
     if(now-p.lastInputAt<35)return;p.lastInputAt=now;p.inputX=nx;p.inputY=ny;
@@ -14105,7 +14108,7 @@ io.on("connection", (socket) => {
     const p = cityFind(socket);
     const reply = typeof ack === "function" ? ack : () => {};
     if (!p) return reply({ error: "ქალაქში ჯერ არ ხარ." });
-    if (p.interiorId || p.rideId) return reply({ error: "ქუჩაში დაბრუნდი, რომ ქალაქში დაწერო." });
+    if (p.interiorId || p.rideId || p.gameId) return reply({ error: "ქალაქში თამაშის დროს საჯარო შეტყობინებას ვერ გაგზავნი." });
     const now = Date.now();
     if (now - p.lastMessageAt < 1200) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან." });
     const text = cleanShortText(data && data.text, 120);
@@ -14192,7 +14195,7 @@ io.on("connection", (socket) => {
 
   socket.on("city:interior", (data) => {
     const p = cityFind(socket);
-    if (!p) return;
+    if (!p || p.gameId) return;
     const id = data && typeof data.buildingId === "string" ? data.buildingId : null;
     if (!id) { p.interiorId = null; p.inputX = 0; p.inputY = 0; return; }
     const building = cityWorld.buildings.find(b => b.id === id && b.enterable);
@@ -14206,7 +14209,7 @@ io.on("connection", (socket) => {
     const p = cityFind(socket), targetId = data && typeof data.targetId === "string" ? data.targetId : "";
     const target = cityPlayers.get(targetId), emote = data && data.emote;
     const allowed = new Set(["wave", "dance", "highfive"]);
-    if (!p || !target || target === p || p.interiorId || target.interiorId || p.rideId || target.rideId || !allowed.has(emote)) {
+    if (!p || !target || target === p || p.interiorId || target.interiorId || p.rideId || target.rideId || p.gameId || target.gameId || !allowed.has(emote)) {
       if (typeof ack === "function") ack({ error: "მოთამაშე ახლოს აღარ არის." });
       return;
     }
@@ -14225,6 +14228,8 @@ io.on("connection", (socket) => {
     });
     if (typeof ack === "function") ack({ ok: true });
   });
+
+  cityGameEngine.bind(socket);
 
   socket.on("city:leave", () => cityRemove(socket.id));
   socket.on("disconnect", () => cityRemove(socket.id));

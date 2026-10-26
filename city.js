@@ -177,7 +177,8 @@ function drawAvatar(x,y,name,color,dir,action,isSelf,now,message,messageUntil){
  ctx.fillStyle="#242237";ctx.fillRect(x-7,y+6+bob,5,5);ctx.fillRect(x+2,y+6+bob,5,5);
  ctx.fillStyle="#28223a";ctx.fillRect(x-7-(step?2:0),y+10+bob+(step?0:1),5,4);ctx.fillRect(x+2+(step?2:0),y+10+bob+(step?1:0),5,4);
  const lw=Math.max(42,Math.min(112,name.length*7+15));ctx.fillStyle="rgba(9,8,24,.9)";ctx.fillRect(x-lw/2,y-45+bob,lw,15);ctx.strokeStyle=isSelf?"#ff71d5":"rgba(126,240,255,.55)";ctx.strokeRect(x-lw/2,y-45+bob,lw,15);label(ctx,name,x,y-37+bob,8,"#f8f4ff","center");
- if(action&&action!=="idle"&&action!=="walk")label(ctx,action==="wave"?"👋":action==="dance"?"♫":action==="wine"?"🍷":"✋",x,y-60+bob,13,"#fff","center");
+ if(action==="phone"){ctx.fillStyle="#eeb994";ctx.fillRect(x+7,y-6+bob,4,8);ctx.fillStyle="#141528";ctx.fillRect(x+8,y-2+bob,9,12);ctx.fillStyle="#6beaff";ctx.fillRect(x+10,y+1+bob,5,6);ctx.fillStyle="#ff62d0";ctx.fillRect(x+10,y+7+bob,5,2)}
+ if(action&&action!=="idle"&&action!=="walk")label(ctx,action==="wave"?"👋":action==="dance"?"♫":action==="wine"?"🍷":action==="phone"?"📱":action==="sad"?"😿":"✋",x,y-60+bob,13,"#fff","center");
  if(message&&messageUntil>Date.now())drawMessageBubble(x,y,message)
 }
 function drawNpc(n,now){const b=Math.sin(now/650+n.x)*.6;ctx.fillStyle="#20152a";ctx.fillRect(n.x-6,n.y-17+b,12,11);ctx.fillStyle=n.color;ctx.fillRect(n.x-7,n.y-7+b,14,13);ctx.fillStyle="#2c2437";ctx.fillRect(n.x-6,n.y+6+b,5,8);ctx.fillRect(n.x+1,n.y+6+b,5,8);ctx.fillStyle="#efc49d";ctx.fillRect(n.x-4,n.y-17+b,8,8);ctx.fillStyle="#20192b";ctx.fillRect(n.x-6,n.y-19+b,12,4)}
@@ -195,8 +196,8 @@ function drawPuddles(now){for(let i=0;i<19;i++){const x=(i*271+45)%W.width,y=(i*
 function drawInterior(){const w=canvas.clientWidth,h=canvas.clientHeight,type=interior.type,warm=type==="bakery"?"#4a271f":type==="arcade"?"#201d3d":type==="internet"?"#1d3040":"#382336";ctx.fillStyle=warm;ctx.fillRect(0,0,w,h);ctx.fillStyle="#241a2a";ctx.fillRect(0,0,w,h*.63);ctx.fillStyle="#6d4550";ctx.fillRect(0,h*.63,w,h*.37);for(let x=0;x<w;x+=52){ctx.fillStyle=x%104?"#332537":"#3b2a3b";ctx.fillRect(x,h*.63,50,h*.37)}for(let i=0;i<5;i++){const x=w*(.12+i*.17);ctx.fillStyle="#130f20";ctx.fillRect(x,h*.16,75,108);ctx.globalAlpha=.7;ctx.fillStyle=i%2?"#bc5398":"#e9a95b";ctx.fillRect(x+7,h*.16+7,61,94);ctx.globalAlpha=1;ctx.fillStyle="#291e32";ctx.fillRect(x+34,h*.16+7,3,94)}const stuff=type==="arcade"?["🕹","👾","🎮","🕹"]:type==="bakery"?["🥖","☕","🥐","🍞"]:["☕","📻","📼","♫"];for(let i=0;i<4;i++){const x=w*(.18+i*.2),y=h*.52;ctx.fillStyle="#171322";ctx.fillRect(x,y,58,82);ctx.strokeStyle=i%2?"#71edff":"#ff58ce";ctx.lineWidth=2;ctx.strokeRect(x,y,58,82);label(ctx,stuff[i],x+29,y+32,23,"#fff","center");ctx.fillStyle="#79637b";ctx.fillRect(x+12,y+64,34,4)}label(ctx,interior.name,w/2,h*.11,17,interior.color,"center");label(ctx,"1999 · ღამე ჯერ არ მთავრდება",w/2,h*.11+26,10,"#dfd0ed","center");drawAvatar(w/2,h*.72,selfName,"#bd75ef","down","idle",true,performance.now())}
 let lastFrameAt=0;
 function stepLocalPlayer(dt,now){
- if(!self||!joined||interior||ride)return;
- const canMove=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden;
+ if(!self||!joined||interior||ride||window.GaicaniCityGames?.active)return;
+ const canMove=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden&&!window.GaicaniCityGames?.blocksMovement;
  let dx=canMove?keys.x:0,dy=canMove?keys.y:0;
  const length=Math.hypot(dx,dy),moving=length>.001;let moved=false;
  if(moving){dx/=length;dy/=length;const step=165*dt,nx=self.x+dx*step,ny=self.y+dy*step,oldX=self.x,oldY=self.y;
@@ -276,6 +277,7 @@ function updatePlayerActions(){
  document.getElementById("playerAddFriendButton").hidden=isFriend||incoming||outgoing;
  document.getElementById("playerAcceptFriendButton").hidden=isFriend||!incoming;
  const mother=(W.landmarks||[]).find(l=>l.type==="mother"),targetId=playerCard.dataset.targetId,target=remote.get(targetId),nearMother=!!(self&&target&&mother&&Math.hypot(self.x-mother.interactX,self.y-mother.interactY)<155&&Math.hypot(target.x-mother.interactX,target.y-mother.interactY)<155);document.getElementById("playerWineButton").hidden=!nearMother;document.getElementById("playerSwordButton").hidden=!nearMother;
+ window.GaicaniCityGames?.updatePlayerCard();
  const note=document.getElementById("playerChatNote");note.hidden=isFriend;
  note.textContent=incoming?"ამ მოთამაშემ მეგობრობის მოთხოვნა გამოგიგზავნა.":outgoing?"მოთხოვნა გაგზავნილია — პირად ჩატს მიღების შემდეგ გახსნი.":"პირადი ჩატი მეგობრებს შორისაა. დაამატე მეგობრად, რომ მისწერო.";
 }
@@ -298,7 +300,7 @@ document.querySelectorAll("[data-emote]").forEach(b=>b.addEventListener("click",
 function interact(){if(interior)return;open(target())}document.getElementById("touchInteract").addEventListener("click",interact);
 const held=new Set(),codeDir={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
 function updateKeys(){keys.x=(held.has("ArrowRight")||held.has("KeyD")?1:0)-(held.has("ArrowLeft")||held.has("KeyA")?1:0);keys.y=(held.has("ArrowDown")||held.has("KeyS")?1:0)-(held.has("ArrowUp")||held.has("KeyW")?1:0);sendCityInputNow()}
-function sendCityInputNow(){if(!socket||!joined||!self||interior||ride)return;const active=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden;const x=active?keys.x:0,y=active?keys.y:0;socket.emit("city:input",{x:x,y:y},r=>{if(r&&Number.isFinite(r.x)&&Math.hypot(keys.x,keys.y)<.01){self.x=r.x;self.y=r.y;self.action="idle"}})}
+function sendCityInputNow(){if(!socket||!joined||!self||interior||ride||window.GaicaniCityGames?.blocksMovement)return;const active=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden;const x=active?keys.x:0,y=active?keys.y:0;socket.emit("city:input",{x:x,y:y},r=>{if(r&&Number.isFinite(r.x)&&Math.hypot(keys.x,keys.y)<.01){self.x=r.x;self.y=r.y;self.action="idle"}})}
 document.addEventListener("keydown",e=>{if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(codeDir[e.code]){e.preventDefault();held.add(e.code);updateKeys()}else if(e.code==="KeyE"||e.code==="Space"){e.preventDefault();interact()}else if(e.code==="Escape"){closeDialog();playerCard.hidden=true;closeCityMessageComposer();if(interior)leaveInterior()}});
 document.addEventListener("keyup",e=>{held.delete(e.code);updateKeys()});addEventListener("blur",()=>{held.clear();keys.x=keys.y=0;sendCityInputNow()});document.addEventListener("visibilitychange",()=>{if(document.hidden){held.clear();keys.x=keys.y=0;sendCityInputNow()}});
 let touchHeld=false;document.querySelectorAll(".touch-pad [data-dir]").forEach(b=>{const vals={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]},start=e=>{e.preventDefault();touchHeld=true;b.classList.add("is-held");keys.x=vals[b.dataset.dir][0];keys.y=vals[b.dataset.dir][1];sendCityInputNow()},stop=e=>{e.preventDefault();touchHeld=false;b.classList.remove("is-held");keys.x=keys.y=0;sendCityInputNow()};b.addEventListener("pointerdown",start);b.addEventListener("pointerup",stop);b.addEventListener("pointercancel",stop);b.addEventListener("pointerleave",stop)});
@@ -321,7 +323,7 @@ function connect(){
  socket.on("disconnect",()=>{joined=false;ride=null;document.getElementById("cityRideOverlay").hidden=true;signals=[];notes=[];renderSignalList();presence("is-off","კავშირი გაწყდა");remote.clear();onlineCount.textContent="1"});
  socket.on("city:joined",d=>{joined=true;self=d.self;signals=d.signals||[];notes=d.notes||[];renderSignalList();remote.clear();(d.players||[]).forEach(p=>{if(p.id!==self.id)remote.set(p.id,Object.assign({},p,{targetX:p.x,targetY:p.y}))});presence("is-on","ქალაქში ხარ");refresh();drawMini();cue(760)});
  socket.on("city:error",d=>toast(d&&d.message||"ქალაქთან დაკავშირება ვერ მოხერხდა"));
- socket.on("city:snapshot",d=>{if(!self||!d||!Array.isArray(d.players))return;const seen=new Set();d.players.forEach(p=>{if(p.id===self.id){self.dir=p.dir;if(Math.hypot(keys.x,keys.y)<.01)self.action=p.action||"idle";return}seen.add(p.id);let old=remote.get(p.id);if(!old)old=Object.assign({},p,{targetX:p.x,targetY:p.y});old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.targetX=p.x;old.targetY=p.y;old.interiorId=p.interiorId||null;old.rideId=p.rideId||null;remote.set(p.id,old)});Array.from(remote.keys()).forEach(id=>{if(!seen.has(id))remote.delete(id)});onlineCount.textContent=String(remote.size+1)});
+ socket.on("city:snapshot",d=>{if(!self||!d||!Array.isArray(d.players))return;const seen=new Set();d.players.forEach(p=>{if(p.id===self.id){self.dir=p.dir;if(Math.hypot(keys.x,keys.y)<.01)self.action=p.action||"idle";return}seen.add(p.id);let old=remote.get(p.id);if(!old)old=Object.assign({},p,{targetX:p.x,targetY:p.y});old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.gameId=p.gameId||null;old.gameStartedAt=p.gameStartedAt||0;old.targetX=p.x;old.targetY=p.y;old.interiorId=p.interiorId||null;old.rideId=p.rideId||null;remote.set(p.id,old)});Array.from(remote.keys()).forEach(id=>{if(!seen.has(id))remote.delete(id)});onlineCount.textContent=String(remote.size+1)});
  socket.on("city:stopped",d=>{if(self&&d&&Math.hypot(keys.x,keys.y)<.01){self.x=d.x;self.y=d.y;self.action="idle"}});
  socket.on("city:signals",d=>{signals=Array.isArray(d)?d:[];renderSignalList()});
  socket.on("city:notes",d=>{notes=Array.isArray(d)?d:[]});
@@ -344,10 +346,11 @@ function connect(){
  socket.on("city:emote",d=>{if(!d||!d.from)return;if(self&&d.from.id===self.id){self.action=d.emote;self.actionUntil=Date.now()+1200}if(self&&d.to&&d.to.id===self.id){self.action=d.emote==="highfive"?"highfive":"wave";self.actionUntil=Date.now()+1200}const a=remote.get(d.from.id);if(a){a.action=d.emote;a.actionUntil=Date.now()+1200}const t=remote.get(d.to&&d.to.id);if(t){t.action=d.emote==="highfive"?"highfive":"wave";t.actionUntil=Date.now()+1200}if(d.to&&self&&d.to.id===self.id)toast(d.emote==="wave"?d.from.name+" მოგესალმა 👋":d.from.name+" გთავაზობს high-five-ს 🖐");cue(590)});
  socket.connect()
 }
-setInterval(()=>{if(!socket||!joined||!self||interior||ride)return;const active=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden;socket.emit("city:input",{x:active?keys.x:0,y:active?keys.y:0})},45);
+setInterval(()=>{if(!socket||!joined||!self||interior||ride)return;const active=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden&&!window.GaicaniCityGames?.blocksMovement;socket.emit("city:input",{x:active?keys.x:0,y:active?keys.y:0})},45);
 document.getElementById("fullscreenButton").addEventListener("click",()=>{const root=document.getElementById("cityApp");if(!document.fullscreenElement&&root.requestFullscreen)root.requestFullscreen().catch(()=>{});else if(document.exitFullscreen)document.exitFullscreen().catch(()=>{})});
 document.getElementById("soundButton").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-label",soundOn?"ხმოვანი ეფექტების გამორთვა":"ხმოვანი ეფექტების ჩართვა");e.currentTarget.title=soundOn?"ეფექტები ჩართულია":"ხმოვანი ეფექტები";e.currentTarget.textContent=soundOn?"♫":"♪";cue(660);toast(soundOn?"ხმოვანი ეფექტები ჩართულია":"ხმოვანი ეფექტები გამორთულია")});
 addEventListener("pagehide",()=>{if(socket&&joined)socket.emit("city:leave")});
+window.GaicaniCityGameBridge={getSocket:()=>socket,getSelf:()=>self,getPlayer:id=>remote.get(id),getTargetId:()=>playerCard.dataset.targetId||null,toast:toast,cue:cue,stop:()=>{held.clear();keys.x=keys.y=0;sendCityInputNow()}};
 drawMini();requestAnimationFrame(draw);connect();
 })();
 
