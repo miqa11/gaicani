@@ -102,13 +102,9 @@ kbd { min-width: 18px; height: 19px; padding: 2px 4px; border: 1px solid #6e629d
   .city-online-pill { right: 9px; bottom: 92px; font-size: 9px; padding: 6px 8px; }
   .city-controls-hint { display: none; }
   .touch-controls { position: absolute; inset: auto 0 8px; z-index: 3; display: flex; justify-content: space-between; align-items: end; padding: 0 13px; pointer-events: none; }
-  .touch-pad { width: 132px; height: 132px; display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr); gap: 3px; pointer-events: auto; }
-  .touch-pad button { border: 1px solid rgba(190,169,255,.45); border-radius: 11px; background: rgba(13,13,34,.78); color: #e9e4ff; font-size: 17px; touch-action: none; -webkit-tap-highlight-color: transparent; box-shadow: 0 3px 10px #0006; }
-  .touch-pad button[data-dir="up"] { grid-column: 2; grid-row: 1; }
-  .touch-pad button[data-dir="left"] { grid-column: 1; grid-row: 2; }
-  .touch-pad button[data-dir="down"] { grid-column: 2; grid-row: 3; }
-  .touch-pad button[data-dir="right"] { grid-column: 3; grid-row: 2; }
-  .touch-pad button:active, .touch-pad button.is-held { background: rgba(182,92,255,.42); border-color: #ff7dd6; }
+  .touch-stick { position: relative; width: 132px; height: 132px; flex: 0 0 auto; border: 1px solid rgba(190,169,255,.48); border-radius: 50%; background: radial-gradient(circle, rgba(40,29,73,.94) 0%, rgba(15,14,38,.9) 72%); box-shadow: inset 0 0 24px #7e58dc33, 0 5px 18px #0008, 0 0 18px #9a65ff22; pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  .touch-stick-base { position: absolute; inset: 13%; border: 1px solid rgba(180,161,255,.2); border-radius: 50%; background: radial-gradient(circle, transparent 0 42%, rgba(160,134,255,.08) 43% 44%, transparent 45%); pointer-events: none; }
+  .touch-stick-knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; border: 1px solid rgba(255,151,231,.9); border-radius: 50%; background: radial-gradient(circle at 34% 29%, #f6c4ff, #bd74f1 48%, #58359d 100%); box-shadow: inset 0 2px 5px #fff8, 0 0 15px #d85bff99, 0 4px 8px #0008; transform: translate(-50%,-50%); pointer-events: none; }
   .touch-interact { width: 76px; height: 76px; border: 1px solid rgba(255,126,218,.62); border-radius: 50%; background: rgba(77,28,85,.8); color: #fff1ff; box-shadow: 0 0 20px #eb58d366; font-size: 21px; pointer-events: auto; touch-action: manipulation; }
   .touch-interact span { display: block; font-size: 9px; font-weight: 700; }
   .city-footer { grid-template-columns: minmax(110px,1fr) auto; gap: 7px; padding: 0 12px; }
@@ -122,7 +118,8 @@ kbd { min-width: 18px; height: 19px; padding: 2px 4px; border: 1px solid #6e629d
   .city-brand { display: none; }
   .city-topbar { grid-template-columns: 1fr auto; }
   .city-top-actions { grid-column: 2; }
-  .touch-pad { width: 116px; height: 116px; }
+  .touch-stick { width: 116px; height: 116px; }
+  .touch-stick-knob { width: 42px; height: 42px; }
   .touch-interact { width: 68px; height: 68px; }
 }
 @media (orientation: landscape) and (max-height: 560px) {
@@ -130,7 +127,8 @@ kbd { min-width: 18px; height: 19px; padding: 2px 4px; border: 1px solid #6e629d
   .city-location { top: 7px; left: 9px; }
   .city-minimap-wrap { top: 7px; right: 9px; }
   .touch-controls { bottom: 4px; }
-  .touch-pad { width: 96px; height: 96px; }
+  .touch-stick { width: 96px; height: 96px; }
+  .touch-stick-knob { width: 36px; height: 36px; }
   .touch-interact { width: 59px; height: 59px; }
   .city-online-pill { bottom: 8px; }
   .city-footer { padding: 0 12px; }
