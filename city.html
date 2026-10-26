@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080a18">
   <meta name="description" content="Tbilisi 1999: Neon Nights — Gaicani-ს საერთო, ღამის ქალაქი.">
   <title>Tbilisi 1999: Neon Nights — GAICANI</title>
-  <link rel="stylesheet" href="/city.css?v=7">
+  <link rel="stylesheet" href="/city.css?v=8">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -26,10 +26,18 @@
     <section class="city-world" aria-label="სათამაშო ქალაქი">
       <canvas id="cityCanvas" aria-label="თბილისის ღამის ქალაქი. გადაადგილდი ისრებით ან WASD-ით."></canvas>
       <div class="city-location" id="locationPill"><b>რუსთაველის გამზირი</b><span>2:17 AM · ყოველთვის ღამე</span></div>
-      <div class="city-minimap-wrap">
+      <button type="button" class="city-minimap-wrap" id="cityMapButton" aria-label="გახსენი ქალაქის რუკა">
         <canvas id="miniMap" width="168" height="116" aria-label="ქალაქის რუკა"></canvas>
-        <span>ქალაქის რუკა</span>
-      </div>
+        <span>ქალაქის რუკა · გახსნა</span>
+      </button>
+      <section class="city-map-overlay" id="cityMapOverlay" role="dialog" aria-modal="true" aria-labelledby="cityMapTitle" hidden>
+        <header class="city-map-header">
+          <div><h2 id="cityMapTitle">ქალაქის რუკა</h2><p>ადგილების ნომრები ქვემოთ მოცემულ სიას ემთხვევა · ვარდისფერი წერტილი შენ ხარ.</p></div>
+          <button type="button" class="city-map-close" id="cityMapClose" aria-label="რუკის დახურვა">×</button>
+        </header>
+        <canvas class="city-full-map" id="cityFullMap" width="1440" height="990" aria-label="ქალაქის რუკა ადგილების სახელებით"></canvas>
+        <div class="city-map-key" id="cityMapKey" aria-label="რუკაზე მონიშნული ადგილები"></div>
+      </section>
       <div class="city-online-pill">● <span id="onlineCount">1</span> მოთამაშე</div>
       <section class="city-signal-list" id="citySignalList" aria-label="ანძის სიგნალები" hidden></section>
 
@@ -166,7 +174,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/city-world.js?v=4"></script>
-  <script src="/city.js?v=7"></script>
+  <script src="/city.js?v=8"></script>
   <script src="/city-game-ui.js?v=1"></script>
   <script src="/city-casino-ui.js?v=1"></script>
 </body>
