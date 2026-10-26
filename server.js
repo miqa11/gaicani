@@ -2,6 +2,7 @@ const express    = require("express");
 const http       = require("http");
 const { Server } = require("socket.io");
 const path       = require("path");
+const cityWorld  = require("./city-world.js");
 const fs         = require("fs");
 
 // ── Persistent data directory ───────────────────────────────────────────────
@@ -13978,6 +13979,141 @@ for (const [, u] of registeredUsers) {
     saveAuthUsers();
   }
 }
+
+
+// ── Tbilisi 1999: Neon Nights — ephemeral shared city state ────────────────
+// Public nicknames and positions exist only while a socket is connected. No
+// city location history is written to disk or attached to account records.
+const CITY_ROOM = "city:night";
+const cityPlayers = new Map();
+let cityLastTick = Date.now();
+const CITY_PALETTE = ["#bf75ef", "#58d8f2", "#f27ba9", "#e9a550", "#66d7a7", "#8d99ff", "#e66c52"];
+function cityPublicPlayer(p) {
+  return { id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
+    action: p.action, interiorId: p.interiorId || null };
+}
+function cityList() { return Array.from(cityPlayers.values(), cityPublicPlayer); }
+function cityFind(socket) { return cityPlayers.get(socket.id); }
+function cityRemove(socketId) {
+  const p = cityPlayers.get(socketId);
+  if (!p) return;
+  cityPlayers.delete(socketId);
+  io.to(CITY_ROOM).emit("city:playerLeft", { id: socketId });
+  const oldSocket = io.sockets.sockets.get(socketId);
+  if (oldSocket) oldSocket.leave(CITY_ROOM);
+}
+setInterval(() => {
+  const now = Date.now(), dt = Math.min(0.08, Math.max(0, (now - cityLastTick) / 1000));
+  cityLastTick = now;
+  for (const p of cityPlayers.values()) {
+    if (p.interiorId) continue;
+    let dx = p.inputX, dy = p.inputY;
+    const length = Math.hypot(dx, dy);
+    if (length > 1) { dx /= length; dy /= length; }
+    if (Math.abs(dx) + Math.abs(dy) < 0.01) {
+      if (p.actionUntil <= now) p.action = "idle";
+      continue;
+    }
+    if (Math.abs(dx) > Math.abs(dy)) p.dir = dx < 0 ? "left" : "right";
+    else p.dir = dy < 0 ? "up" : "down";
+    if (p.actionUntil <= now) p.action = "walk";
+    const step = 165 * dt, nx = p.x + dx * step, ny = p.y + dy * step;
+    if (cityWorld.isWalkable(nx, p.y, 11)) p.x = nx;
+    if (cityWorld.isWalkable(p.x, ny, 11)) p.y = ny;
+  }
+}, 40).unref();
+const citySnapshotTimer = setInterval(() => {
+  if (cityPlayers.size) io.to(CITY_ROOM).emit("city:snapshot", { players: cityList() });
+}, 120);
+citySnapshotTimer.unref();
+
+io.on("connection", (socket) => {
+  socket.on("city:join", (_data, ack) => {
+    if (!socket._regUser || !socket._regUser.usernameLower || !socket._regUser.username) {
+      socket.emit("city:error", { message: "ქალაქში შესასვლელად ჯერ GAICANI-ში უნდა შეხვიდე." });
+      if (typeof ack === "function") ack({ error: "not authenticated" });
+      return;
+    }
+    if (cityPlayers.has(socket.id)) {
+      if (typeof ack === "function") ack({ ok: true });
+      socket.emit("city:joined", { self: cityPublicPlayer(cityPlayers.get(socket.id)), players: cityList() });
+      return;
+    }
+    if (cityPlayers.size >= 120) {
+      socket.emit("city:error", { message: "ქალაქი ახლა სავსეა — ცოტა ხანში სცადე." });
+      if (typeof ack === "function") ack({ error: "city full" });
+      return;
+    }
+    const userKey = socket._regUser.usernameLower;
+    for (const [id, p] of cityPlayers) {
+      if (p.userKey === userKey && id !== socket.id) cityRemove(id);
+    }
+    const spawn = cityWorld.spawns[cityPlayers.size % cityWorld.spawns.length];
+    let hash = 0;
+    for (const ch of socket._regUser.username) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+    const p = {
+      id: socket.id, userKey: userKey,
+      name: String(socket._regUser.username).slice(0, 20),
+      color: CITY_PALETTE[Math.abs(hash) % CITY_PALETTE.length],
+      x: spawn.x, y: spawn.y, dir: "down", action: "idle", actionUntil: 0,
+      inputX: 0, inputY: 0, lastInputAt: 0, lastEmoteAt: 0, interiorId: null
+    };
+    cityPlayers.set(socket.id, p);
+    socket.join(CITY_ROOM);
+    socket.emit("city:joined", { self: cityPublicPlayer(p), players: cityList() });
+    socket.to(CITY_ROOM).emit("city:playerJoined", cityPublicPlayer(p));
+    if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("city:input", (data) => {
+    const p = cityFind(socket), now = Date.now();
+    if (!p || p.interiorId || now - p.lastInputAt < 35) return;
+    p.lastInputAt = now;
+    const x = Number(data && data.x), y = Number(data && data.y);
+    p.inputX = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
+    p.inputY = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+  });
+
+  socket.on("city:interior", (data) => {
+    const p = cityFind(socket);
+    if (!p) return;
+    const id = data && typeof data.buildingId === "string" ? data.buildingId : null;
+    if (!id) { p.interiorId = null; p.inputX = 0; p.inputY = 0; return; }
+    const building = cityWorld.buildings.find(b => b.id === id && b.enterable);
+    if (!building) return;
+    const doorX = building.x + building.w * 0.72 + 9, doorY = building.y + building.h + 15;
+    if (Math.hypot(p.x - doorX, p.y - doorY) > 130) return;
+    p.interiorId = id; p.inputX = 0; p.inputY = 0; p.action = "idle";
+  });
+
+  socket.on("city:emote", (data, ack) => {
+    const p = cityFind(socket), targetId = data && typeof data.targetId === "string" ? data.targetId : "";
+    const target = cityPlayers.get(targetId), emote = data && data.emote;
+    const allowed = new Set(["wave", "dance", "highfive"]);
+    if (!p || !target || target === p || p.interiorId || target.interiorId || !allowed.has(emote)) {
+      if (typeof ack === "function") ack({ error: "მოთამაშე ახლოს აღარ არის." });
+      return;
+    }
+    if (Date.now() - p.lastEmoteAt < 900) {
+      if (typeof ack === "function") ack({ error: "ერთი წამით მოიცადე." });
+      return;
+    }
+    if (Math.hypot(p.x - target.x, p.y - target.y) > 135) {
+      if (typeof ack === "function") ack({ error: "მოთამაშესთან ცოტა ახლოს მიდი." });
+      return;
+    }
+    p.lastEmoteAt = Date.now(); p.action = emote; p.actionUntil = Date.now() + 1200;
+    if (emote === "highfive") { target.action = emote; target.actionUntil = Date.now() + 1200; }
+    io.to(CITY_ROOM).emit("city:emote", {
+      from: { id: p.id, name: p.name }, to: { id: target.id, name: target.name }, emote: emote
+    });
+    if (typeof ack === "function") ack({ ok: true });
+  });
+
+  socket.on("city:leave", () => cityRemove(socket.id));
+  socket.on("disconnect", () => cityRemove(socket.id));
+});
+
 
 adminSeedPromise.then(() => {
   server.listen(PORT, () => {

@@ -371,6 +371,7 @@
       #app { max-width: none; height: 100vh; height: 100dvh; border-radius: 0; border: none; box-shadow: none; }
     }
   </style>
+  <link rel="stylesheet" href="/local-board.css">
 </head>
 <body>
 <div id="app">
@@ -390,6 +391,7 @@
     </header>
     <div class="dm-setup-body">
       <button id="createGameBtn" class="dm-new-game-btn" disabled>➕ ახალი თამაშის შექმნა</button>
+      <button id="localGameBtn" class="local-board-button" type="button">⚪ ორი მოთამაშე · ერთი მოწყობილობა<span class="local-board-note">მორიგეობით ერთი ეკრანიდან</span></button>
 
       <div class="dm-leaderboard">
         <div class="dm-leaderboard-label">ტოპ 3 — ყველაზე მეტი გამარჯვება</div>
@@ -473,6 +475,14 @@
   <div id="dmInviteBar" class="dm-invite-bar"></div>
 </div>
 
+<div id="hotseatOverlay" class="local-pass-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="hotseatTitle">
+  <div class="local-pass-card">
+    <div class="local-pass-icon" aria-hidden="true">🔄</div>
+    <h2 class="local-pass-title" id="hotseatTitle">მოწყობილობა გადააწოდე მოთამაშეს</h2>
+    <p class="local-pass-copy">მოწყობილობა შესაბამის მოთამაშეს გადააწოდე და მზად რომ იქნები, დააჭირე ღილაკს.</p>
+    <button class="local-pass-ready" id="hotseatReady" type="button">მზად ვარ — ვიწყოთ</button>
+  </div>
+</div>
 <!-- Game-over overlay -->
 <div id="resultOverlay" class="dm-result-overlay">
   <div class="dm-result-box">
@@ -505,6 +515,7 @@
 <script src="/lobby-kick.js"></script>
 <script src="/rematch.js"></script>
 <script src="/computer-play.js"></script>
+<script src="/local-board-rules.js"></script>
 <script>
   (function () {
     function setAppHeight() {
@@ -564,6 +575,8 @@
   let myColor = null; // 'r' | 'b' | null
   let selectedSquare = null;
   let timerInterval = null;
+  let localMode = false, localState = null, localLastMove = null, hotseatPaused = false;
+  const checkersLocalRules = window.GaicaniLocalRules.checkers;
 
   /* ── Leaderboard — top 3 by wins, same pattern as Flappy Bird's ──── */
   const LEADERBOARD_MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
@@ -930,7 +943,7 @@
   }
 
   function onSquareClick(square, legalFrom) {
-    if (animationInProgress) return; // let the current move finish animating before accepting the next tap
+    if (animationInProgress || (localMode && hotseatPaused)) return; // let the current move finish animating before accepting the next tap
     if (!latestRoom || latestRoom.status !== "playing" || latestRoom.result) return;
     if (myColor !== latestRoom.turn) { showToast("მოწინააღმდეგის სვლის რიგია"); return; }
     // Mid multi-jump: only the continuing piece may act.
@@ -941,6 +954,10 @@
     if (selectedSquare !== null && legalFrom.has(selectedSquare)) {
       const dest = legalFrom.get(selectedSquare).find(m => m.to === square);
       if (dest) {
+        if (localMode) {
+          playLocalCheckersMove(selectedSquare, square);
+          return;
+        }
         socket.emit("checkers:move", { roomId: currentRoomId, from: selectedSquare, to: square });
         selectedSquare = null;
         renderBoard(latestRoom);
@@ -955,6 +972,62 @@
     renderBoard(latestRoom);
   }
 
+  function checkersLocalRoom() {
+    const result = checkersLocalRules.gameStatus(localState);
+    return {
+      roomId: "local-checkers",
+      players: [
+        { username: "წითლები · მოთამაშე 1", color: "r", avatar: "avatar1.png" },
+        { username: "შავები · მოთამაშე 2", color: "b", avatar: "avatar1.png" }
+      ],
+      status: "playing", turn: localState.turn, board: localState.board.slice(),
+      legalMoves: checkersLocalRules.legalMoves(localState),
+      mustContinueFrom: localState.mustContinueFrom,
+      lastMove: localLastMove,
+      result: result.status === "over"
+        ? { status: "over", winner: result.winner, reason: result.reason }
+        : null
+    };
+  }
+  function showHotseat(color) {
+    hotseatPaused = true;
+    $("hotseatTitle").textContent = "მოწყობილობა გადააწოდე " + (color === "r" ? "წითლებს" : "შავებს");
+    $("hotseatOverlay").hidden = false;
+    $("hotseatOverlay").classList.add("show");
+  }
+  function hideHotseat() {
+    hotseatPaused = false;
+    $("hotseatOverlay").classList.remove("show");
+    $("hotseatOverlay").hidden = true;
+  }
+  $("hotseatReady").addEventListener("click", hideHotseat);
+  function startLocalGame() {
+    localMode = true; localState = checkersLocalRules.newGameState(); localLastMove = null;
+    currentRoomId = null; latestRoom = null; selectedSquare = null;
+    animationInProgress = false; lastAnimatedMoveKey = null;
+    $("dmAnimLayer").innerHTML = "";
+    $("chatMessages").innerHTML = "";
+    clearTimerInterval();
+    history.replaceState(null, "", "/checkers.html?local=1");
+    hideHotseat();
+    showScreen("game");
+    renderGame(checkersLocalRoom());
+  }
+  $("localGameBtn").addEventListener("click", startLocalGame);
+  function playLocalCheckersMove(from, to) {
+    if (!localMode || hotseatPaused || animationInProgress || !localState) return;
+    const chosen = checkersLocalRules.legalMoves(localState).find(m => m.from === from && m.to === to);
+    if (!chosen) { showToast("ეს სვლა არ შეიძლება"); return; }
+    const previousTurn = localState.turn;
+    localState = checkersLocalRules.applyMove(localState, chosen);
+    localLastMove = checkersLocalRules.buildLastMove([chosen]);
+    selectedSquare = localState.mustContinueFrom;
+    const room = checkersLocalRoom();
+    renderGame(room);
+    if (room.result) hideHotseat();
+    else if (localState.turn !== previousTurn) showHotseat(localState.turn);
+  }
+
   function countPieces(board, color) {
     return board.filter(p => p && p.toLowerCase() === color).length;
   }
@@ -964,9 +1037,13 @@
   function renderGame(room) {
     const prevRoom = latestRoom; // captured before it's overwritten below
     latestRoom = room;
-    const me = room.players.find(p => p.username.toLowerCase() === myUsernameLower);
-    const opp = room.players.find(p => p.username.toLowerCase() !== myUsernameLower);
-    myColor = me ? me.color : null;
+    const me = localMode
+      ? room.players.find(p => p.color === room.turn)
+      : room.players.find(p => p.username.toLowerCase() === myUsernameLower);
+    const opp = localMode
+      ? room.players.find(p => p.color !== room.turn)
+      : room.players.find(p => p.username.toLowerCase() !== myUsernameLower);
+    myColor = localMode ? room.turn : (me ? me.color : null);
     if (selectedSquare !== null && room.mustContinueFrom !== null && selectedSquare !== room.mustContinueFrom) selectedSquare = null;
     if (room.mustContinueFrom !== null) selectedSquare = room.mustContinueFrom;
 
@@ -987,10 +1064,12 @@
     const banner = $("turnBanner");
     if (room.result) { banner.textContent = ""; }
     else if (room.turn === myColor) {
-      banner.textContent = room.mustContinueFrom !== null ? "განაგრძე აღება!" : "შენი სვლაა";
+      banner.textContent = room.mustContinueFrom !== null ? "განაგრძე აღება!" : localMode
+        ? (room.turn === "r" ? "წითლების სვლაა" : "შავების სვლაა")
+        : "შენი სვლაა";
       banner.classList.add("mine");
     } else {
-      banner.textContent = "მოწინააღმდეგის სვლაა";
+      banner.textContent = localMode ? (room.turn === "r" ? "წითლების სვლაა" : "შავების სვლაა") : "მოწინააღმდეგის სვლაა";
       banner.classList.remove("mine");
     }
 
@@ -1038,12 +1117,14 @@
   function showGameResult(room) {
     const r = room.result;
     const iAmWinner = r.winner && r.winner === myColor;
-    $("resultEmoji").textContent = iAmWinner ? "🏆" : "😔";
+    $("resultEmoji").textContent = localMode || iAmWinner ? "🏆" : "😔";
     const reasonText = {
       "no-pieces": "მოწინააღმდეგეს აღარ დარჩა ქვები", "no-moves": "მოწინააღმდეგეს სვლა არ დარჩა",
       timeout: "დრო ამოიწურა", resignation: "ჩაბარება",
     }[r.reason || r.status] || "";
-    $("resultTitle").textContent = iAmWinner ? "შენ მოიგე!" : "წააგე";
+    $("resultTitle").textContent = localMode
+      ? (r.winner === "r" ? "წითლებმა მოიგეს!" : "შავებმა მოიგეს!")
+      : (iAmWinner ? "შენ მოიგე!" : "წააგე");
     $("resultSub").textContent = reasonText;
     $("resultOverlay").classList.add("show");
   }
@@ -1127,6 +1208,10 @@
     currentRoomId = null;
     latestRoom = null;
     selectedSquare = null;
+    localMode = false; localState = null; localLastMove = null;
+    hideHotseat();
+    animationInProgress = false; lastAnimatedMoveKey = null;
+    $("dmAnimLayer").innerHTML = "";
     clearTimerInterval();
     $("resultOverlay").classList.remove("show");
     $("chatMessages").innerHTML = "";
@@ -1143,6 +1228,7 @@
   $("startGameBtn").addEventListener("click", () => { if (currentRoomId) socket.emit("checkers:start", { roomId: currentRoomId }); });
   $("gameBackBtn").addEventListener("click", backToSetup);
   $("leaveGameBtn").addEventListener("click", () => {
+    if (localMode) { backToSetup(); return; }
     if (latestRoom && !latestRoom.result && latestRoom.status === "playing") {
       if (!confirm("დატოვება ითვლება ჩაბარებად. გავაგრძელო?")) return;
       socket.emit("checkers:resign", { roomId: currentRoomId });
@@ -1151,10 +1237,11 @@
     backToSetup();
   });
   $("resignBtn").addEventListener("click", () => {
+    if (localMode) { backToSetup(); return; }
     if (!currentRoomId) return;
     if (confirm("დარწმუნებული ხარ, გინდა ჩაბარება?")) socket.emit("checkers:resign", { roomId: currentRoomId });
   });
-  $("resultBackBtn").addEventListener("click", () => { socket.emit("checkers:leave"); backToSetup(); });
+  $("resultBackBtn").addEventListener("click", () => { if (!localMode) socket.emit("checkers:leave"); backToSetup(); });
 
   /* ── Boot ────────────────────────────────────────────────────── */
   function init() {

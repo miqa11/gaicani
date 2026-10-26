@@ -271,7 +271,7 @@ function addDonationCard() {
 
   const txt = document.createElement("div");
   txt.className = "chat-donate-text";
-  txt.appendChild(document.createTextNode("💜 მხარი დაუჭირე Gaicani.online-ს მცირე დონაციით 🙏"));
+  txt.appendChild(document.createTextNode("💜 მხარი დაუჭირე Gaicani.online-ს მცირედი დონაციით 🙏"));
   txt.appendChild(document.createElement("br"));
   txt.appendChild(document.createTextNode("შენი დახმარება საიტის განვითარებასა და გაუმჯობესებას მოხმარდება 🚀"));
   txt.appendChild(document.createElement("br"));
