@@ -47,7 +47,18 @@
     { id: "night-tailor", x: 945, y: 1325, w: 140, h: 180, name: "ღამის ატელიე", sign: "ატელიე", color: "#76e4ef", type: "shop" },
     { id: "river-stairs", x: 2375, y: 1325, w: 125, h: 180, name: "სანაპიროს კიბე", sign: "მტკვარი", color: "#64ddff", type: "passage" }
   ];
-  const blockers = buildings.map(function (b) { return { x: b.x, y: b.y, w: b.w, h: b.h }; });
+  const landmarks = [
+    { id: "tv-tower", type: "tower", name: "Mtatsminda TV Tower · ანძა", sign: "ანძა", x: 2780, y: 255, interactX: 2780, interactY: 385, color: "#ff61d2" },
+    { id: "mother-georgia", type: "mother", name: "ქართლის დედა", sign: "ქართლის დედა", x: 2744, y: 525, interactX: 2704, interactY: 640, color: "#d9dce8" },
+    { id: "narikala", type: "fortress", name: "ნარიყალას ციხე", sign: "ნარიყალა", x: 2690, y: 745, interactX: 2715, interactY: 835, noteX: 2785, noteY: 915, color: "#ffc274" },
+    { id: "funicular-west", type: "station", line: "tbilisi-cable", end: "west", name: "საბაგიროს სადგური", sign: "საბაგირო", x: 2463, y: 1090, interactX: 2463, interactY: 1090, color: "#ff525c" },
+    { id: "funicular-east", type: "station", line: "tbilisi-cable", end: "east", name: "ნარიყალას საბაგირო", sign: "საბაგირო", x: 2700, y: 985, interactX: 2700, interactY: 985, color: "#ff525c" }
+  ];
+  const blockers = buildings.map(function (b) { return { x: b.x, y: b.y, w: b.w, h: b.h }; }).concat([
+    { x: 2762, y: 343, w: 36, h: 22 },
+    { x: 2727, y: 598, w: 34, h: 28 },
+    { x: 2638, y: 732, w: 166, h: 26 }
+  ]);
   const npcs = [
     { id: "tamar", name: "თამარი", role: "მუსიკოსი", x: 448, y: 760, color: "#d86cae", line: "ეს სიმღერა 1999-ში დაიწყო და ჯერ არ დამიმთავრებია." },
     { id: "dato", name: "დათო", role: "ტაქსის მძღოლი", x: 1025, y: 780, color: "#f09c42", line: "მეტეხამდე? ამ დროს ტაქსს ზღაპრებიც მოჰყავს." },
@@ -70,7 +81,7 @@
   function isWalkable(x, y, radius) {
     const r = Number.isFinite(radius) ? radius : 11;
     if (x < r || y < r || x > width - r || y > height - r) return false;
-    if (x + r > 2510 && !(y - r > 835 && y + r < 1125)) return false;
+    if (x + r > 2510 && x - r < 2645 && !(y - r > 835 && y + r < 1125)) return false;
     for (let i = 0; i < blockers.length; i++) {
       const b = blockers[i];
       if (x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h) return false;
@@ -85,6 +96,6 @@
     }
     return best;
   }
-  return { width: width, height: height, tile: 48, districts: districts, buildings: buildings,
+  return { width: width, height: height, tile: 48, districts: districts, buildings: buildings, landmarks: landmarks,
     blockers: blockers, npcs: npcs, props: props, spawns: spawns, isWalkable: isWalkable, districtAt: districtAt };
 });

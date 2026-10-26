@@ -13986,27 +13986,54 @@ for (const [, u] of registeredUsers) {
 // city location history is written to disk or attached to account records.
 const CITY_ROOM = "city:night";
 const cityPlayers = new Map();
-let cityLastTick = Date.now();
+const citySignals = new Map(), cityNotes = new Map(), cityRides = new Map(), cityDuels = new Map(), cityWineChats = new Map();
+const CITY_ICEBREAKERS = ["რომელი სიმღერა გახანგრძლივებდა ამ ღამეს?","თბილისში შენი საყვარელი ღამის ადგილი სად არის?","გვიან ღამით ხინკალი თუ დილის ყავა?"];
+let cityRideSequence=0, cityLastTick = Date.now(), cityLastEphemeralCleanup=0;
 const CITY_PALETTE = ["#bf75ef", "#58d8f2", "#f27ba9", "#e9a550", "#66d7a7", "#8d99ff", "#e66c52"];
 function cityPublicPlayer(p) {
   return { id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
-    action: p.action, interiorId: p.interiorId || null };
+    action: p.action, interiorId: p.interiorId || null, rideId: p.rideId || null };
 }
 function cityList() { return Array.from(cityPlayers.values(), cityPublicPlayer); }
 function cityFind(socket) { return cityPlayers.get(socket.id); }
+function citySignalList() { return Array.from(citySignals.values()); }
+function cityNoteList() { return Array.from(cityNotes.values(), n => ({ id:n.id, authorId:n.authorId, name:n.name, x:n.x, y:n.y, expiresAt:n.expiresAt })); }
+function cityNearLandmark(p,id,radius) { const l=cityWorld.landmarks.find(x=>x.id===id); return !!(p&&l&&Math.hypot(p.x-l.interactX,p.y-l.interactY)<(radius||145)); }
+function cityPushSignals() { io.to(CITY_ROOM).emit("city:signals",citySignalList()); }
+function cityPushNotes() { io.to(CITY_ROOM).emit("city:notes",cityNoteList()); }
+function cityStation(id) { return cityWorld.landmarks.find(l=>l.id===id&&l.type==="station"); }
+function cityStationArrival(stationId) { const st=cityStation(stationId); if(!st)return {x:2400,y:1150}; const candidates=[[st.interactX,st.interactY+42],[st.interactX-36,st.interactY+38],[st.interactX+36,st.interactY+38],[st.interactX,st.interactY-40]]; for(const q of candidates)if(cityWorld.isWalkable(q[0],q[1],11))return {x:q[0],y:q[1]}; return {x:st.interactX,y:st.interactY+50}; }
+function cityEndRide(ride,message) {
+  if(!ride||!cityRides.has(ride.id))return;
+  clearTimeout(ride.timer);clearTimeout(ride.waitTimer);cityRides.delete(ride.id);
+  for(const id of ride.members){const p=cityPlayers.get(id),sock=io.sockets.sockets.get(id);if(!p)continue;const stationId=ride.status==="riding"?(p.rideStation==="funicular-west"?"funicular-east":"funicular-west"):p.rideStation;p.rideId=null;p.inputX=p.inputY=0;const at=cityStationArrival(stationId);p.x=at.x;p.y=at.y;if(sock){sock.leave("cityride:"+ride.id);sock.emit("city:ride:end",{x:p.x,y:p.y,message:message||"საბაგირო სადგურში დაბრუნდა."})}}
+}
+function cityLeaveRide(socketId,message) {
+ const p=cityPlayers.get(socketId);if(!p||!p.rideId)return;
+ const ride=cityRides.get(p.rideId);if(!ride){p.rideId=null;return}
+ const sock=io.sockets.sockets.get(socketId);if(sock)sock.leave("cityride:"+ride.id);
+ ride.members=ride.members.filter(id=>id!==socketId);p.rideId=null;p.inputX=p.inputY=0;
+ const station=ride.status==="riding"?(p.rideStation==="funicular-west"?"funicular-east":"funicular-west"):p.rideStation;
+ const at=cityStationArrival(station);p.x=at.x;p.y=at.y;if(sock)sock.emit("city:ride:end",{x:p.x,y:p.y,message:message||"კაბინიდან ჩამოხვედი."});
+ if(!ride.members.length){clearTimeout(ride.timer);clearTimeout(ride.waitTimer);cityRides.delete(ride.id)}
+}
+function cityBeginRide(ride) {
+ clearTimeout(ride.waitTimer);ride.status="riding";ride.startedAt=Date.now();ride.endsAt=ride.startedAt+15000;
+ for(const id of ride.members){const p=cityPlayers.get(id),sock=io.sockets.sockets.get(id);if(!p||!sock)continue;p.rideId=ride.id;p.inputX=p.inputY=0;sock.join("cityride:"+ride.id);const other=cityPlayers.get(ride.members.find(x=>x!==id));sock.emit("city:ride:start",{rideId:ride.id,partner:other?{id:other.id,name:other.name,color:other.color}:null,startedAt:ride.startedAt,endsAt:ride.endsAt,stationId:p.rideStation})}
+ ride.timer=setTimeout(()=>cityEndRide(ride,"საბაგირო სადგურში დაბრუნდა."),15000);
+}
 function cityRemove(socketId) {
-  const p = cityPlayers.get(socketId);
-  if (!p) return;
-  cityPlayers.delete(socketId);
+  const p = cityPlayers.get(socketId); if (!p) return;
+  if(p.rideId)cityLeaveRide(socketId,"მგზავრი კაბინიდან გავიდა.");
+  cityPlayers.delete(socketId);citySignals.delete(socketId);for(const [key,note] of cityNotes)if(note.authorId===socketId)cityNotes.delete(key);cityPushSignals();cityPushNotes();
   io.to(CITY_ROOM).emit("city:playerLeft", { id: socketId });
-  const oldSocket = io.sockets.sockets.get(socketId);
-  if (oldSocket) oldSocket.leave(CITY_ROOM);
+  const oldSocket = io.sockets.sockets.get(socketId); if (oldSocket) oldSocket.leave(CITY_ROOM);
 }
 setInterval(() => {
   const now = Date.now(), dt = Math.min(0.08, Math.max(0, (now - cityLastTick) / 1000));
   cityLastTick = now;
   for (const p of cityPlayers.values()) {
-    if (p.interiorId) continue;
+    if (p.interiorId || p.rideId) continue;
     let dx = p.inputX, dy = p.inputY;
     const length = Math.hypot(dx, dy);
     if (length > 1) { dx /= length; dy /= length; }
@@ -14023,6 +14050,7 @@ setInterval(() => {
   }
 }, 40).unref();
 const citySnapshotTimer = setInterval(() => {
+  if(Date.now()-cityLastEphemeralCleanup>1000){cityLastEphemeralCleanup=Date.now();let sigChanged=false,noteChanged=false;for(const [id,x] of citySignals)if(x.expiresAt<=Date.now()){citySignals.delete(id);sigChanged=true}for(const [id,x] of cityNotes)if(x.expiresAt<=Date.now()){cityNotes.delete(id);noteChanged=true}for(const [id,x] of cityDuels)if(x.expiresAt<=Date.now())cityDuels.delete(id);for(const [id,expiresAt] of cityWineChats)if(expiresAt<=Date.now())cityWineChats.delete(id);if(sigChanged)cityPushSignals();if(noteChanged)cityPushNotes()}
   if (cityPlayers.size) io.to(CITY_ROOM).emit("city:snapshot", { players: cityList() });
 }, 120);
 citySnapshotTimer.unref();
@@ -14036,7 +14064,7 @@ io.on("connection", (socket) => {
     }
     if (cityPlayers.has(socket.id)) {
       if (typeof ack === "function") ack({ ok: true });
-      socket.emit("city:joined", { self: cityPublicPlayer(cityPlayers.get(socket.id)), players: cityList() });
+      socket.emit("city:joined", { self: cityPublicPlayer(cityPlayers.get(socket.id)), players: cityList(), signals:citySignalList(), notes:cityNoteList() });
       return;
     }
     if (cityPlayers.size >= 120) {
@@ -14056,29 +14084,28 @@ io.on("connection", (socket) => {
       name: String(socket._regUser.username).slice(0, 20),
       color: CITY_PALETTE[Math.abs(hash) % CITY_PALETTE.length],
       x: spawn.x, y: spawn.y, dir: "down", action: "idle", actionUntil: 0,
-      inputX: 0, inputY: 0, lastInputAt: 0, lastEmoteAt: 0, lastMessageAt: 0, interiorId: null
+      inputX: 0, inputY: 0, lastInputAt: 0, lastEmoteAt: 0, lastMessageAt: 0, lastSignalAt:0, lastNoteAt:0, lastWineAt:0, lastDuelAt:0, lastRideMessageAt:0, lastMotherMessageAt:0, interiorId: null, rideId:null
     };
     cityPlayers.set(socket.id, p);
     socket.join(CITY_ROOM);
-    socket.emit("city:joined", { self: cityPublicPlayer(p), players: cityList() });
+    socket.emit("city:joined", { self: cityPublicPlayer(p), players: cityList(), signals:citySignalList(), notes:cityNoteList() });
     socket.to(CITY_ROOM).emit("city:playerJoined", cityPublicPlayer(p));
     if (typeof ack === "function") ack({ ok: true });
   });
 
-  socket.on("city:input", (data) => {
+  socket.on("city:input", (data, ack) => {
     const p = cityFind(socket), now = Date.now();
-    if (!p || p.interiorId || now - p.lastInputAt < 35) return;
-    p.lastInputAt = now;
-    const x = Number(data && data.x), y = Number(data && data.y);
-    p.inputX = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
-    p.inputY = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+    if (!p || p.interiorId || p.rideId) return;
+    const x = Number(data && data.x), y = Number(data && data.y), nx=Number.isFinite(x)?Math.max(-1,Math.min(1,x)):0, ny=Number.isFinite(y)?Math.max(-1,Math.min(1,y)):0;
+    if(Math.abs(nx)+Math.abs(ny)<0.01){const wasMoving=Math.abs(p.inputX)+Math.abs(p.inputY)>.01;p.inputX=p.inputY=0;p.action="idle";p.actionUntil=0;p.lastInputAt=now;if(typeof ack==="function")ack({x:p.x,y:p.y});if(wasMoving||typeof ack==="function")socket.emit("city:stopped",{x:p.x,y:p.y});return}
+    if(now-p.lastInputAt<35)return;p.lastInputAt=now;p.inputX=nx;p.inputY=ny;
   });
 
   socket.on("city:message", (data, ack) => {
     const p = cityFind(socket);
     const reply = typeof ack === "function" ? ack : () => {};
     if (!p) return reply({ error: "ქალაქში ჯერ არ ხარ." });
-    if (p.interiorId) return reply({ error: "ქუჩაში დაბრუნდი, რომ ქალაქში დაწერო." });
+    if (p.interiorId || p.rideId) return reply({ error: "ქუჩაში დაბრუნდი, რომ ქალაქში დაწერო." });
     const now = Date.now();
     if (now - p.lastMessageAt < 1200) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან." });
     const text = cleanShortText(data && data.text, 120);
@@ -14087,6 +14114,80 @@ io.on("connection", (socket) => {
     p.lastMessageAt = now;
     io.to(CITY_ROOM).emit("city:message", { id: p.id, name: p.name, text: text });
     reply({ ok: true });
+  });
+
+
+  socket.on("city:signal:send",(data,ack)=>{
+    const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{},color=data&&data.color;
+    if(!p||p.interiorId||p.rideId||!cityNearLandmark(p,"tv-tower",165))return reply({error:"ანძასთან ახლოს მიდი სიგნალის გასაგზავნად."});
+    if(!["pink","green","blue"].includes(color))return reply({error:"აირჩიე სიგნალის ფერი."});
+    const now=Date.now();if(now-p.lastSignalAt<30000)return reply({error:"ახალი სიგნალის გასაგზავნად 30 წამი მოიცადე."});
+    p.lastSignalAt=now;citySignals.set(p.id,{id:p.id,name:p.name,color:color,x:p.x,y:p.y,expiresAt:now+30000});cityPushSignals();reply({ok:true})
+  });
+  socket.on("city:signal:follow",(data,ack)=>{
+    const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{},id=data&&data.targetId,sig=citySignals.get(id),target=cityPlayers.get(id);
+    if(!p||p.interiorId||p.rideId||!sig||sig.expiresAt<=Date.now()||!target||target.rideId)return reply({error:"ეს სიგნალი უკვე დასრულდა."});
+    if(p.id===id)return reply({error:"ეს შენი სიგნალია."});
+    const spots=[[target.x+32,target.y],[target.x-32,target.y],[target.x,target.y+34],[target.x,target.y-34]].find(q=>cityWorld.isWalkable(q[0],q[1],11));
+    if(!spots)return reply({error:"სიგნალის გვერდით ადგილი არ არის."});
+    p.x=spots[0];p.y=spots[1];p.inputX=p.inputY=0;socket.emit("city:signal:followed",{x:p.x,y:p.y});reply({ok:true})
+  });
+  socket.on("city:signal:wave",(data,ack)=>{
+    const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{},id=data&&data.targetId,sig=citySignals.get(id);
+    if(!p||!sig||sig.expiresAt<=Date.now()||id===p.id)return reply({error:"ეს სიგნალი უკვე დასრულდა."});
+    if(!p)return reply({error:"ქალაქში ჯერ არ ხარ."});io.to(id).emit("city:signal:wave",{fromId:p.id,name:p.name,targetId:id});socket.emit("city:signal:wave",{fromId:p.id,targetId:id});reply({ok:true})
+  });
+  socket.on("city:note:drop",(data,ack)=>{
+    const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{};
+    if(!p||p.interiorId||p.rideId||!cityNearLandmark(p,"narikala",150))return reply({error:"ნარიყალას კედელთან ახლოს მიდი."});
+    const now=Date.now();if(now-p.lastNoteAt<12000)return reply({error:"ერთი წერილი უკვე გზაშია — ცოტა მოიცადე."});
+    const text=cleanShortText(data&&data.text,120);if(!text)return reply({error:"წერილი ცარიელია."});if(findBannedWord(text))return reply({error:ABUSE_WORD_MESSAGE});
+    const lm=cityWorld.landmarks.find(l=>l.id==="narikala"),id=p.id+":"+now;
+    for(const [key,note] of cityNotes)if(note.authorId===p.id)cityNotes.delete(key);cityNotes.set(id,{id,authorId:p.id,name:p.name,text,x:lm.noteX,y:lm.noteY,expiresAt:now+90000});p.lastNoteAt=now;io.to(CITY_ROOM).emit("city:note:thrown",{fromX:p.x,fromY:p.y,x:lm.noteX,y:lm.noteY});cityPushNotes();reply({ok:true})
+  });
+  socket.on("city:note:claim",(data,ack)=>{
+    const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{},id=data&&data.id,n=cityNotes.get(id);
+    if(!p||p.interiorId||p.rideId||!n||n.expiresAt<=Date.now())return reply({error:"ეს წერილი უკვე წაიღეს."});
+    if(n.authorId===p.id)return reply({error:"ეს შენ მიერ დატოვებული წერილია."});
+    if(Math.hypot(p.x-n.x,p.y-n.y)>95)return reply({error:"თვითმფრინავთან ახლოს მიდი."});
+    cityNotes.delete(id);cityPushNotes();socket.emit("city:note:found",{name:n.name,text:n.text});io.to(n.authorId).emit("city:note:claimed",{authorId:n.authorId,name:p.name});reply({ok:true})
+  });
+  socket.on("city:mother:wine",(data,ack)=>{
+    const p=cityFind(socket),target=cityPlayers.get(data&&data.targetId),reply=typeof ack==="function"?ack:()=>{};
+    if(!p||!target||p===target||p.interiorId||target.interiorId||p.rideId||target.rideId||!cityNearLandmark(p,"mother-georgia",160)||!cityNearLandmark(target,"mother-georgia",160)||Math.hypot(p.x-target.x,p.y-target.y)>150)return reply({error:"ორივე მოთამაშე ქართლის დედასთან ახლოს უნდა იდგეს."});
+    if(Date.now()-p.lastWineAt<1500)return reply({error:"ერთი წამი მოიცადე."});p.lastWineAt=Date.now();p.action=target.action="wine";p.actionUntil=target.actionUntil=Date.now()+1200;cityWineChats.set([p.id,target.id].sort().join("|"),Date.now()+300000);io.to(CITY_ROOM).emit("city:mother:emote",{fromId:p.id,targetId:target.id});io.to(target.id).emit("city:mother:wine",{fromId:p.id,targetId:target.id,name:p.name});reply({ok:true})
+  });
+  socket.on("city:mother:message",(data,ack)=>{
+    const p=cityFind(socket),target=cityPlayers.get(data&&data.targetId),reply=typeof ack==="function"?ack:()=>{},text=cleanShortText(data&&data.text,120);
+    if(!p||!target||target===p||!text||!cityWineChats.has([p.id,target.id].sort().join("|"))||cityWineChats.get([p.id,target.id].sort().join("|"))<Date.now())return reply({error:"ეს პირადი საუბარი აღარ არის ხელმისაწვდომი."});if(Date.now()-p.lastMotherMessageAt<900)return reply({error:"ცოტა მოიცადე და სცადე თავიდან."});if(findBannedWord(text))return reply({error:ABUSE_WORD_MESSAGE});p.lastMotherMessageAt=Date.now();
+    io.to(target.id).emit("city:mother:message",{fromId:p.id,targetId:target.id,name:p.name,text});reply({ok:true})
+  });
+  socket.on("city:duel:start",(data,ack)=>{
+    const p=cityFind(socket),target=cityPlayers.get(data&&data.targetId),reply=typeof ack==="function"?ack:()=>{};
+    if(!p||!target||p===target||p.interiorId||target.interiorId||p.rideId||target.rideId||!cityNearLandmark(p,"mother-georgia",160)||!cityNearLandmark(target,"mother-georgia",160)||Math.hypot(p.x-target.x,p.y-target.y)>150)return reply({error:"ორივე მოთამაშე ქართლის დედასთან ახლოს უნდა იდგეს."});
+    if(Date.now()-p.lastDuelAt<8000||Date.now()-target.lastDuelAt<8000)return reply({error:"დუელისთვის ცოტა მოიცადეთ."});
+    p.lastDuelAt=target.lastDuelAt=Date.now();const id="duel:"+p.id+":"+target.id+":"+Date.now(),duel={id,a:p.id,b:target.id,expiresAt:Date.now()+60000};cityDuels.set(id,duel);io.to(CITY_ROOM).emit("city:duel:start",{id:id,fromId:p.id,targetId:target.id});
+    setTimeout(()=>{if(!cityPlayers.has(p.id)||!cityPlayers.has(target.id)){cityDuels.delete(id);return}const winnerId=Math.random()<.5?p.id:target.id,loserId=winnerId===p.id?target.id:p.id;duel.winnerId=winnerId;duel.loserId=loserId;const winner=cityPlayers.get(winnerId),loser=cityPlayers.get(loserId);io.to(CITY_ROOM).emit("city:duel:result",{id:id,fromId:p.id,targetId:target.id,winnerId:winnerId,loserId:loserId,winnerName:winner.name,loserName:loser.name,questions:CITY_ICEBREAKERS})},2000);reply({ok:true})
+  });
+  socket.on("city:duel:question",(data,ack)=>{
+    const p=cityFind(socket),duel=cityDuels.get(data&&data.duelId),target=cityPlayers.get(data&&data.targetId),reply=typeof ack==="function"?ack:()=>{},text=cleanShortText(data&&data.text,120);
+    if(!p||!duel||duel.winnerId!==p.id||duel.asked||duel.loserId!==target?.id||duel.expiresAt<Date.now()||!text||!CITY_ICEBREAKERS.includes(text))return reply({error:"ეს კითხვა ამ დუელის გამარჯვებულს ეკუთვნის."});
+    duel.asked=true;io.to(target.id).emit("city:duel:question",{targetId:target.id,name:p.name,text:text});reply({ok:true})
+  });
+  socket.on("city:ride:board",(data,ack)=>{
+    const p=cityFind(socket),station=cityStation(data&&data.stationId),reply=typeof ack==="function"?ack:()=>{};
+    if(!p||!station||p.interiorId||p.rideId||Math.hypot(p.x-station.interactX,p.y-station.interactY)>110)return reply({error:"საბაგიროს სადგურთან ახლოს მიდი."});
+    let waiting=Array.from(cityRides.values()).find(r=>r.status==="waiting"&&Date.now()-r.createdAt<25000&&r.members.length===1&&r.members[0]!==p.id);
+    if(waiting){waiting.members.push(p.id);p.rideId=waiting.id;p.rideStation=station.id;socket.join("cityride:"+waiting.id);cityBeginRide(waiting);reply({ok:true});return}
+    const id="ride:"+Date.now()+":"+(++cityRideSequence),ride={id,status:"waiting",members:[p.id],createdAt:Date.now(),rideStation:station.id};
+    p.rideId=id;p.rideStation=station.id;p.inputX=p.inputY=0;cityRides.set(id,ride);socket.join("cityride:"+id);socket.emit("city:ride:waiting",{rideId:id,stationId:station.id});ride.waitTimer=setTimeout(()=>cityEndRide(ride,"მეორე მგზავრი არ გამოჩნდა — კაბინა სადგურში დარჩა."),25000);reply({ok:true})
+  });
+  socket.on("city:ride:leave",()=>cityLeaveRide(socket.id));
+  socket.on("city:ride:message",(data,ack)=>{
+    const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{},text=cleanShortText(data&&data.text,120),ride=p&&p.rideId&&cityRides.get(p.rideId);
+    if(!p||!ride||ride.status!=="riding"||!text)return reply({error:"საბაგიროში პირადი ჩატი ახლა ხელმისაწვდომი არ არის."});
+    if(Date.now()-p.lastRideMessageAt<1000)return reply({error:"ცოტა მოიცადე და სცადე თავიდან."});if(findBannedWord(text))return reply({error:ABUSE_WORD_MESSAGE});
+    p.lastRideMessageAt=Date.now();io.to("cityride:"+ride.id).emit("city:ride:message",{id:p.id,name:p.name,text});reply({ok:true})
   });
 
   socket.on("city:interior", (data) => {
@@ -14105,7 +14206,7 @@ io.on("connection", (socket) => {
     const p = cityFind(socket), targetId = data && typeof data.targetId === "string" ? data.targetId : "";
     const target = cityPlayers.get(targetId), emote = data && data.emote;
     const allowed = new Set(["wave", "dance", "highfive"]);
-    if (!p || !target || target === p || p.interiorId || target.interiorId || !allowed.has(emote)) {
+    if (!p || !target || target === p || p.interiorId || target.interiorId || p.rideId || target.rideId || !allowed.has(emote)) {
       if (typeof ack === "function") ack({ error: "მოთამაშე ახლოს აღარ არის." });
       return;
     }
