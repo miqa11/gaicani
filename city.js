@@ -3,7 +3,7 @@
 const W=window.GaicaniCityWorld, canvas=document.getElementById("cityCanvas"), ctx=canvas.getContext("2d",{alpha:false});
 const mini=document.getElementById("miniMap"), mctx=mini.getContext("2d"), stage=document.querySelector(".city-world");
 const dot=document.getElementById("connectionDot"), connection=document.getElementById("connectionLabel"), onlineCount=document.getElementById("onlineCount");
-const locationPill=document.getElementById("locationPill"), cityToast=document.getElementById("cityToast"), cityDialog=document.getElementById("cityDialog"), playerCard=document.getElementById("playerCard");
+const locationPill=document.getElementById("locationPill"), cityToast=document.getElementById("cityToast"), cityDialog=document.getElementById("cityDialog"), playerCard=document.getElementById("playerCard"), cityMessageComposer=document.getElementById("cityMessageComposer");
 const keys={x:0,y:0}, remote=new Map(), rain=[];
 let socket=null, joined=false, self=null, selfName="ღამის მგზავრი", camera={x:0,y:0}, nearby=null, interior=null;
 let toastTimer=0,lastMiniAt=0,lastDistrict="",soundOn=false,audioCtx=null,selectedPlayerName="";
@@ -132,8 +132,8 @@ const staticMap=makeMap();
 for(let i=0;i<44;i++)rain.push({x:Math.random()*W.width,y:Math.random()*W.height,len:7+Math.random()*13,speed:170+Math.random()*180,alpha:.12+Math.random()*.2});
 
 function drawMini(){const w=mini.width,h=mini.height,sx=w/W.width,sy=h/W.height;mctx.clearRect(0,0,w,h);mctx.fillStyle="#11152a";mctx.fillRect(0,0,w,h);mctx.fillStyle="#102a48";mctx.fillRect(2510*sx,0,w-2510*sx,h);mctx.fillStyle="#34364d";[360,780,1200,1620].forEach(y=>mctx.fillRect(0,y*sy-2,w,4));[540,1080,1620,2160].forEach(x=>mctx.fillRect(x*sx-2,0,4,h));mctx.fillStyle="#746879";W.buildings.forEach(b=>mctx.fillRect(b.x*sx,b.y*sy,b.w*sx,b.h*sy));remote.forEach(p=>{if(!p.interiorId){mctx.fillStyle="#63f4d1";mctx.fillRect(p.x*sx-1,p.y*sy-1,3,3)}});if(self&&!interior){mctx.fillStyle="#ff65d0";mctx.fillRect(self.x*sx-2,self.y*sy-2,5,5);mctx.strokeStyle="#ffeaff";mctx.strokeRect(self.x*sx-3,self.y*sy-3,7,7)}}
-function drawAvatar(x,y,name,color,dir,action,isSelf,now){
- const moving=action==="walk",step=moving?Math.floor(now/115)%2:0,bob=moving?(step?-1:1):Math.sin(now/520)*.45,leg=step?3:0;
+function drawAvatar(x,y,name,color,dir,action,isSelf,now,message,messageUntil){
+ const moving=action==="walk",step=moving?Math.floor(now/155)%2:0,bob=moving?(step?-1:1):Math.sin(now/520)*.45;
  ctx.fillStyle="rgba(0,0,0,.52)";ctx.beginPath();ctx.ellipse(x,y+8,14,5,0,0,Math.PI*2);ctx.fill();
  if(moving){ctx.globalAlpha=.24;ctx.fillStyle="#ff62d0";ctx.fillRect(x-12,y+9,24,2);ctx.globalAlpha=1}
  ctx.fillStyle="#13131f";ctx.fillRect(x-8,y-21+bob,16,14);
@@ -144,17 +144,28 @@ function drawAvatar(x,y,name,color,dir,action,isSelf,now){
  ctx.fillStyle="rgba(255,255,255,.45)";ctx.fillRect(x-5,y-7+bob,3,2);ctx.fillRect(x+2,y-7+bob,3,2);
  const armSwing=moving?(step?2:-2):0;ctx.fillStyle="#eeb994";ctx.fillRect(x-11,y-7+bob+armSwing,3,9);ctx.fillRect(x+8,y-7+bob-armSwing,3,9);
  ctx.fillStyle="#242237";ctx.fillRect(x-7,y+6+bob,5,5);ctx.fillRect(x+2,y+6+bob,5,5);
- ctx.fillStyle="#28223a";ctx.fillRect(x-7-leg,y+10+bob,5,4);ctx.fillRect(x+2+leg,y+10+bob,5,4);
+ ctx.fillStyle="#28223a";ctx.fillRect(x-7-(step?2:0),y+10+bob+(step?0:1),5,4);ctx.fillRect(x+2+(step?2:0),y+10+bob+(step?1:0),5,4);
  const lw=Math.max(42,Math.min(112,name.length*7+15));ctx.fillStyle="rgba(9,8,24,.9)";ctx.fillRect(x-lw/2,y-45+bob,lw,15);ctx.strokeStyle=isSelf?"#ff71d5":"rgba(126,240,255,.55)";ctx.strokeRect(x-lw/2,y-45+bob,lw,15);label(ctx,name,x,y-37+bob,8,"#f8f4ff","center");
- if(action&&action!=="idle"&&action!=="walk")label(ctx,action==="wave"?"👋":action==="dance"?"♫":"✋",x,y-60+bob,13,"#fff","center")
+ if(action&&action!=="idle"&&action!=="walk")label(ctx,action==="wave"?"👋":action==="dance"?"♫":"✋",x,y-60+bob,13,"#fff","center");
+ if(message&&messageUntil>Date.now())drawMessageBubble(x,y,message)
 }
 function drawNpc(n,now){const b=Math.sin(now/650+n.x)*.6;ctx.fillStyle="#20152a";ctx.fillRect(n.x-6,n.y-17+b,12,11);ctx.fillStyle=n.color;ctx.fillRect(n.x-7,n.y-7+b,14,13);ctx.fillStyle="#2c2437";ctx.fillRect(n.x-6,n.y+6+b,5,8);ctx.fillRect(n.x+1,n.y+6+b,5,8);ctx.fillStyle="#efc49d";ctx.fillRect(n.x-4,n.y-17+b,8,8);ctx.fillStyle="#20192b";ctx.fillRect(n.x-6,n.y-19+b,12,4)}
+function drawMessageBubble(x,y,text){
+ const maxWidth=212,lines=[];ctx.save();ctx.font='700 8px "Noto Sans Georgian",sans-serif';
+ String(text||"").trim().split(/\s+/).forEach(word=>{if(!word)return;const candidate=lines.length?lines[lines.length-1]+" "+word:word;if(ctx.measureText(candidate).width>maxWidth-18&&lines.length)lines.push(word);else if(lines.length)lines[lines.length-1]=candidate;else lines.push(candidate)});
+ if(!lines.length){ctx.restore();return}
+ if(lines.length>4){lines.length=4;lines[3]=lines[3].slice(0,24)+"…"}
+ const width=Math.min(maxWidth,Math.max(50,Math.ceil(Math.max(...lines.map(line=>ctx.measureText(line).width))+18))),height=10+lines.length*10,top=y-55-height;
+ ctx.fillStyle="rgba(9,8,24,.96)";ctx.fillRect(x-width/2,top,width,height);ctx.strokeStyle="#ff70d1";ctx.lineWidth=1;ctx.strokeRect(x-width/2+.5,top+.5,width-1,height-1);
+ ctx.beginPath();ctx.moveTo(x-5,top+height-1);ctx.lineTo(x+5,top+height-1);ctx.lineTo(x,top+height+5);ctx.closePath();ctx.fillStyle="rgba(9,8,24,.96)";ctx.fill();ctx.strokeStyle="#ff70d1";ctx.beginPath();ctx.moveTo(x-5,top+height-1);ctx.lineTo(x,top+height+5);ctx.lineTo(x+5,top+height-1);ctx.stroke();
+ ctx.fillStyle="#fff3fb";ctx.textAlign="center";ctx.textBaseline="middle";lines.forEach((line,i)=>ctx.fillText(line,x,top+6+i*10,width-12));ctx.restore();
+}
 function drawPuddles(now){for(let i=0;i<19;i++){const x=(i*271+45)%W.width,y=(i*193+111)%W.height;ctx.globalAlpha=.1+(Math.sin(now/490+i)+1)*.035;ctx.fillStyle=Math.sin(now/700+i*1.9)>0?"#cb47b8":"#35bada";ctx.fillRect(x,y,22+(i%4)*8,2);ctx.fillRect(x+5,y+4,12,1)}ctx.globalAlpha=1}
 function drawInterior(){const w=canvas.clientWidth,h=canvas.clientHeight,type=interior.type,warm=type==="bakery"?"#4a271f":type==="arcade"?"#201d3d":type==="internet"?"#1d3040":"#382336";ctx.fillStyle=warm;ctx.fillRect(0,0,w,h);ctx.fillStyle="#241a2a";ctx.fillRect(0,0,w,h*.63);ctx.fillStyle="#6d4550";ctx.fillRect(0,h*.63,w,h*.37);for(let x=0;x<w;x+=52){ctx.fillStyle=x%104?"#332537":"#3b2a3b";ctx.fillRect(x,h*.63,50,h*.37)}for(let i=0;i<5;i++){const x=w*(.12+i*.17);ctx.fillStyle="#130f20";ctx.fillRect(x,h*.16,75,108);ctx.globalAlpha=.7;ctx.fillStyle=i%2?"#bc5398":"#e9a95b";ctx.fillRect(x+7,h*.16+7,61,94);ctx.globalAlpha=1;ctx.fillStyle="#291e32";ctx.fillRect(x+34,h*.16+7,3,94)}const stuff=type==="arcade"?["🕹","👾","🎮","🕹"]:type==="bakery"?["🥖","☕","🥐","🍞"]:["☕","📻","📼","♫"];for(let i=0;i<4;i++){const x=w*(.18+i*.2),y=h*.52;ctx.fillStyle="#171322";ctx.fillRect(x,y,58,82);ctx.strokeStyle=i%2?"#71edff":"#ff58ce";ctx.lineWidth=2;ctx.strokeRect(x,y,58,82);label(ctx,stuff[i],x+29,y+32,23,"#fff","center");ctx.fillStyle="#79637b";ctx.fillRect(x+12,y+64,34,4)}label(ctx,interior.name,w/2,h*.11,17,interior.color,"center");label(ctx,"1999 · ღამე ჯერ არ მთავრდება",w/2,h*.11+26,10,"#dfd0ed","center");drawAvatar(w/2,h*.72,selfName,"#bd75ef","down","idle",true,performance.now())}
 let lastFrameAt=0;
 function stepLocalPlayer(dt,now){
  if(!self||!joined||interior)return;
- const canMove=cityDialog.hidden&&playerCard.hidden;
+ const canMove=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden;
  let dx=canMove?keys.x:0,dy=canMove?keys.y:0;
  const length=Math.hypot(dx,dy),moving=length>.001;
  if(moving){dx/=length;dy/=length;const step=165*dt,nx=self.x+dx*step,ny=self.y+dy*step;
@@ -165,7 +176,7 @@ function stepLocalPlayer(dt,now){
  if(!Number.isFinite(self.actionUntil)||self.actionUntil<=now)self.action=moving?"walk":"idle";
  if(!moving&&Number.isFinite(self.serverX)&&Number.isFinite(self.serverY)){
   const errX=self.serverX-self.x,errY=self.serverY-self.y,distance=Math.hypot(errX,errY);
-  if(distance>.2){const blend=distance>72?1:1-Math.exp(-dt*11);self.x+=errX*blend;self.y+=errY*blend}
+  if(distance>3){const correction=Math.min(distance,dt*60);self.x+=errX/distance*correction;self.y+=errY/distance*correction}
  }
 }
 function draw(now){
@@ -173,14 +184,14 @@ function draw(now){
  if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d))resize();ctx.setTransform(d,0,0,d,0,0);ctx.imageSmoothingEnabled=false;
  if(interior){drawInterior();requestAnimationFrame(draw);return}
  stepLocalPlayer(dt,now);
- if(self){camera.x=Math.max(0,Math.min(W.width-w,self.x-w/2));camera.y=Math.max(0,Math.min(W.height-h,self.y-h/2))}
+ if(self){camera.x=Math.round(Math.max(0,Math.min(W.width-w,self.x-w/2)));camera.y=Math.round(Math.max(0,Math.min(W.height-h,self.y-h/2)))}
  else{camera.x=Math.max(0,W.width/2-w/2);camera.y=Math.max(0,W.height/2-h/2)}
  ctx.fillStyle="#101020";ctx.fillRect(0,0,w,h);ctx.drawImage(staticMap,-camera.x,-camera.y);ctx.save();ctx.translate(-camera.x,-camera.y);drawPuddles(now);
  W.buildings.forEach((b,i)=>{const pulse=.035+(Math.sin(now/620+i*1.31)+1)*.018;ctx.globalAlpha=pulse;ctx.fillStyle=b.color;ctx.fillRect(b.x+4,b.y+b.h-57,b.w-8,11)});ctx.globalAlpha=1;
  rain.forEach(r=>{r.y+=r.speed*dt;r.x-=18*dt;if(r.y>W.height){r.y=0;r.x=Math.random()*W.width}if(r.x<0)r.x=W.width;ctx.globalAlpha=r.alpha;ctx.fillStyle="#a9d8ff";ctx.fillRect(r.x,r.y,1,r.len)});ctx.globalAlpha=1;
- W.npcs.forEach(n=>drawNpc(n,now));const chars=[];if(self)chars.push({x:self.x,y:self.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true});
+ W.npcs.forEach(n=>drawNpc(n,now));const chars=[];if(self)chars.push({x:self.x,y:self.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true,message:self.message,messageUntil:self.messageUntil});
  remote.forEach(p=>{if(!p.interiorId){const follow=1-Math.exp(-dt*20);p.x+=(p.targetX-p.x)*follow;p.y+=(p.targetY-p.y)*follow;chars.push(p)}});
- chars.sort((a,b)=>a.y-b.y);chars.forEach(p=>{drawAvatar(p.x,p.y,p.name,p.color,p.dir,p.action,p.self,now);if(p.actionUntil&&p.actionUntil<Date.now())p.action="idle"});
+ chars.sort((a,b)=>a.y-b.y);chars.forEach(p=>{drawAvatar(Math.round(p.x),Math.round(p.y),p.name,p.color,p.dir,p.action,p.self,now,p.message,p.messageUntil);if(p.actionUntil&&p.actionUntil<Date.now())p.action="idle"});
  if(nearby&&nearby.type==="player"){ctx.strokeStyle="#ff6bd4";ctx.lineWidth=2;ctx.strokeRect(nearby.object.x-16,nearby.object.y-27,32,42)}
  ctx.restore();if(now-lastMiniAt>250){drawMini();lastMiniAt=now}requestAnimationFrame(draw)
 }
@@ -203,6 +214,14 @@ function updatePlayerActions(){
  note.textContent=incoming?"ამ მოთამაშემ მეგობრობის მოთხოვნა გამოგიგზავნა.":outgoing?"მოთხოვნა გაგზავნილია — პირად ჩატს მიღების შემდეგ გახსნი.":"პირადი ჩატი მეგობრებს შორისაა. დაამატე მეგობრად, რომ მისწერო.";
 }
 function replaceFriends(list){friendNames.clear();(list||[]).forEach(f=>{const n=typeof f==="string"?f:f&&(f.lc||f.username);if(n)friendNames.add(String(n).toLowerCase())});updatePlayerActions()}
+function openCityMessageComposer(){playerCard.hidden=true;cityMessageComposer.hidden=false;held.clear();updateKeys();keys.x=keys.y=0;updateCityMessageCount();setTimeout(()=>document.getElementById("cityMessageInput").focus(),30)}
+function closeCityMessageComposer(){cityMessageComposer.hidden=true}
+function updateCityMessageCount(){const input=document.getElementById("cityMessageInput"),button=document.getElementById("cityMessageSend");document.getElementById("cityMessageCount").textContent=input.value.length+"/120";button.disabled=!input.value.trim()}
+document.getElementById("playerSayButton").addEventListener("click",openCityMessageComposer);
+document.getElementById("cityMessageClose").addEventListener("click",closeCityMessageComposer);
+document.getElementById("cityMessageInput").addEventListener("input",updateCityMessageCount);
+document.getElementById("cityMessageInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();document.getElementById("cityMessageForm").requestSubmit()}});
+document.getElementById("cityMessageForm").addEventListener("submit",e=>{e.preventDefault();const input=document.getElementById("cityMessageInput"),button=document.getElementById("cityMessageSend"),text=input.value.trim();if(!text)return;if(!socket||!joined){toast("ქალაქთან კავშირი არ არის");return}button.disabled=true;socket.emit("city:message",{text},r=>{button.disabled=false;if(!r||r.error){toast(r&&r.error||"შეტყობინება ვერ გაიგზავნა");updateCityMessageCount();return}input.value="";updateCityMessageCount();closeCityMessageComposer();toast("შენი სიტყვა ქალაქში გამოჩნდა ✨")})});
 document.getElementById("playerMessageButton").addEventListener("click",()=>{if(!selectedPlayerName||!friendNames.has(selectedPlayerName.toLowerCase()))return;window.location.href="/friend-chat.html?friend="+encodeURIComponent(selectedPlayerName)});
 document.getElementById("playerAddFriendButton").addEventListener("click",()=>{const name=selectedPlayerName,lc=name.toLowerCase();if(!name||!socket||!joined||friendNames.has(lc))return;outgoingFriendRequests.add(lc);updatePlayerActions();socket.emit("friend:request",{toUsername:name});toast("მეგობრობის მოთხოვნა გაიგზავნა. პირად ჩატს მიღების შემდეგ გახსნი.",3600)});
 document.getElementById("playerAcceptFriendButton").addEventListener("click",()=>{if(!selectedPlayerName||!socket)return;socket.emit("friend:accept",{fromUsername:selectedPlayerName});toast("მეგობრობის მოთხოვნას ვიღებ...")});
@@ -213,7 +232,7 @@ document.querySelectorAll("[data-emote]").forEach(b=>b.addEventListener("click",
 function interact(){if(interior)return;open(target())}document.getElementById("touchInteract").addEventListener("click",interact);
 const held=new Set(),codeDir={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
 function updateKeys(){keys.x=(held.has("ArrowRight")||held.has("KeyD")?1:0)-(held.has("ArrowLeft")||held.has("KeyA")?1:0);keys.y=(held.has("ArrowDown")||held.has("KeyS")?1:0)-(held.has("ArrowUp")||held.has("KeyW")?1:0)}
-document.addEventListener("keydown",e=>{if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(codeDir[e.code]){e.preventDefault();held.add(e.code);updateKeys()}else if(e.code==="KeyE"||e.code==="Space"){e.preventDefault();interact()}else if(e.code==="Escape"){closeDialog();playerCard.hidden=true;if(interior)leaveInterior()}});
+document.addEventListener("keydown",e=>{if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(codeDir[e.code]){e.preventDefault();held.add(e.code);updateKeys()}else if(e.code==="KeyE"||e.code==="Space"){e.preventDefault();interact()}else if(e.code==="Escape"){closeDialog();playerCard.hidden=true;closeCityMessageComposer();if(interior)leaveInterior()}});
 document.addEventListener("keyup",e=>{held.delete(e.code);updateKeys()});addEventListener("blur",()=>{held.clear();updateKeys();keys.x=keys.y=0});document.addEventListener("visibilitychange",()=>{if(document.hidden){held.clear();updateKeys();keys.x=keys.y=0}});
 let touchHeld=false;document.querySelectorAll(".touch-pad [data-dir]").forEach(b=>{const vals={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]},start=e=>{e.preventDefault();touchHeld=true;b.classList.add("is-held");keys.x=vals[b.dataset.dir][0];keys.y=vals[b.dataset.dir][1]},stop=e=>{e.preventDefault();touchHeld=false;b.classList.remove("is-held");keys.x=keys.y=0};b.addEventListener("pointerdown",start);b.addEventListener("pointerup",stop);b.addEventListener("pointercancel",stop);b.addEventListener("pointerleave",stop)});
 function connect(){
@@ -236,10 +255,11 @@ function connect(){
  socket.on("city:joined",d=>{joined=true;self=d.self;self.serverX=self.x;self.serverY=self.y;remote.clear();(d.players||[]).forEach(p=>{if(p.id!==self.id)remote.set(p.id,Object.assign({},p,{targetX:p.x,targetY:p.y}))});presence("is-on","ქალაქში ხარ");refresh();drawMini();cue(760)});
  socket.on("city:error",d=>toast(d&&d.message||"ქალაქთან დაკავშირება ვერ მოხერხდა"));
  socket.on("city:snapshot",d=>{if(!self||!d||!Array.isArray(d.players))return;const seen=new Set();d.players.forEach(p=>{if(p.id===self.id){self.serverX=p.x;self.serverY=p.y;self.dir=p.dir;if(Math.hypot(keys.x,keys.y)<.01)self.action=p.action||"idle";return}seen.add(p.id);let old=remote.get(p.id);if(!old)old=Object.assign({},p,{targetX:p.x,targetY:p.y});old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.targetX=p.x;old.targetY=p.y;old.interiorId=p.interiorId||null;remote.set(p.id,old)});Array.from(remote.keys()).forEach(id=>{if(!seen.has(id))remote.delete(id)});onlineCount.textContent=String(remote.size+1)});
+ socket.on("city:message",d=>{if(!d||!d.id||typeof d.text!=="string")return;const p=self&&d.id===self.id?self:remote.get(d.id);if(!p)return;p.message=String(d.text).slice(0,120);p.messageUntil=Date.now()+5000});
  socket.on("city:emote",d=>{if(!d||!d.from)return;if(self&&d.from.id===self.id){self.action=d.emote;self.actionUntil=Date.now()+1200}if(self&&d.to&&d.to.id===self.id){self.action=d.emote==="highfive"?"highfive":"wave";self.actionUntil=Date.now()+1200}const a=remote.get(d.from.id);if(a){a.action=d.emote;a.actionUntil=Date.now()+1200}const t=remote.get(d.to&&d.to.id);if(t){t.action=d.emote==="highfive"?"highfive":"wave";t.actionUntil=Date.now()+1200}if(d.to&&self&&d.to.id===self.id)toast(d.emote==="wave"?d.from.name+" მოგესალმა 👋":d.from.name+" გთავაზობს high-five-ს 🖐");cue(590)});
  socket.connect()
 }
-setInterval(()=>{if(!socket||!joined||!self||interior)return;const active=cityDialog.hidden&&playerCard.hidden;socket.emit("city:input",{x:active?keys.x:0,y:active?keys.y:0})},45);
+setInterval(()=>{if(!socket||!joined||!self||interior)return;const active=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden;socket.emit("city:input",{x:active?keys.x:0,y:active?keys.y:0})},45);
 document.getElementById("fullscreenButton").addEventListener("click",()=>{const root=document.getElementById("cityApp");if(!document.fullscreenElement&&root.requestFullscreen)root.requestFullscreen().catch(()=>{});else if(document.exitFullscreen)document.exitFullscreen().catch(()=>{})});
 document.getElementById("soundButton").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-label",soundOn?"ხმოვანი ეფექტების გამორთვა":"ხმოვანი ეფექტების ჩართვა");e.currentTarget.title=soundOn?"ეფექტები ჩართულია":"ხმოვანი ეფექტები";e.currentTarget.textContent=soundOn?"♫":"♪";cue(660);toast(soundOn?"ხმოვანი ეფექტები ჩართულია":"ხმოვანი ეფექტები გამორთულია")});
 addEventListener("pagehide",()=>{if(socket&&joined)socket.emit("city:leave")});

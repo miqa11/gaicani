@@ -14056,7 +14056,7 @@ io.on("connection", (socket) => {
       name: String(socket._regUser.username).slice(0, 20),
       color: CITY_PALETTE[Math.abs(hash) % CITY_PALETTE.length],
       x: spawn.x, y: spawn.y, dir: "down", action: "idle", actionUntil: 0,
-      inputX: 0, inputY: 0, lastInputAt: 0, lastEmoteAt: 0, interiorId: null
+      inputX: 0, inputY: 0, lastInputAt: 0, lastEmoteAt: 0, lastMessageAt: 0, interiorId: null
     };
     cityPlayers.set(socket.id, p);
     socket.join(CITY_ROOM);
@@ -14072,6 +14072,21 @@ io.on("connection", (socket) => {
     const x = Number(data && data.x), y = Number(data && data.y);
     p.inputX = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
     p.inputY = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+  });
+
+  socket.on("city:message", (data, ack) => {
+    const p = cityFind(socket);
+    const reply = typeof ack === "function" ? ack : () => {};
+    if (!p) return reply({ error: "ქალაქში ჯერ არ ხარ." });
+    if (p.interiorId) return reply({ error: "ქუჩაში დაბრუნდი, რომ ქალაქში დაწერო." });
+    const now = Date.now();
+    if (now - p.lastMessageAt < 1200) return reply({ error: "ცოტა მოიცადე და სცადე თავიდან." });
+    const text = cleanShortText(data && data.text, 120);
+    if (!text) return reply({ error: "შეტყობინება ცარიელია." });
+    if (findBannedWord(text)) return reply({ error: ABUSE_WORD_MESSAGE });
+    p.lastMessageAt = now;
+    io.to(CITY_ROOM).emit("city:message", { id: p.id, name: p.name, text: text });
+    reply({ ok: true });
   });
 
   socket.on("city:interior", (data) => {
