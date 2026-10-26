@@ -37,7 +37,7 @@
     { id: "vinyl-club", x: 1590, y: 1325, w: 300, h: 195, name: "ვინილის კლუბი", sign: "VINYL", color: "#66e2ff", type: "music" },
     { id: "river-cafe", x: 2035, y: 1320, w: 300, h: 195, name: "სანაპიროს კაფე", sign: "მტკვარი", color: "#64ddff", type: "cafe" },
     { id: "blue-hour-apartments", x: 430, y: 120, w: 180, h: 190, name: "ლურჯი საათის სახლი", sign: "ლურჯი საათი", color: "#7588ff", type: "apartment" },
-    { id: "radio-bar", x: 1805, y: 115, w: 165, h: 195, name: "რადიო ბარი", sign: "FM 99", color: "#ff62c9", type: "music" },
+    { id: "radio-bar", x: 1805, y: 115, w: 165, h: 195, name: "რადიო ბარი", sign: "RADIO BAR", color: "#ff62c9", type: "bar", enterable: true },
     { id: "late-shop", x: 2360, y: 120, w: 125, h: 190, name: "ღამის პატარა მაღაზია", sign: "24/7", color: "#ffe36b", type: "shop" },
     { id: "bookshop", x: 505, y: 445, w: 230, h: 195, name: "ძველი წიგნების მაღაზია", sign: "წიგნები", color: "#e9a764", type: "shop" },
     { id: "repair-shop", x: 1060, y: 445, w: 185, h: 195, name: "საათების სახელოსნო", sign: "შეკეთება", color: "#59cfe3", type: "shop" },
@@ -66,7 +66,23 @@
     { id: "nino", name: "ნინო", role: "მცხობელი", x: 690, y: 1195, color: "#e56b52", line: "ცხელი პური ღამის ყველა საიდუმლოს იცნობს." },
     { id: "gio", name: "გიო", role: "არკადის ჩემპიონი", x: 1850, y: 1175, color: "#4dc6a0", line: "ერთი ცდა უფასოა. მეორე — თუ მართლა მაგარი ხარ." },
     { id: "mystery", name: "უცნობი", role: "ღამის მგზავრი", x: 1460, y: 1580, color: "#8070ca", line: "ძველ ტელეფონს მოუსმინე. ზოგჯერ ქალაქი გირეკავს." },
-    { id: "cat", name: "ფისო", role: "ეზოს კატა", x: 2210, y: 1190, color: "#eaa657", line: "მიააუ. თუ გამომყვები, იქნებ რამე ვიპოვოთ." }
+    { id: "cat", kind: "cat", name: "ფისო", role: "ეზოს კატა", x: 2210, y: 1190, color: "#eaa657", line: "მიააუ. თუ გამომყვები, იქნებ რამე ვიპოვოთ." },
+    { id: "maka", name: "მაკა", role: "ღამის ფოტოგრაფი", x: 840, y: 700, color: "#d95dba", wander: true, line: "წვიმის შემდეგ ნეონები ყველაზე ლამაზად ირეკლება." },
+    { id: "levan", name: "ლევანი", role: "ტაქსის მძღოლი", x: 1300, y: 730, color: "#43a9cb", wander: true, line: "ღამე გრძელია, მაგრამ კარგი მუსიკა გზას ამოკლებს." },
+    { id: "sandro", name: "სანდრო", role: "მუსიკის მოყვარული", x: 1960, y: 800, color: "#b77bf0", wander: true, line: "რადიო ბარისკენ მივდივარ — იქ დღეს კარგი ჩანაწერია." },
+    { id: "ana", name: "ანა", role: "ღამის მცხობელი", x: 300, y: 1140, color: "#ec8462", wander: true, line: "ღამის ბოლოს პირველი პური უკვე მზად მექნება." },
+    { id: "luka", name: "ლუკა", role: "მხატვარი", x: 1260, y: 1260, color: "#68bc90", wander: true, line: "ამ კედელზე ერთი პატარა ვარსკვლავი უნდა დავხატო." },
+    { id: "salome", name: "სალომე", role: "მოცეკვავე", x: 1980, y: 1130, color: "#e7679b", wander: true, line: "ვინილის კლუბიდან მუსიკა მდინარემდე ისმის." },
+    { id: "vato", name: "ვატო", role: "მეზობელი", x: 750, y: 1690, color: "#dfa750", wander: true, line: "ეზოში კატებს წყალი დავუტოვე. ამ სიცივეში სჭირდებათ." },
+    { id: "tea", name: "თეა", role: "ჩაის გამყიდველი", x: 2280, y: 700, color: "#76cfbd", wander: true, line: "პიტნის ჩაი გაქვს გასინჯული შუაღამისას?" }
+  ];
+  const animals = [
+    { id: "alley-cat", kind: "cat", x: 640, y: 710, color: "#d99761", phase: .4, roamX: 13, roamY: 5 },
+    { id: "blue-cat", kind: "cat", x: 1490, y: 695, color: "#8e91b9", phase: 2.1, roamX: 10, roamY: 7 },
+    { id: "bakery-dog", kind: "dog", x: 900, y: 1140, color: "#c58b5a", phase: 1.1, roamX: 16, roamY: 6 },
+    { id: "river-dog", kind: "dog", x: 2180, y: 1150, color: "#a8795b", phase: 3.2, roamX: 12, roamY: 8 },
+    { id: "courtyard-cat", kind: "cat", x: 700, y: 1260, color: "#e1bd79", phase: 4.5, roamX: 18, roamY: 5 },
+    { id: "vinyl-dog", kind: "dog", x: 1850, y: 1260, color: "#7865ab", phase: 2.7, roamX: 15, roamY: 6 }
   ];
   const props = [
     { id: "phone", kind: "phone", x: 1518, y: 765, label: "ძველი ტელეფონი", line: "ტელეფონი რეკავს... ხაზზე მხოლოდ მდინარის ხმაა." },
@@ -125,6 +141,6 @@
     return best;
   }
   return { width: width, height: height, tile: 48, districts: districts, buildings: buildings, landmarks: landmarks,
-    blockers: blockers, npcs: npcs, props: props, spawns: spawns, casino: casino, casinoIsWalkable: casinoIsWalkable,
+    blockers: blockers, npcs: npcs, animals: animals, props: props, spawns: spawns, casino: casino, casinoIsWalkable: casinoIsWalkable,
     isWalkable: isWalkable, districtAt: districtAt };
 });
