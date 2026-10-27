@@ -475,14 +475,6 @@
   <div id="dmInviteBar" class="dm-invite-bar"></div>
 </div>
 
-<div id="hotseatOverlay" class="local-pass-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="hotseatTitle">
-  <div class="local-pass-card">
-    <div class="local-pass-icon" aria-hidden="true">🔄</div>
-    <h2 class="local-pass-title" id="hotseatTitle">მოწყობილობა გადააწოდე მოთამაშეს</h2>
-    <p class="local-pass-copy">მოწყობილობა შესაბამის მოთამაშეს გადააწოდე და მზად რომ იქნები, დააჭირე ღილაკს.</p>
-    <button class="local-pass-ready" id="hotseatReady" type="button">მზად ვარ — ვიწყოთ</button>
-  </div>
-</div>
 <!-- Game-over overlay -->
 <div id="resultOverlay" class="dm-result-overlay">
   <div class="dm-result-box">
@@ -575,7 +567,7 @@
   let myColor = null; // 'r' | 'b' | null
   let selectedSquare = null;
   let timerInterval = null;
-  let localMode = false, localState = null, localLastMove = null, hotseatPaused = false;
+  let localMode = false, localState = null, localLastMove = null;
   const checkersLocalRules = window.GaicaniLocalRules.checkers;
 
   /* ── Leaderboard — top 3 by wins, same pattern as Flappy Bird's ──── */
@@ -945,7 +937,7 @@
   }
 
   function onSquareClick(square, legalFrom) {
-    if (animationInProgress || (localMode && hotseatPaused)) return; // let the current move finish animating before accepting the next tap
+    if (animationInProgress) return; // let the current move finish animating before accepting the next tap
     if (!latestRoom || latestRoom.status !== "playing" || latestRoom.result) return;
     if (myColor !== latestRoom.turn) { showToast("მოწინააღმდეგის სვლის რიგია"); return; }
     // Mid multi-jump: only the continuing piece may act.
@@ -991,18 +983,6 @@
         : null
     };
   }
-  function showHotseat(color) {
-    hotseatPaused = true;
-    $("hotseatTitle").textContent = "მოწყობილობა გადააწოდე " + (color === "r" ? "წითლებს" : "შავებს");
-    $("hotseatOverlay").hidden = false;
-    $("hotseatOverlay").classList.add("show");
-  }
-  function hideHotseat() {
-    hotseatPaused = false;
-    $("hotseatOverlay").classList.remove("show");
-    $("hotseatOverlay").hidden = true;
-  }
-  $("hotseatReady").addEventListener("click", hideHotseat);
   function startLocalGame() {
     localMode = true; localState = checkersLocalRules.newGameState(); localLastMove = null;
     currentRoomId = null; latestRoom = null; selectedSquare = null;
@@ -1011,23 +991,19 @@
     $("chatMessages").innerHTML = "";
     clearTimerInterval();
     history.replaceState(null, "", "/checkers.html?local=1");
-    hideHotseat();
     showScreen("game");
     renderGame(checkersLocalRoom());
   }
   $("localGameBtn").addEventListener("click", startLocalGame);
   function playLocalCheckersMove(from, to) {
-    if (!localMode || hotseatPaused || animationInProgress || !localState) return;
+    if (!localMode || animationInProgress || !localState) return;
     const chosen = checkersLocalRules.legalMoves(localState).find(m => m.from === from && m.to === to);
     if (!chosen) { showToast("ეს სვლა არ შეიძლება"); return; }
-    const previousTurn = localState.turn;
     localState = checkersLocalRules.applyMove(localState, chosen);
     localLastMove = checkersLocalRules.buildLastMove([chosen]);
     selectedSquare = localState.mustContinueFrom;
     const room = checkersLocalRoom();
     renderGame(room);
-    if (room.result) hideHotseat();
-    else if (localState.turn !== previousTurn) showHotseat(localState.turn);
   }
 
   function countPieces(board, color) {
@@ -1212,7 +1188,6 @@
     latestRoom = null;
     selectedSquare = null;
     localMode = false; localState = null; localLastMove = null;
-    hideHotseat();
     animationInProgress = false; lastAnimatedMoveKey = null;
     $("dmAnimLayer").innerHTML = "";
     clearTimerInterval();

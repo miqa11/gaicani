@@ -423,14 +423,6 @@
   <div class="cs-promo-box" id="promoChoices"></div>
 </div>
 
-<div id="hotseatOverlay" class="local-pass-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="hotseatTitle">
-  <div class="local-pass-card">
-    <div class="local-pass-icon" aria-hidden="true">🔄</div>
-    <h2 class="local-pass-title" id="hotseatTitle">მოწყობილობა გადააწოდე მოთამაშეს</h2>
-    <p class="local-pass-copy">მოწყობილობა შესაბამის მოთამაშეს გადააწოდე და მზად რომ იქნები, დააჭირე ღილაკს.</p>
-    <button class="local-pass-ready" id="hotseatReady" type="button">მზად ვარ — ვიწყოთ</button>
-  </div>
-</div>
 <!-- Game-over overlay -->
 <div id="resultOverlay" class="cs-result-overlay">
   <div class="cs-result-box">
@@ -541,7 +533,7 @@
   let selectedSquare = null; // square index currently selected for a move
   let pendingPromotion = null; // { from, to } awaiting a piece choice
   let timerInterval = null;
-  let localMode = false, localState = null, localLastMove = null, hotseatPaused = false;
+  let localMode = false, localState = null, localLastMove = null;
   const chessLocalRules = window.GaicaniLocalRules.chess;
 
   /* ── Leaderboard — top 3 by wins, same pattern as Flappy Bird's ──── */
@@ -824,7 +816,7 @@
 
   function onSquareClick(square, legalFrom) {
     if (!latestRoom || latestRoom.status !== "playing" || latestRoom.result) return;
-    if (pendingMove || (localMode && hotseatPaused)) return;   // wait for the local pass screen or online confirmation
+    if (pendingMove) return;   // wait for online confirmation
     if (myColor !== latestRoom.turn) { showToast("მოწინააღმდეგის სვლის რიგია"); return; }
 
     if (selectedSquare !== null && legalFrom.has(selectedSquare)) {
@@ -913,18 +905,6 @@
       lastMove: localLastMove
     };
   }
-  function showHotseat(color) {
-    hotseatPaused = true;
-    $("hotseatTitle").textContent = "მოწყობილობა გადააწოდე " + (color === "w" ? "თეთრებს" : "შავებს");
-    $("hotseatOverlay").hidden = false;
-    $("hotseatOverlay").classList.add("show");
-  }
-  function hideHotseat() {
-    hotseatPaused = false;
-    $("hotseatOverlay").classList.remove("show");
-    $("hotseatOverlay").hidden = true;
-  }
-  $("hotseatReady").addEventListener("click", hideHotseat);
   function startLocalGame() {
     localMode = true; localState = chessLocalRules.newGameState(); localLastMove = null;
     currentRoomId = null; latestRoom = null; selectedSquare = null; pendingPromotion = null;
@@ -933,27 +913,23 @@
     $("promoModal").classList.remove("show");
     $("chatMessages").innerHTML = "";
     history.replaceState(null, "", "/chess.html?local=1");
-    hideHotseat();
     showScreen("game");
     renderGame(chessLocalRoom());
   }
   $("localGameBtn").addEventListener("click", startLocalGame);
   function playLocalChessMove(from, to, promotion) {
-    if (!localMode || hotseatPaused || !localState) return;
+    if (!localMode || !localState) return;
     const candidates = chessLocalRules.legalMoves(localState).filter(m => m.from === from && m.to === to);
     const chosen = promotion
       ? candidates.find(m => m.promotion === promotion)
       : candidates.find(m => !m.promotion);
     if (!chosen) { showToast("ეს სვლა არ შეიძლება"); return; }
-    const previousTurn = localState.turn;
     localState = chessLocalRules.applyMove(localState, chosen);
     localLastMove = { from: squareName(from), to: squareName(to) };
     selectedSquare = null; pendingPromotion = null;
     $("promoModal").classList.remove("show");
     const room = chessLocalRoom();
     renderGame(room);
-    if (room.result) hideHotseat();
-    else if (localState.turn !== previousTurn) showHotseat(localState.turn);
   }
   function capturedGlyphs(board, forColor) {
     // Derive captured-by-me pieces: starting counts minus what's left on the
@@ -1147,7 +1123,6 @@
     latestRoom = null;
     selectedSquare = null;
     localMode = false; localState = null; localLastMove = null;
-    hideHotseat();
     clearTimerInterval();
     $("resultOverlay").classList.remove("show"); // it's a fixed full-screen overlay — must be dismissed explicitly, or it just sits on top of the setup screen looking like nothing happened
     $("chatMessages").innerHTML = "";
