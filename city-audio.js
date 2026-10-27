@@ -33,6 +33,7 @@
     catch (_) { return normalizePreferences(); }
   }
   function spatial(listener) {
+    if(listener?.carRadio && listener.carRadio.station !== 'off') return {gain:.8,pan:0,distance:0};
     if (!listener || !listener.inGarden || listener.interior || !Number.isFinite(listener.x) || !Number.isFinite(listener.y)) return { gain: 0, pan: 0, distance: Infinity };
     const garden = listener.garden || {}, floor = garden.danceFloor || { x: 1040, y: 2260, w: 680, h: 520 };
     const dj = garden.dj || { x: 1200, y: 2070, w: 360, h: 120 };
@@ -84,6 +85,7 @@
   }
 
   let preferences = readPreferences(), tracks = originalTracks, epoch = Date.now(), listener = { inGarden: false }, spatialState = spatial(listener);
+  let gardenTracks=originalTracks,sourceKey='garden';
   let context = null, musicGain = null, effectsGain = null, panner = null, lowpass = null, compressor = null, noise = null;
   let unlocked = false, disposed = false, timer = null, lastMixAt = 0, targetGain = 0, settingsPanel = null, muteButton = null, settingsButton = null;
   const scheduledSteps = createScheduleLedger();
@@ -232,7 +234,11 @@
   }
   function update(value) {
     listener = Object.assign({}, value || {});
-    if (Number.isFinite(value?.gardenEpoch) && value.gardenEpoch !== epoch) { epoch = value.gardenEpoch; stopVoices(); scheduledSteps.clear(); }
+    const radio=value?.carRadio, index=['boom-bap','rnb','club'].indexOf(radio?.station),key=index>=0?'car:'+radio.vehicleId+':'+radio.station:'garden';
+    const nextEpoch=index>=0?radio.epoch:value?.gardenEpoch;
+    if(key!==sourceKey || (Number.isFinite(nextEpoch)&&nextEpoch!==epoch)){
+      sourceKey=key;tracks=index>=0?[originalTracks[index]]:gardenTracks;epoch=Number.isFinite(nextEpoch)?nextEpoch:epoch;stopVoices();scheduledSteps.clear();
+    }
     mix(false);
   }
   function cue(frequency) {
@@ -247,7 +253,12 @@
     try { root.localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences)); } catch (_) {}
     mix(true); refreshControls();
   }
-  function configureTracks(value) { tracks = validateTracks(value); mediaTrackId = ""; stopVoices(); scheduledSteps.clear(); refreshControls(); }
+  function configureTracks(value) { gardenTracks = validateTracks(value); if(sourceKey==='garden')tracks=gardenTracks; mediaTrackId = ""; stopVoices(); scheduledSteps.clear(); refreshControls(); }
+  function horn(level=1) {
+    if(!context||context.state!=='running'||preferences.muted||!preferences.effects||root.document?.hidden)return;
+    const at=context.currentTime;
+    for(const frequency of [330,415]){const oscillator=context.createOscillator(),gain=context.createGain();oscillator.type='triangle';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.06*clamp(level,0,1),at);gain.gain.exponentialRampToValueAtTime(.0001,at+.24);connectVoice(oscillator,[gain],effectsGain,at+.25,at);}
+  }
   function getBeat(now) { return transport(epoch, Number.isFinite(now) ? now : Date.now(), tracks); }
   function getState() {
     const time = getBeat();
@@ -275,7 +286,7 @@
     }
     settingsPanel.querySelector(".city-audio-mute").textContent = preferences.muted ? "ხმის ჩართვა" : "ყველა ხმის გამორთვა";
     const status = settingsPanel.querySelector(".city-audio-status");
-    const statusText = !(root.AudioContext || root.webkitAudioContext) ? "ამ ბრაუზერში ხმა მიუწვდომელია" : !unlocked ? "ხმა დაიწყება სამყაროსთან შეხებისას" : preferences.muted ? "ხმა გამორთულია" : "ხმა ჩართულია · მუსიკა მხოლოდ ბაღში";
+    const statusText = !(root.AudioContext || root.webkitAudioContext) ? "ამ ბრაუზერში ხმა მიუწვდომელია" : !unlocked ? "ხმა დაიწყება სამყაროსთან შეხებისას" : preferences.muted ? "ხმა გამორთულია" : "ხმა ჩართულია · ბაღის მუსიკა და მანქანის რადიო";
     if (status.textContent !== statusText) status.textContent = statusText;
     refreshTrackLabel();
   }
@@ -322,6 +333,6 @@
     root.document.addEventListener("visibilitychange", visibility);
     root.addEventListener("pagehide", event => { if (!event.persisted) dispose(); });
   }
-  return { update, cue, unlock, getBeat, getState, mountControls, configureTracks, setPreferences: savePreferences, dispose,
+  return { update, cue, horn, unlock, getBeat, getState, mountControls, configureTracks, setPreferences: savePreferences, dispose,
     model: { defaults, originalTracks, normalizePreferences, spatial, transport, validateTracks, createScheduleLedger } };
 });

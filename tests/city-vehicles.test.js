@@ -22,12 +22,14 @@ test("entry requires proximity and an available vehicle; release frees it", () =
   assert.ok(garage.enter(distant, "lada-2106").error);
   assert.ok(garage.enter(driver, "missing").error);
   assert.ok(garage.enter(driver, "lada-2106").ok);
-  assert.ok(garage.enter(other, "lada-2106").error);
+  assert.ok(garage.enter(other, "lada-2106").ok);
+  assert.equal(other.vehicleSeat, 1);
+  assert.ok(garage.enter(other, "lada-2106").error, "cannot occupy two seats");
   assert.equal(driver.vehicleId, "lada-2106");
   assert.ok(garage.release(driver, true).ok);
   assert.equal(driver.vehicleId, null);
   assert.ok(world.isWalkable(driver.x, driver.y, 11));
-  assert.ok(garage.enter(other, "lada-2106").ok);
+  assert.ok(garage.takeDriver(other).ok);
   assert.ok(garage.release(other, false).ok);
   assert.equal(garage.find("lada-2106").driverId, null);
 });
@@ -59,7 +61,7 @@ test("cars stop before parked traffic and stay off buildings and the river", () 
   assert.ok(car.x < 925, "must stop before the taxi at x980");
   assert.equal(vehicles.isDriveable(world, 800, 500, car.radius, fleet, car.id, "right"), false);
   assert.equal(vehicles.isDriveable(world, 2570, 780, car.radius, fleet, car.id, "right"), false);
-  assert.equal(vehicles.isDriveable(world, 610, 700, car.radius, fleet, car.id, "right"), false);
+  assert.equal(vehicles.isDriveable(world, 610, 700, car.radius, fleet, car.id, "right"), true);
   // Rotating beside the taxi must account for the car's longer vertical body.
   assert.equal(vehicles.isDriveable(world, 980, 744, car.radius, fleet, car.id, "right"), true);
   assert.equal(vehicles.isDriveable(world, 980, 744, car.radius, fleet, car.id, "up"), false);

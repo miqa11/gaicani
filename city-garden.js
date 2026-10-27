@@ -90,7 +90,7 @@
       box(g, "#26384d", t.x - 2, t.y - 18, 4, 36); [-24, 20].forEach(x => { box(g, "#e8b95c", t.x + x, t.y - 12, 10, 13); box(g, "#fff3ce", t.x + x, t.y - 13, 10, 3); });
       box(g, "#f16bb5", t.x - 6, t.y + 4, 12, 6); box(g, "#a0f8cf", t.x - 3, t.y - 4, 4, 12);
     });
-    garden.seats.forEach(s => seat(g, s)); garden.trees.forEach((t, i) => tree(g, t.x, t.y, i));
+    garden.seats.forEach(s => seat(g, s));
     garden.corners.forEach((c, i) => { neon(g, i ? "SIDE B · QUIET CORNER" : "WILLOW LOUNGE", c.x + c.w / 2, c.y - 22, c.w, colors[i + 1], 12); });
     [1950, 2440, 2890, 3180].forEach((y, row) => {
       g.strokeStyle = "#0a1022"; g.lineWidth = 2; g.beginPath(); g.moveTo(165, y); g.quadraticCurveTo(1280, y + 45, 2390, y); g.stroke();
@@ -168,7 +168,7 @@
   }
   function updateUi() {
     if (!bridge || !panel) return;
-    const p = bridge.self(), world = root.GaicaniCityWorld, connected = !!(socket?.connected && bridge.joined()), busy = !!(p?.gameId || root.GaicaniCityGames?.active || root.GaicaniCityGames?.blocksMovement), here = !!(connected && p && !p.interiorId && !p.rideId && !busy && world.gardenContains(p.x, p.y));
+    const p = bridge.self(), world = root.GaicaniCityWorld, connected = !!(socket?.connected && bridge.joined()), busy = !!(p?.vehicleId || p?.gameId || root.GaicaniCityGames?.active || root.GaicaniCityGames?.blocksMovement), here = !!(connected && p && !p.interiorId && !p.rideId && !busy && world.gardenContains(p.x, p.y));
     panel.hidden = !here; document.getElementById("gardenWayfinder").hidden = here || busy || !!p?.interiorId || !!p?.rideId || !p || !connected;
     if (!here) return;
     const floor = world.gardenDanceFloorContains(p.x, p.y), seated = !!p.gardenSeatId, dancing = !!p.gardenDance;
@@ -207,5 +207,5 @@
     socket.on("disconnect", () => { panel.hidden = true; wayfinder.hidden = true; });
     setInterval(updateUi, 180);
   }
-  root.GaicaniCityGarden = { drawStatic, drawDynamic, drawPerson, setState, mount, command, nearestSeat, getEpoch: () => state.epoch };
+  root.GaicaniCityGarden = { drawTree:tree, drawStatic, drawDynamic, drawPerson, setState, mount, command, nearestSeat, getEpoch: () => state.epoch };
 })(typeof window !== "undefined" ? window : globalThis);
