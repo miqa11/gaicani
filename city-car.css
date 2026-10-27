@@ -1,0 +1,19 @@
+#carOptions { grid-column:1/-1; max-height:280px; overflow:auto; border-top:1px solid #efd49344; padding-top:8px; }
+#vehicleHud [hidden],.car-notice[hidden],.car-messages[hidden] { display:none; }
+#vehicleHud { max-width:min(390px,calc(100% - 24px)); }
+#vehicleHud button,#vehicleHud select { min-height:44px; }
+#carMore { grid-column:1/-1; grid-row:auto; }
+#carOptions button { grid-column:auto; grid-row:auto; }
+#carSeats>div { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:32px; font-size:11px; }
+#carSeats span { overflow-wrap:anywhere; }
+.car-actions,#carInviteRow { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+#carSettings label { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:6px 0; font-size:11px; }
+#vehicleHud select { min-width:0; max-width:100%; background:#171d30; color:#ffefd3; border:1px solid #a18b6577; border-radius:6px; padding:5px; font-size:12px; }
+#carInviteTarget { flex:1; }
+.car-notice { position:absolute; z-index:12; left:50%; top:110px; transform:translateX(-50%); width:min(460px,calc(100% - 24px)); background:#171b31f5; border:1px solid #ffd18b; border-radius:9px; padding:12px; color:#fff0d3; display:flex; align-items:center; gap:8px; font-size:12px; }
+.car-notice span { flex:1; }
+.car-notice button { min-height:44px; min-width:44px; background:#49354b; color:white; border:1px solid #d8bda0; border-radius:7px; }
+.car-messages { position:absolute; top:130px; left:12px; max-width:min(360px,calc(100% - 24px)); z-index:6; background:#13182ee8; border-left:2px solid #f9d18c; padding:8px 12px; pointer-events:none; }
+.car-messages p { margin:4px 0; font-size:12px; color:#fff0da; overflow-wrap:anywhere; }
+@media(max-width:700px),(any-pointer:coarse) { #carOptions { max-height:150px; } #vehicleHud { max-height:calc(100% - var(--touch-size,116px) - 112px); overflow:auto; } }
+@media(orientation:landscape) and (max-height:560px) { #vehicleHud { max-height:calc(100% - 86px); } #carOptions { max-height:120px; } #vehicleHud small { display:block; } }

@@ -92,7 +92,7 @@ test("casino, vehicle and activity transitions get new epochs and cannot replay 
   const car = controller.view(player, 80);
   assert.equal(car.vehicleId, "lada-2106"); assert.equal(car.mode, "world");
   const drive = controller.process(player, { epoch: car.epoch, commands: [command(1, 1, 0, 50)] }, 130);
-  assert.ok(Math.abs(drive.x - 625) < .00001);
+  assert.ok(drive.x > 610 && drive.x < 625, "car accelerates from rest rather than jumping to maximum speed");
   player.gameId = "game"; player.action = "phone";
   const blocked = controller.view(player, 140);
   assert.equal(blocked.blocked, true);

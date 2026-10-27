@@ -13,8 +13,8 @@ function createCityMotionController(world, garage) {
       mode,
       x: mode === "casino" ? player.casinoX : player.x,
       y: mode === "casino" ? player.casinoY : player.y,
-      key: [player.interiorId || "", player.rideId || "", player.gameId || "", player.vehicleId || "", player.gardenSeatId || ""].join("|"),
-      blocked: !!(player.rideId || player.gameId || player.gardenSeatId || (player.interiorId && mode !== "casino"))
+      key: [player.interiorId || "", player.rideId || "", player.gameId || "", player.vehicleId || "", player.vehicleSeat ?? "", player.gardenSeatId || ""].join("|"),
+      blocked: !!(player.rideId || player.gameId || player.gardenSeatId || player.vehicleSeat > 0 || garage.canDrive?.(player)===false || (player.interiorId && mode !== "casino"))
     };
   }
   function ensure(player, now) {
@@ -34,12 +34,14 @@ function createCityMotionController(world, garage) {
     const state = ensure(player, now);
     return { epoch: state.epoch, seq: state.seq, mode: state.mode, x: state.x, y: state.y,
       dir: player.dir || "down", action: player.action || "idle", vehicleId: player.vehicleId || null, blocked: state.blocked,
+      vehicleSeat:player.vehicleSeat??null,vehicleAngle:player.vehicleAngle,vehicleSpeed:player.vehicleSpeed||0,
       gardenDance: player.gardenDance || null, gardenSeatId: player.gardenSeatId || null, gardenSeatKind: player.gardenSeatKind || null };
   }
   function active(player) { return !!states.get(player)?.active; }
   function maintain(player, now) {
     const state = ensure(player, now);
     if (state.active && !(player.actionUntil > now)) {
+      if(player.vehicleId && now - state.lastCommandAt > 500) garage.brake(player);
       if (player.gardenSeatId) player.action = "sit";
       else if (player.gardenDance) player.action = "dance";
       else if (!state.blocked && now - state.lastCommandAt > 500) player.action = "idle";
@@ -72,11 +74,13 @@ function createCityMotionController(world, garage) {
       const elapsed = Math.min(command.dt, state.budget);
       state.budget -= elapsed;
       const next = motion.step(world, { x: state.x, y: state.y, dir: player.dir,
-        vehicleId: player.vehicleId, mode: state.mode, blocked: state.blocked }, command, elapsed, garage.list());
+        vehicleId: player.vehicleId, vehicleSeat:player.vehicleSeat, vehicleAngle:player.vehicleAngle, vehicleSpeed:player.vehicleSpeed||0, mode: state.mode, blocked: state.blocked }, command, elapsed, garage.list(), garage.obstacles?.());
       if (state.mode === "casino") { player.casinoX = next.x; player.casinoY = next.y; }
       else { player.x = next.x; player.y = next.y; }
       state.x = next.x; state.y = next.y; state.seq = command.seq;
       player.dir = next.dir;
+      if(Number.isFinite(next.vehicleAngle))player.vehicleAngle=next.vehicleAngle;
+      if(Number.isFinite(next.vehicleSpeed))player.vehicleSpeed=next.vehicleSpeed;
       state.lastCommandAt = at;
       if (!state.blocked && !(player.actionUntil > at)) player.action = next.moving ? (player.vehicleId ? "drive" : "walk") : player.gardenDance ? "dance" : "idle";
       if (player.vehicleId) garage.sync(player);

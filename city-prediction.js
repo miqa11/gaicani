@@ -7,7 +7,7 @@
   if (root) root.GaicaniCityPrediction = api;
 })(typeof window !== "undefined" ? window : globalThis, function (motion) {
   "use strict";
-  function create(world, getFleet) {
+  function create(world, getFleet, getPeople = () => []) {
     let epoch = null, sequence = 0, confirmed = -1, state = null, pending = [], unsent = [];
     function clear() { epoch = null; sequence = 0; confirmed = -1; state = null; pending = []; unsent = []; }
     function accept(view) {
@@ -20,10 +20,10 @@
       pending = pending.filter(input => input.seq > confirmed);
       unsent = unsent.filter(input => input.seq > confirmed);
       state = { x: view.x, y: view.y, dir: view.dir || "down", mode: view.mode || "world",
-        vehicleId: view.vehicleId || null, blocked: !!view.blocked, moving: false, action: view.action || "idle" };
+        vehicleId: view.vehicleId || null, vehicleSeat:view.vehicleSeat, vehicleAngle:view.vehicleAngle, vehicleSpeed:view.vehicleSpeed||0, blocked: !!view.blocked, moving: false, action: view.action || "idle" };
       const fleet = getFleet();
       for (const input of pending) {
-        Object.assign(state, motion.step(world, state, input, input.dt, fleet));
+        Object.assign(state, motion.step(world, state, input, input.dt, fleet, getPeople()));
         state.action = state.moving ? (state.vehicleId ? "drive" : "walk") : "idle";
       }
       return true;
@@ -31,7 +31,7 @@
     function predict(input, elapsed) {
       if (!state || pending.length >= 240) return null;
       const command = { seq: ++sequence, x: input.x, y: input.y, dt: Math.max(1, Math.min(50, elapsed)) };
-      Object.assign(state, motion.step(world, state, command, command.dt, getFleet()));
+      Object.assign(state, motion.step(world, state, command, command.dt, getFleet(), getPeople()));
       state.action = state.moving ? (state.vehicleId ? "drive" : "walk") : "idle";
       pending.push(command); unsent.push(command);
       return state;

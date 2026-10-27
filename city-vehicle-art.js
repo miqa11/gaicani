@@ -5,7 +5,7 @@
   function draw(g, vehicle, now, options) {
     const o = options || {}, van = vehicle.kind === "minibus" || vehicle.kind === "van";
     const length = van ? 72 : 56, width = van ? 32 : 28;
-    const angle = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[vehicle.dir] || 0;
+    const angle = Number.isFinite(vehicle.angle)?vehicle.angle:({ right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[vehicle.dir] || 0);
     const x = Math.round(o.x === undefined ? vehicle.x : o.x), y = Math.round(o.y === undefined ? vehicle.y : o.y);
     g.save(); g.translate(x, y);
     g.fillStyle = "#05071399"; g.beginPath(); g.ellipse(2, 9, length * .58, width * .68, 0, 0, Math.PI * 2); g.fill();
@@ -43,11 +43,16 @@
     });
     rect(g, "#f7e9c9", -l - 2, -3, 2, 6);
     rect(g, "#a2bed0", l - 13, -w - 3, 4, 3); rect(g, "#a2bed0", l - 13, w, 4, 3);
+    const transition=vehicle.transition,progress=transition?(Date.now()-transition.at)/transition.duration:2;
+    if(progress>=0&&progress<1){rect(g,vehicle.color,-9,-w-10,17,3);rect(g,'#a6e6e5',-7,-w-9,13,2);}
+    (vehicle.seats||[]).forEach(seat=>{if(!seat.playerId||(transition?.playerId===seat.playerId&&progress<1))return;rect(g,'#121a2e',seat.x-5,seat.y-5,10,10);rect(g,seat.color||'#a9e3f5',seat.x-4,seat.y,8,4);rect(g,'#efbd98',seat.x-3,seat.y-4,6,5);rect(g,'#342138',seat.x-3,seat.y-5,6,2);});
     g.restore();
+    if(progress>=0&&progress<1){const px=transition.from.x+(transition.to.x-transition.from.x)*progress,py=transition.from.y+(transition.to.y-transition.from.y)*progress;rect(g,'#efbd98',px-4,py-16,8,8);rect(g,transition.color||'#b78bec',px-6,py-8,12,12);rect(g,'#242237',px-5,py+4,4,7);rect(g,'#242237',px+1,py+4,4,7);}
     if (o.available || o.self) {
       g.save(); g.textAlign = "center"; g.textBaseline = "middle";
       g.font = '700 9px "Noto Sans Georgian", sans-serif';
-      const text = o.self ? vehicle.model + " · " + o.driverName : "F · " + vehicle.model;
+      const occupants=(vehicle.seats||[]).filter(s=>s.playerId);
+      const text = (o.self?vehicle.model:'F · Get In') + ' · ' + (occupants.length?occupants.map(s=>s.name).join(', '):vehicle.model);
       const tw = Math.min(220, g.measureText(text).width + 16), yy = y - (vehicle.dir === "up" || vehicle.dir === "down" ? length / 2 + 14 : width / 2 + 16);
       rect(g, "#080d20eb", x - tw / 2, yy - 10, tw, 20);
       g.strokeStyle = o.self ? "#76f1dd" : "#ffd58b"; g.lineWidth = 1; g.strokeRect(x - tw / 2, yy - 10, tw, 20);

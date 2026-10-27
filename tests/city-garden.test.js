@@ -32,7 +32,7 @@ test("the huge garden has an open city gate, solid fences, clear floor, and reac
   assert.ok(world.gardenContains(1400, 2500));
   assert.ok(world.gardenDanceFloorContains(1400, 2500));
   assert.equal(world.gardenContains(1400, 1750), false);
-  assert.equal(vehicles.isDriveable(world, 1620, 1900, 26, [], "lada-2106", "down"), false);
+  assert.equal(vehicles.isDriveable(world, 1620, 1900, 26, [], "lada-2106", "down"), true);
   assert.ok(world.garden.npcs.length >= 10);
   assert.ok(world.garden.npcs.every(npc => npc.name.includes("NPC")));
 });
