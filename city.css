@@ -96,6 +96,35 @@ kbd { min-width: 18px; height: 19px; padding: 2px 4px; border: 1px solid #6e629d
 .city-tip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #a9a6c4; font-size: 10px; text-align: center; }
 .city-exit { justify-self: end; font-size: 11px; }
 .touch-controls { display: none; }
+.city-vehicle-hud {
+  position: absolute; left: 18px; bottom: 68px; z-index: 4;
+  display: grid; grid-template-columns: 1fr auto; gap: 5px 14px;
+  max-width: calc(100% - 36px); min-width: 260px; padding: 12px 14px;
+  border: 1px solid #d0a76c80; border-left: 3px solid #ffd58b;
+  border-radius: 8px; background: linear-gradient(120deg, #13172bf5, #11101fee);
+  box-shadow: 0 8px 28px #0008, 0 0 24px #ffc77812;
+}
+.city-vehicle-hud[hidden], .city-vehicle-hud button[hidden] { display: none; }
+.vehicle-kicker { grid-column: 1 / -1; color: #ffd58b; font: 7px "Press Start 2P", monospace; letter-spacing: .05em; }
+.city-vehicle-hud strong { align-self: center; color: #fff2d9; font-size: 13px; letter-spacing: .06em; }
+.city-vehicle-hud small { grid-column: 1 / -1; color: #b8b3c9; font-size: 9px; }
+.city-vehicle-hud button {
+  grid-column: 2; grid-row: 2; padding: 9px 12px; border: 1px solid #ffd58b99;
+  border-radius: 5px; background: #f0bf6120; color: #ffdfaa; font-size: 11px;
+  font-weight: 700; cursor: pointer; touch-action: manipulation;
+}
+.city-vehicle-hud button:hover { background: #f0bf6140; border-color: #ffe8b8; }
+.city-vehicle-hud button:focus-visible { outline: 2px solid #fff4d2; outline-offset: 3px; }
+.city-vehicle-hud button:disabled { opacity: .55; cursor: wait; }
+@media (max-width: 700px) {
+  .city-vehicle-hud { left: auto; right: 10px; bottom: 180px; min-width: 0; width: min(275px, calc(100% - 28px)); gap: 5px 9px; padding: 10px 12px; }
+  .city-vehicle-hud strong { font-size: 11px; }
+  .city-vehicle-hud button { font-size: 10px; min-height: 40px; }
+}
+@media (max-height: 520px) and (min-width: 560px) {
+  .city-vehicle-hud { left: auto; right: 88px; bottom: 12px; min-width: 245px; padding: 8px 10px; }
+  .city-vehicle-hud small { display: none; }
+}
 @media (max-width: 700px) {
   .city-app { grid-template-rows: 56px minmax(0,1fr) 48px; }
   .city-topbar { gap: 7px; padding: 0 11px; }
