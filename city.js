@@ -7,6 +7,10 @@ const locationPill=document.getElementById("locationPill"), cityToast=document.g
 const keys={x:0,y:0}, remote=new Map(), rain=[];
 const V=window.GaicaniCityVehicles, fleet=new Map();
 let vehiclePending=false;
+const predictor=window.GaicaniCityPrediction.create(W,()=>Array.from(fleet.values()));
+let motionInput={x:0,y:0},lastMotionSendAt=0;
+let phoneMode=false,renderDpr=1,viewWidth=1,viewHeight=1;
+function inView(x,y,pad=72){return x>=camera.x-pad&&y>=camera.y-pad&&x<=camera.x+viewWidth+pad&&y<=camera.y+viewHeight+pad}
 let socket=null, joined=false, self=null, selfName="ღამის მგზავრი", camera={x:0,y:0}, nearby=null, interior=null, signals=[], notes=[], noteFlights=[], activeDuels=[], ride=null, composerMode="city", messageTargetId=null;
 let toastTimer=0,lastMiniAt=0,lastDistrict="",soundOn=false,audioCtx=null,selectedPlayerName="",recentDuel=null,touchHeld=false;
 const friendNames=new Set(),incomingFriendRequests=new Set(),outgoingFriendRequests=new Set();
@@ -14,8 +18,13 @@ function safe(fn,fallback){try{return fn()}catch(_){return fallback}}
 function presence(state,label){if(dot&&dot.parentElement)dot.parentElement.className="city-presence "+state;connection.textContent=label}
 function toast(message,ms){cityToast.textContent=message;cityToast.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>cityToast.hidden=true,ms||2500)}
 function cue(freq){if(!soundOn)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;audioCtx=audioCtx||new A();if(audioCtx.state==="suspended")audioCtx.resume();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="square";o.frequency.value=freq||580;g.gain.setValueAtTime(.04,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.12);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.13)}catch(_){}}
-function resize(){const r=stage.getBoundingClientRect(),d=Math.min(2,devicePixelRatio||1);canvas.width=Math.max(1,Math.round(r.width*d));canvas.height=Math.max(1,Math.round(r.height*d));ctx.imageSmoothingEnabled=false}
+function resize(){
+ const r=stage.getBoundingClientRect();phoneMode=matchMedia("(any-pointer: coarse)").matches||r.width<=700;
+ renderDpr=Math.min(phoneMode?1:2,devicePixelRatio||1);viewWidth=Math.max(1,Math.round(r.width));viewHeight=Math.max(1,Math.round(r.height));
+ canvas.width=Math.round(viewWidth*renderDpr);canvas.height=Math.round(viewHeight*renderDpr);ctx.imageSmoothingEnabled=false;
+}
 addEventListener("resize",resize,{passive:true});resize();
+if(window.ResizeObserver)new ResizeObserver(resize).observe(stage);
 function hash(x,y){let n=(x*374761393+y*668265263)|0;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967295}
 function label(c,s,x,y,size,color,align){c.fillStyle=color||"#fff";c.textAlign=align||"left";c.textBaseline="middle";c.font='700 '+size+'px "Noto Sans Georgian",sans-serif';c.fillText(s,x,y)}
 function drawPixelBuilding(g,b,i){window.GaicaniCityArchitecture.drawBuilding(g,b,i)}
@@ -120,7 +129,6 @@ function nearestVehicle(){
  if(!self||!joined||interior||ride||self.vehicleId||self.gameId)return null;
  let best=null,distance=91;fleet.forEach(v=>{const d=Math.hypot(v.x-self.x,v.y-self.y);if(!v.driverId&&d<distance){best=v;distance=d}});return best;
 }
-function vehicleWalkable(x,y,radius,dir){return V.isDriveable(W,x,y,radius,Array.from(fleet.values()),self?.vehicleId,dir||self?.dir)}
 function toggleVehicle(){
  if(vehiclePending||!self||!joined||interior||ride||!cityDialog.hidden||!playerCard.hidden||!cityMessageComposer.hidden||window.GaicaniCityGames?.active||window.GaicaniCityGames?.blocksMovement||window.GaicaniArcadeUI?.blocksMovement)return;
  const v=self.vehicleId?fleet.get(self.vehicleId):nearestVehicle();
@@ -130,7 +138,7 @@ function toggleVehicle(){
  socket.emit(exiting?"city:vehicle:exit":"city:vehicle:enter",exiting?{}:{vehicleId:v.id},r=>{
   clearTimeout(timer);vehiclePending=false;if(!joined||self!==requestSelf)return;
   if(!r||r.error){toast(r?.error||"კავშირი შეფერხდა — თავიდან სცადე.");refresh();return}
-  syncVehicles(r.vehicles);if(r.self){Object.assign(self,r.self);self.serverX=self.x;self.serverY=self.y}
+  syncVehicles(r.vehicles);if(r.self){Object.assign(self,r.self);acceptMotion(r.self.motion);applyPredictedState()}
   toast(exiting?"ქუჩაში დაბრუნდი":"WASD / ისრები · F გადმოსვლა");cue(exiting?440:720);refresh();drawMini();
  });
 }
@@ -151,12 +159,13 @@ function drawStreetVehicles(now,dt,chars){
   const tx=driver&&!driver.interiorId&&!driver.rideId?driver.x:v.x,ty=driver&&!driver.interiorId&&!driver.rideId?driver.y:v.y;
   v.displayX+=(tx-v.displayX)*following;v.displayY+=(ty-v.displayY)*following;
   if(v.driverId===self?.id){v.displayX=self.x;v.displayY=self.y}
+  if(!inView(v.displayX,v.displayY,100))return;
   chars.push({kind:"vehicle",x:v.displayX,y:v.displayY,vehicle:Object.assign({},v,{dir:driver?.dir||v.dir}),self:v.driverId===self?.id,driverName:driver?.name||selfName,available:!v.driverId&&self&&!self.vehicleId&&Math.hypot(v.x-self.x,v.y-self.y)<=90});
  });
 }
 function drawMini(){const w=mini.width,h=mini.height,sx=w/W.width,sy=h/W.height;mctx.clearRect(0,0,w,h);mctx.fillStyle="#11152a";mctx.fillRect(0,0,w,h);mctx.fillStyle="#102a48";mctx.fillRect(2510*sx,0,135*sx,h);mctx.fillStyle="#36334b";mctx.fillRect(2645*sx,0,(W.width-2645)*sx,h);mctx.fillStyle="#34364d";[360,780,1200,1620].forEach(y=>mctx.fillRect(0,y*sy-2,w,4));[540,1080,1620,2160].forEach(x=>mctx.fillRect(x*sx-2,0,4,h));mctx.fillStyle="#746879";W.buildings.forEach(b=>mctx.fillRect(b.x*sx,b.y*sy,b.w*sx,b.h*sy));fleet.forEach(v=>{mctx.fillStyle=v.driverId?"#6fffe0":"#ffd58b";mctx.fillRect(v.x*sx-1.5,v.y*sy-1.5,3,3)});remote.forEach(p=>{if(!p.interiorId&&!p.rideId){mctx.fillStyle="#63f4d1";mctx.fillRect(p.x*sx-1,p.y*sy-1,3,3)}});if(self&&!interior&&!ride){mctx.fillStyle="#ff65d0";mctx.fillRect(self.x*sx-2,self.y*sy-2,5,5);mctx.strokeStyle="#ffeaff";mctx.strokeRect(self.x*sx-3,self.y*sy-3,7,7)}}
 function drawAvatar(x,y,name,color,dir,action,isSelf,now,message,messageUntil){
- const moving=action==="walk",step=moving?Math.floor(now/155)%2:0,bob=moving?(step?-1:1):Math.sin(now/520)*.45;
+ const moving=action==="walk",gait=moving?Math.sin(isSelf?(self?.walkPhase||0):now/130):0,step=moving&&gait>0?1:0,bob=moving?-Math.abs(gait):0;
  ctx.fillStyle="rgba(0,0,0,.52)";ctx.beginPath();ctx.ellipse(x,y+8,14,5,0,0,Math.PI*2);ctx.fill();
  if(moving){ctx.globalAlpha=.24;ctx.fillStyle="#ff62d0";ctx.fillRect(x-12,y+9,24,2);ctx.globalAlpha=1}
  ctx.fillStyle="#13131f";ctx.fillRect(x-8,y-21+bob,16,14);
@@ -165,9 +174,9 @@ function drawAvatar(x,y,name,color,dir,action,isSelf,now,message,messageUntil){
  if(dir==="down"||dir==="left"||dir==="right"){const eyeX=dir==="left"?x-5:dir==="right"?x+3:x-4;ctx.fillStyle="#fff1d8";ctx.fillRect(eyeX,y-16+bob,2,2);if(dir==="down"){ctx.fillRect(x+2,y-16+bob,2,2);ctx.fillStyle="#4a2733";ctx.fillRect(x-1,y-12+bob,2,1)}}
  ctx.fillStyle=color||"#b77aff";ctx.fillRect(x-9,y-9+bob,18,15);
  ctx.fillStyle="rgba(255,255,255,.45)";ctx.fillRect(x-5,y-7+bob,3,2);ctx.fillRect(x+2,y-7+bob,3,2);
- const armSwing=moving?(step?2:-2):0;ctx.fillStyle="#eeb994";ctx.fillRect(x-11,y-7+bob+armSwing,3,9);ctx.fillRect(x+8,y-7+bob-armSwing,3,9);
+ const armSwing=moving?Math.round(gait*2):0;ctx.fillStyle="#eeb994";ctx.fillRect(x-11,y-7+bob+armSwing,3,9);ctx.fillRect(x+8,y-7+bob-armSwing,3,9);
  ctx.fillStyle="#242237";ctx.fillRect(x-7,y+6+bob,5,5);ctx.fillRect(x+2,y+6+bob,5,5);
- ctx.fillStyle="#28223a";ctx.fillRect(x-7-(step?2:0),y+10+bob+(step?0:1),5,4);ctx.fillRect(x+2+(step?2:0),y+10+bob+(step?1:0),5,4);
+ ctx.fillStyle="#28223a";ctx.fillRect(x-7,y+10+bob+armSwing,5,4);ctx.fillRect(x+2,y+10+bob-armSwing,5,4);
  const lw=Math.max(42,Math.min(112,name.length*7+15));ctx.fillStyle="rgba(9,8,24,.9)";ctx.fillRect(x-lw/2,y-45+bob,lw,15);ctx.strokeStyle=isSelf?"#ff71d5":"rgba(126,240,255,.55)";ctx.strokeRect(x-lw/2,y-45+bob,lw,15);label(ctx,name,x,y-37+bob,8,"#f8f4ff","center");
  if(action==="phone"){ctx.fillStyle="#eeb994";ctx.fillRect(x+7,y-6+bob,4,8);ctx.fillStyle="#141528";ctx.fillRect(x+8,y-2+bob,9,12);ctx.fillStyle="#6beaff";ctx.fillRect(x+10,y+1+bob,5,6);ctx.fillStyle="#ff62d0";ctx.fillRect(x+10,y+7+bob,5,2)}
  if(action&&action!=="idle"&&action!=="walk")label(ctx,action==="wave"?"👋":action==="dance"?"♫":action==="wine"?"🍷":action==="phone"?"📱":action==="sad"?"😿":"✋",x,y-60+bob,13,"#fff","center");
@@ -198,19 +207,20 @@ function drawMessageBubble(x,y,text){
  ctx.beginPath();ctx.moveTo(x-5,top+height-1);ctx.lineTo(x+5,top+height-1);ctx.lineTo(x,top+height+5);ctx.closePath();ctx.fillStyle="rgba(9,8,24,.96)";ctx.fill();ctx.strokeStyle="#ff70d1";ctx.beginPath();ctx.moveTo(x-5,top+height-1);ctx.lineTo(x,top+height+5);ctx.lineTo(x+5,top+height-1);ctx.stroke();
  ctx.fillStyle="#fff3fb";ctx.textAlign="center";ctx.textBaseline="middle";lines.forEach((line,i)=>ctx.fillText(line,x,top+6+i*10,width-12));ctx.restore();
 }
-function drawPuddles(now){for(let i=0;i<52;i++){const x=(i*271+45)%W.width,y=(i*193+111)%W.height;ctx.globalAlpha=.07+(Math.sin(now/490+i)+1)*.04;ctx.fillStyle=Math.sin(now/700+i*1.9)>0?"#cb47b8":"#35bada";ctx.fillRect(x,y,18+(i%5)*9,2);ctx.fillRect(x+5,y+4,9+(i%3)*4,1)}ctx.globalAlpha=1}
-function drawCityTraffic(now){const span=W.width+140,t=now*.032;let x=((t+110)%span)-70;drawBus(x,378,"#b72e5a","12 · რუსთაველი",false);let x2=((W.width-now*.026-460)%span+span)%span-70;drawBus(x2,1182,"#287e9a","7 · ძველი თბილისი",true)}
+function drawPuddles(now){for(let i=0;i<52;i++){const x=(i*271+45)%W.width,y=(i*193+111)%W.height;if(!inView(x,y,60)||(phoneMode&&i%2))continue;ctx.globalAlpha=.07+(Math.sin(now/490+i)+1)*.04;ctx.fillStyle=Math.sin(now/700+i*1.9)>0?"#cb47b8":"#35bada";ctx.fillRect(x,y,18+(i%5)*9,2);ctx.fillRect(x+5,y+4,9+(i%3)*4,1)}ctx.globalAlpha=1}
+function drawCityTraffic(now){const span=W.width+140,t=now*.032;let x=((t+110)%span)-70;if(inView(x,378,100))drawBus(x,378,"#b72e5a","12 · რუსთაველი",false);let x2=((W.width-now*.026-460)%span+span)%span-70;if(inView(x2,1182,100))drawBus(x2,1182,"#287e9a","7 · ძველი თბილისი",true)}
 function drawNeonLife(now){
  W.buildings.forEach((b,i)=>{
+  if(!inView(b.x+b.w/2,b.y+b.h/2,Math.max(b.w,b.h)/2+35))return;
   const sign=window.GaicaniCityArchitecture.signBounds(b);
   ctx.globalAlpha=.12+.12*(Math.sin(now/370+i*1.71)+1)/2;
-  ctx.strokeStyle=b.color;ctx.shadowColor=b.color;ctx.shadowBlur=14+6*Math.sin(now/520+i);ctx.lineWidth=1.2;
+  ctx.strokeStyle=b.color;ctx.shadowColor=b.color;ctx.shadowBlur=phoneMode?0:14+6*Math.sin(now/520+i);ctx.lineWidth=1.2;
   ctx.strokeRect(sign.x+1,sign.y+1,sign.w-2,sign.h-2);ctx.shadowBlur=0;
   ctx.globalAlpha=.035+.025*(Math.sin(now/350+i*2)+1)/2;ctx.fillStyle=b.color;
   ctx.fillRect(b.x+4,b.y+b.h+7,b.w-8,3);
  });ctx.globalAlpha=1;ctx.shadowBlur=0;
 }
-function drawCasino(now){
+function drawCasino(now,dt){
  const w=canvas.clientWidth,h=canvas.clientHeight,c=W.casino;
  camera.x=Math.round(Math.max(0,Math.min(c.width-w,(self?.casinoX||c.spawn.x)-w/2)));
  camera.y=Math.round(Math.max(0,Math.min(c.height-h,(self?.casinoY||c.spawn.y)-h/2)));
@@ -228,66 +238,72 @@ function drawCasino(now){
  drawAvatar(845,475,"Dato · დილერი","#e4a15a","down","idle",false,now);label(ctx,"«კარგი ხელი მოთმინებას უყვარს»",845,449,8,"#ffe7bd","center");
  for(let i=0;i<6;i++){const x=86+i*158;ctx.fillStyle="#17111f";ctx.fillRect(x,322,12,44);ctx.fillStyle=i%2?"#6cecff":"#ff71d1";ctx.globalAlpha=.45+.4*Math.sin(now/240+i);ctx.fillRect(x+3,328,6,27);ctx.globalAlpha=1}
  const chars=[];if(self)chars.push({x:self.casinoX||c.spawn.x,y:self.casinoY||c.spawn.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true,message:self.message,messageUntil:self.messageUntil});
- remote.forEach(p=>{if(p.interiorId!=="neon-casino"||!Number.isFinite(p.casinoX)||!Number.isFinite(p.casinoY))return;const f=1-Math.exp(-.12*20);p.casinoX+=(p.targetCasinoX-p.casinoX)*f;p.casinoY+=(p.targetCasinoY-p.casinoY)*f;chars.push({x:p.casinoX,y:p.casinoY,name:p.name,color:p.color,dir:p.dir,action:p.action,self:false,message:p.message,messageUntil:p.messageUntil})});
+ remote.forEach(p=>{if(p.interiorId!=="neon-casino"||!Number.isFinite(p.casinoX)||!Number.isFinite(p.casinoY))return;const f=1-Math.exp(-Math.min(.05,dt||.016)*20);p.casinoX+=(p.targetCasinoX-p.casinoX)*f;p.casinoY+=(p.targetCasinoY-p.casinoY)*f;chars.push({x:p.casinoX,y:p.casinoY,name:p.name,color:p.color,dir:p.dir,action:p.action==="idle"&&Math.hypot(p.targetCasinoX-p.casinoX,p.targetCasinoY-p.casinoY)>.7?"walk":p.action,self:false,message:p.message,messageUntil:p.messageUntil})});
  chars.sort((a,b)=>a.y-b.y);chars.forEach(p=>drawAvatar(Math.round(p.x),Math.round(p.y),p.name,p.color,p.dir,p.action,p.self,now,p.message,p.messageUntil));
  if(nearby&&nearby.type==="casinoStation"){ctx.strokeStyle="#fff4a1";ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.strokeRect(nearby.object.x-42,nearby.object.y-58,84,22);ctx.setLineDash([])}
  ctx.restore();label(ctx,"E / ✦  მაგიდები · სლოტები · საუბარი",w/2,h-23,11,"#ffe1fb","center");
 }
-function drawArcadeInterior(now){const w=canvas.clientWidth,h=canvas.clientHeight,pulse=.72+.28*Math.sin(now/240);const bg=ctx.createLinearGradient(0,0,w,h);bg.addColorStop(0,"#111226");bg.addColorStop(.52,"#241337");bg.addColorStop(1,"#10172e");ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);ctx.fillStyle="#100e20";ctx.fillRect(0,0,w,h*.57);ctx.fillStyle="#301c39";ctx.fillRect(0,h*.57,w,h*.43);for(let x=-h;x<w+h;x+=54){ctx.strokeStyle="#7c4b862b";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(w/2+(x-w/2)*.16,h*.57);ctx.lineTo(x,h);ctx.stroke()}for(let x=0;x<w;x+=58){ctx.fillStyle=(x/58|0)%2?"#32223d":"#3c2441";ctx.fillRect(x,h*.57,56,h*.43);ctx.globalAlpha=.13;ctx.fillStyle=(x/58|0)%2?"#ff47cb":"#44eaff";ctx.fillRect(x,h*.57,55,3);ctx.globalAlpha=1}ctx.save();ctx.globalAlpha=.26+.13*pulse;ctx.shadowColor="#43eaff";ctx.shadowBlur=30;ctx.fillStyle="#31dffb";ctx.fillRect(w*.12,h*.19,w*.76,3);ctx.restore();label(ctx,"PIXEL PALACE",w/2,h*.105,Math.max(20,Math.min(34,w*.055)),"#fff0ff","center");label(ctx,"INSERT COIN · PICK YOUR GAME",w/2,h*.165,Math.max(9,Math.min(14,w*.022)),"#79f5ff","center");const machines=[["PAC-MAN","#ffe35c"],["SNAKE","#70ff9d"],["TETRIS","#67caff"],["PONG","#ff68d5"]];machines.forEach((m,i)=>{const x=w*(.14+i*.205),mw=Math.min(112,w*.17),top=h*.29,mh=h*.38;ctx.fillStyle="#080914";ctx.fillRect(x-4,top-4,mw+8,mh+8);ctx.fillStyle="#322643";ctx.fillRect(x,top,mw,mh);ctx.save();ctx.shadowColor=m[1];ctx.shadowBlur=14+8*pulse;ctx.strokeStyle=m[1];ctx.lineWidth=2;ctx.strokeRect(x+3,top+3,mw-6,mh-6);ctx.restore();ctx.fillStyle="#080c19";ctx.fillRect(x+9,top+12,mw-18,mh*.53);ctx.fillStyle="#111a2b";ctx.fillRect(x+13,top+16,mw-26,mh*.53-8);if(i===0){ctx.fillStyle=m[1];for(let d=0;d<7;d++){ctx.beginPath();ctx.arc(x+20+d*(mw-40)/6,top+mh*.32,2,0,Math.PI*2);ctx.fill()}ctx.beginPath();ctx.arc(x+mw*.53,top+mh*.32,7,Math.PI*.18,Math.PI*1.82);ctx.lineTo(x+mw*.53,top+mh*.32);ctx.fill()}else if(i===1){ctx.strokeStyle=m[1];ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x+mw*.25,top+mh*.27);ctx.lineTo(x+mw*.55,top+mh*.27);ctx.lineTo(x+mw*.55,top+mh*.4);ctx.lineTo(x+mw*.4,top+mh*.4);ctx.stroke();ctx.fillStyle="#ffdd68";ctx.fillRect(x+mw*.7,top+mh*.42,4,4)}else if(i===2){for(let q=0;q<9;q++){ctx.fillStyle=["#53dff9","#e452cb","#ffe06a","#a67bff"][q%4];ctx.fillRect(x+mw*.25+(q%3)*7,top+mh*.26+Math.floor(q/3)*7,6,6)}}else{ctx.fillStyle="#ff75dc";ctx.fillRect(x+mw*.21,top+mh*.23,3,mh*.25);ctx.fillRect(x+mw*.76,top+mh*.34,3,mh*.25);ctx.fillStyle="#e7e5ff";ctx.fillRect(x+mw*.45,top+mh*.33,4,4)}ctx.fillStyle="#a58fac";ctx.fillRect(x+mw*.32,top+mh*.67,mw*.36,3);ctx.fillStyle="#080a14";ctx.fillRect(x+mw*.25,top+mh*.78,mw*.5,13);ctx.fillStyle=m[1];ctx.fillRect(x+mw*.33,top+mh*.8,mw*.34,2);label(ctx,m[0],x+mw/2,top+mh+15,Math.max(9,Math.min(13,w*.021)),m[1],"center")});label(ctx,"GEORGIAN ARCADE · EST. 1999",w/2,h*.91,Math.max(9,Math.min(13,w*.02)),"#c8b4e7","center");const visitors=Array.from(remote.values()).filter(p=>p.interiorId==="arcade-palace").slice(0,6);visitors.forEach((p,i)=>drawAvatar(w*(.23+i*.105),h*.82,p.name,p.color,"down",p.action||"idle",false,now));drawAvatar(w*.77,h*.82,selfName,"#bd75ef","down","idle",true,now)} function drawInterior(now){if(interior.id==="arcade-palace"){drawArcadeInterior(now);return}if(interior.id==="neon-casino"){drawCasino(now);return}const w=canvas.clientWidth,h=canvas.clientHeight,type=interior.type,warm=type==="bar"?"#301d34":type==="bakery"?"#4a271f":type==="arcade"?"#201d3d":type==="internet"?"#1d3040":"#382336";ctx.fillStyle=warm;ctx.fillRect(0,0,w,h);ctx.fillStyle="#241a2a";ctx.fillRect(0,0,w,h*.63);ctx.fillStyle="#6d4550";ctx.fillRect(0,h*.63,w,h*.37);for(let x=0;x<w;x+=52){ctx.fillStyle=x%104?"#332537":"#3b2a3b";ctx.fillRect(x,h*.63,50,h*.37)}for(let i=0;i<5;i++){const x=w*(.12+i*.17);ctx.fillStyle="#130f20";ctx.fillRect(x,h*.16,75,108);ctx.globalAlpha=.7;ctx.fillStyle=i%2?"#bc5398":"#e9a95b";ctx.fillRect(x+7,h*.16+7,61,94);ctx.globalAlpha=1;ctx.fillStyle="#291e32";ctx.fillRect(x+34,h*.16+7,3,94)}const stuff=type==="bar"?["🍷","🥃","🍺","🎷"]:type==="arcade"?["🕹","👾","🎮","🕹"]:type==="bakery"?["🥖","☕","🥐","🍞"]:["☕","📻","📼","♫"];for(let i=0;i<4;i++){const x=w*(.18+i*.2),y=h*.52;ctx.fillStyle="#171322";ctx.fillRect(x,y,58,82);ctx.strokeStyle=i%2?"#71edff":"#ff58ce";ctx.lineWidth=2;ctx.strokeRect(x,y,58,82);label(ctx,stuff[i],x+29,y+32,23,"#fff","center");ctx.fillStyle="#79637b";ctx.fillRect(x+12,y+64,34,4)}label(ctx,interior.name,w/2,h*.11,17,interior.color,"center");label(ctx,"1999 · ღამე ჯერ არ მთავრდება",w/2,h*.11+26,10,"#dfd0ed","center");drawAvatar(w/2,h*.72,selfName,"#bd75ef","down","idle",true,performance.now())}
+function drawArcadeInterior(now){const w=canvas.clientWidth,h=canvas.clientHeight,pulse=.72+.28*Math.sin(now/240);const bg=ctx.createLinearGradient(0,0,w,h);bg.addColorStop(0,"#111226");bg.addColorStop(.52,"#241337");bg.addColorStop(1,"#10172e");ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);ctx.fillStyle="#100e20";ctx.fillRect(0,0,w,h*.57);ctx.fillStyle="#301c39";ctx.fillRect(0,h*.57,w,h*.43);for(let x=-h;x<w+h;x+=54){ctx.strokeStyle="#7c4b862b";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(w/2+(x-w/2)*.16,h*.57);ctx.lineTo(x,h);ctx.stroke()}for(let x=0;x<w;x+=58){ctx.fillStyle=(x/58|0)%2?"#32223d":"#3c2441";ctx.fillRect(x,h*.57,56,h*.43);ctx.globalAlpha=.13;ctx.fillStyle=(x/58|0)%2?"#ff47cb":"#44eaff";ctx.fillRect(x,h*.57,55,3);ctx.globalAlpha=1}ctx.save();ctx.globalAlpha=.26+.13*pulse;ctx.shadowColor="#43eaff";ctx.shadowBlur=30;ctx.fillStyle="#31dffb";ctx.fillRect(w*.12,h*.19,w*.76,3);ctx.restore();label(ctx,"PIXEL PALACE",w/2,h*.105,Math.max(20,Math.min(34,w*.055)),"#fff0ff","center");label(ctx,"INSERT COIN · PICK YOUR GAME",w/2,h*.165,Math.max(9,Math.min(14,w*.022)),"#79f5ff","center");const machines=[["PAC-MAN","#ffe35c"],["SNAKE","#70ff9d"],["TETRIS","#67caff"],["PONG","#ff68d5"]];machines.forEach((m,i)=>{const x=w*(.14+i*.205),mw=Math.min(112,w*.17),top=h*.29,mh=h*.38;ctx.fillStyle="#080914";ctx.fillRect(x-4,top-4,mw+8,mh+8);ctx.fillStyle="#322643";ctx.fillRect(x,top,mw,mh);ctx.save();ctx.shadowColor=m[1];ctx.shadowBlur=14+8*pulse;ctx.strokeStyle=m[1];ctx.lineWidth=2;ctx.strokeRect(x+3,top+3,mw-6,mh-6);ctx.restore();ctx.fillStyle="#080c19";ctx.fillRect(x+9,top+12,mw-18,mh*.53);ctx.fillStyle="#111a2b";ctx.fillRect(x+13,top+16,mw-26,mh*.53-8);if(i===0){ctx.fillStyle=m[1];for(let d=0;d<7;d++){ctx.beginPath();ctx.arc(x+20+d*(mw-40)/6,top+mh*.32,2,0,Math.PI*2);ctx.fill()}ctx.beginPath();ctx.arc(x+mw*.53,top+mh*.32,7,Math.PI*.18,Math.PI*1.82);ctx.lineTo(x+mw*.53,top+mh*.32);ctx.fill()}else if(i===1){ctx.strokeStyle=m[1];ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x+mw*.25,top+mh*.27);ctx.lineTo(x+mw*.55,top+mh*.27);ctx.lineTo(x+mw*.55,top+mh*.4);ctx.lineTo(x+mw*.4,top+mh*.4);ctx.stroke();ctx.fillStyle="#ffdd68";ctx.fillRect(x+mw*.7,top+mh*.42,4,4)}else if(i===2){for(let q=0;q<9;q++){ctx.fillStyle=["#53dff9","#e452cb","#ffe06a","#a67bff"][q%4];ctx.fillRect(x+mw*.25+(q%3)*7,top+mh*.26+Math.floor(q/3)*7,6,6)}}else{ctx.fillStyle="#ff75dc";ctx.fillRect(x+mw*.21,top+mh*.23,3,mh*.25);ctx.fillRect(x+mw*.76,top+mh*.34,3,mh*.25);ctx.fillStyle="#e7e5ff";ctx.fillRect(x+mw*.45,top+mh*.33,4,4)}ctx.fillStyle="#a58fac";ctx.fillRect(x+mw*.32,top+mh*.67,mw*.36,3);ctx.fillStyle="#080a14";ctx.fillRect(x+mw*.25,top+mh*.78,mw*.5,13);ctx.fillStyle=m[1];ctx.fillRect(x+mw*.33,top+mh*.8,mw*.34,2);label(ctx,m[0],x+mw/2,top+mh+15,Math.max(9,Math.min(13,w*.021)),m[1],"center")});label(ctx,"GEORGIAN ARCADE · EST. 1999",w/2,h*.91,Math.max(9,Math.min(13,w*.02)),"#c8b4e7","center");const visitors=Array.from(remote.values()).filter(p=>p.interiorId==="arcade-palace").slice(0,6);visitors.forEach((p,i)=>drawAvatar(w*(.23+i*.105),h*.82,p.name,p.color,"down",p.action||"idle",false,now));drawAvatar(w*.77,h*.82,selfName,"#bd75ef","down","idle",true,now)} function drawInterior(now,dt){if(interior.id==="arcade-palace"){drawArcadeInterior(now);return}if(interior.id==="neon-casino"){drawCasino(now,dt);return}const w=canvas.clientWidth,h=canvas.clientHeight,type=interior.type,warm=type==="bar"?"#301d34":type==="bakery"?"#4a271f":type==="arcade"?"#201d3d":type==="internet"?"#1d3040":"#382336";ctx.fillStyle=warm;ctx.fillRect(0,0,w,h);ctx.fillStyle="#241a2a";ctx.fillRect(0,0,w,h*.63);ctx.fillStyle="#6d4550";ctx.fillRect(0,h*.63,w,h*.37);for(let x=0;x<w;x+=52){ctx.fillStyle=x%104?"#332537":"#3b2a3b";ctx.fillRect(x,h*.63,50,h*.37)}for(let i=0;i<5;i++){const x=w*(.12+i*.17);ctx.fillStyle="#130f20";ctx.fillRect(x,h*.16,75,108);ctx.globalAlpha=.7;ctx.fillStyle=i%2?"#bc5398":"#e9a95b";ctx.fillRect(x+7,h*.16+7,61,94);ctx.globalAlpha=1;ctx.fillStyle="#291e32";ctx.fillRect(x+34,h*.16+7,3,94)}const stuff=type==="bar"?["🍷","🥃","🍺","🎷"]:type==="arcade"?["🕹","👾","🎮","🕹"]:type==="bakery"?["🥖","☕","🥐","🍞"]:["☕","📻","📼","♫"];for(let i=0;i<4;i++){const x=w*(.18+i*.2),y=h*.52;ctx.fillStyle="#171322";ctx.fillRect(x,y,58,82);ctx.strokeStyle=i%2?"#71edff":"#ff58ce";ctx.lineWidth=2;ctx.strokeRect(x,y,58,82);label(ctx,stuff[i],x+29,y+32,23,"#fff","center");ctx.fillStyle="#79637b";ctx.fillRect(x+12,y+64,34,4)}label(ctx,interior.name,w/2,h*.11,17,interior.color,"center");label(ctx,"1999 · ღამე ჯერ არ მთავრდება",w/2,h*.11+26,10,"#dfd0ed","center");drawAvatar(w/2,h*.72,selfName,"#bd75ef","down","idle",true,performance.now())}
 let lastFrameAt=0;
-function recordServerPosition(position,inCasino){
- if(!self||!position||!Number.isFinite(position.x)||!Number.isFinite(position.y))return;
- self[inCasino?"serverCasinoX":"serverX"]=position.x;
- self[inCasino?"serverCasinoY":"serverY"]=position.y;
+function applyPredictedState(){
+ const state=predictor.getState();if(!state||!self)return;
+ const casino=state.mode==="casino",xKey=casino?"casinoX":"x",yKey=casino?"casinoY":"y";
+ self[xKey]=state.x;self[yKey]=state.y;self.dir=state.dir;
+ self.vehicleId=state.vehicleId;
+ if(!(self.actionUntil>Date.now()))self.action=state.action;
 }
-function easeToServerPosition(dt,inCasino){
- if(!self)return;
- const xKey=inCasino?"casinoX":"x",yKey=inCasino?"casinoY":"y",serverXKey=inCasino?"serverCasinoX":"serverX",serverYKey=inCasino?"serverCasinoY":"serverY";
- const dx=self[serverXKey]-self[xKey],dy=self[serverYKey]-self[yKey],distance=Math.hypot(dx,dy);
- if(!Number.isFinite(distance)||distance<.12){if(Number.isFinite(self[serverXKey]))self[xKey]=self[serverXKey];if(Number.isFinite(self[serverYKey]))self[yKey]=self[serverYKey];return}
- const correction=Math.min(distance,190*dt,distance*(1-Math.exp(-18*dt)));
- const nextX=self[xKey]+dx/distance*correction,nextY=self[yKey]+dy/distance*correction,walkable=inCasino?W.casinoIsWalkable:self.vehicleId?vehicleWalkable:W.isWalkable,radius=!inCasino&&self.vehicleId?(V.byId(self.vehicleId)?.radius||26):11;
- if(walkable(nextX,self[yKey],radius))self[xKey]=nextX;
- if(walkable(self[xKey],nextY,radius))self[yKey]=nextY;
+function acceptMotion(view){
+ if(!self||!view)return;
+ const previousEpoch=predictor.getEpoch();
+ if(!predictor.accept(view))return;
+ self[view.mode==="casino"?"serverCasinoX":"serverX"]=view.x;
+ self[view.mode==="casino"?"serverCasinoY":"serverY"]=view.y;
+ if(previousEpoch!==view.epoch)motionInput={x:0,y:0};
+ applyPredictedState();
 }
-function stepLocalPlayer(dt,now){
- if(!self||!joined||ride)return;
- if(interior){if(interior.id!=="neon-casino")return;const canMove=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden&&!window.GaicaniCasinoUI?.blocksMovement&&!window.GaicaniCityGames?.active&&!window.GaicaniCityGames?.blocksMovement&&!window.GaicaniArcadeUI?.blocksMovement;let dx=canMove?keys.x:0,dy=canMove?keys.y:0,len=Math.hypot(dx,dy),moved=false;if(len>.001){if(len>1){dx/=len;dy/=len}const step=165*dt,nx=self.casinoX+dx*step,ny=self.casinoY+dy*step,ox=self.casinoX,oy=self.casinoY;if(W.casinoIsWalkable(nx,self.casinoY,11))self.casinoX=nx;if(W.casinoIsWalkable(self.casinoX,ny,11))self.casinoY=ny;moved=Math.hypot(self.casinoX-ox,self.casinoY-oy)>.01;if(Math.abs(dx)>Math.abs(dy))self.dir=dx<0?"left":"right";else self.dir=dy<0?"up":"down"}else easeToServerPosition(dt,true);if(!Number.isFinite(self.actionUntil)||self.actionUntil<=now)self.action=moved?"walk":"idle";return}
- const canMove=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden&&!window.GaicaniCityGames?.active&&!window.GaicaniCityGames?.blocksMovement&&!window.GaicaniArcadeUI?.blocksMovement;
- let dx=canMove?keys.x:0,dy=canMove?keys.y:0;
- const length=Math.hypot(dx,dy),moving=length>.001;let moved=false;
- if(moving){if(length>1){dx/=length;dy/=length}const car=V.byId(self.vehicleId),walkable=car?vehicleWalkable:W.isWalkable,radius=car?car.radius:11,step=(car?car.speed:165)*dt,nx=self.x+dx*step,ny=self.y+dy*step,oldX=self.x,oldY=self.y;
-  const nextDir=Math.abs(dx)>Math.abs(dy)?(dx<0?"left":"right"):(dy<0?"up":"down");
-  if(car&&nextDir!==self.dir&&!vehicleWalkable(self.x,self.y,radius,nextDir)){self.action="idle";return}
-  self.dir=nextDir;
-  if(car){
-   const at=V.move(W,Object.assign({},car,{x:self.x,y:self.y,dir:self.dir}),dx,dy,step,Array.from(fleet.values()));
-   self.x=at.x;self.y=at.y;
-  }else{
-   if(walkable(nx,self.y,radius))self.x=nx;
-   if(walkable(self.x,ny,radius))self.y=ny;
-  }
-  moved=Math.hypot(self.x-oldX,self.y-oldY)>.01;
- }else easeToServerPosition(dt,false);
- if(!Number.isFinite(self.actionUntil)||self.actionUntil<=now)self.action=moved?(self.vehicleId?"drive":"walk"):"idle";
+function movementAllowed(){
+ return self&&joined&&!ride&&(!interior||interior.id==="neon-casino")&&cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden&&
+  !window.GaicaniCityGames?.active&&!window.GaicaniCityGames?.blocksMovement&&!window.GaicaniCasinoUI?.blocksMovement&&!window.GaicaniArcadeUI?.blocksMovement;
+}
+function queueMotion(x,y,dt){
+ const before=predictor.getState();if(!before)return;
+ const oldX=before.x,oldY=before.y,state=predictor.predict({x,y},dt);
+ if(!state)return;
+ motionInput={x,y};self.walkPhase=(self.walkPhase||0)+Math.hypot(state.x-oldX,state.y-oldY)*.2;
+ applyPredictedState();
+}
+function flushMotion(immediate){
+ if(!socket?.connected||!joined||!self||predictor.getEpoch()===null)return;
+ const now=performance.now();if(!immediate&&now-lastMotionSendAt<48)return;
+ const batch=predictor.drain();if(!batch)return;
+ lastMotionSendAt=now;const requestSelf=self;
+ socket.emit("city:motion",batch,result=>{if(joined&&self===requestSelf)acceptMotion(result)});
+}
+function stepLocalPlayer(dt){
+ if(!self||!joined||!predictor.getState())return;
+ const allowed=movementAllowed(),x=allowed?keys.x:0,y=allowed?keys.y:0;
+ if(Math.hypot(x,y)>.001)queueMotion(x,y,Math.min(50,dt*1000));
+ else if(Math.hypot(motionInput.x,motionInput.y)>.001){queueMotion(0,0,1);flushMotion(true)}
+ else if(!(self.actionUntil>Date.now())&&!predictor.getState().blocked)self.action="idle";
 }
 function draw(now){
- const w=canvas.clientWidth,h=canvas.clientHeight,d=Math.min(2,devicePixelRatio||1),dt=lastFrameAt?Math.min(.05,Math.max(0,(now-lastFrameAt)/1000)):.016;lastFrameAt=now;
- if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d))resize();ctx.setTransform(d,0,0,d,0,0);ctx.imageSmoothingEnabled=false;
- if(interior){stepLocalPlayer(dt,now);drawInterior(now);requestAnimationFrame(draw);return}
+ if(document.hidden){lastFrameAt=0;requestAnimationFrame(draw);return}
+ const w=viewWidth,h=viewHeight,d=renderDpr,dt=lastFrameAt?Math.min(.05,Math.max(0,(now-lastFrameAt)/1000)):.016;lastFrameAt=now;
+ ctx.setTransform(d,0,0,d,0,0);ctx.imageSmoothingEnabled=false;
+ if(interior){stepLocalPlayer(dt,now);drawInterior(now,dt);requestAnimationFrame(draw);return}
  stepLocalPlayer(dt,now);
  if(ride){drawRideScene(w,h,now);requestAnimationFrame(draw);return}
  if(self){camera.x=Math.round(Math.max(0,Math.min(W.width-w,self.x-w/2)));camera.y=Math.round(Math.max(0,Math.min(W.height-h,self.y-h/2)))}
  else{camera.x=Math.max(0,W.width/2-w/2);camera.y=Math.max(0,W.height/2-h/2)}
- ctx.fillStyle="#101020";ctx.fillRect(0,0,w,h);ctx.drawImage(staticMap,-camera.x,-camera.y);ctx.save();ctx.translate(-camera.x,-camera.y);drawPuddles(now);drawCityTraffic(now);drawNeonLife(now);
- rain.forEach(r=>{r.y+=r.speed*dt;r.x-=18*dt;if(r.y>W.height){r.y=0;r.x=Math.random()*W.width}if(r.x<0)r.x=W.width;ctx.globalAlpha=r.alpha;ctx.fillStyle="#a9d8ff";ctx.fillRect(r.x,r.y,1,r.len)});ctx.globalAlpha=1;
- W.npcs.forEach(n=>drawNpc(n,now));drawCitySignals(now);const chars=[];if(self&&!self.vehicleId)chars.push({x:self.x,y:self.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true,message:self.message,messageUntil:self.messageUntil});
- remote.forEach(p=>{if(!p.interiorId&&!p.rideId){const follow=1-Math.exp(-dt*20);p.x+=(p.targetX-p.x)*follow;p.y+=(p.targetY-p.y)*follow;if(!p.vehicleId)chars.push(p)}});
- (W.animals||[]).forEach(a=>{const phase=a.phase||0,x=a.x+Math.sin(now/1650+phase)*(a.roamX||0),y=a.y+Math.cos(now/1380+phase)*(a.roamY||0);chars.push({kind:"animal",animalKind:a.kind,x:x,y:y,color:a.color,phase:phase,dir:Math.cos(now/1650+phase)<0?-1:1})});
+ ctx.fillStyle="#101020";ctx.fillRect(0,0,w,h);ctx.drawImage(staticMap,camera.x,camera.y,Math.min(w,W.width-camera.x),Math.min(h,W.height-camera.y),0,0,Math.min(w,W.width-camera.x),Math.min(h,W.height-camera.y));ctx.save();ctx.translate(-camera.x,-camera.y);drawPuddles(now);drawCityTraffic(now);drawNeonLife(now);
+ rain.forEach((r,i)=>{if(phoneMode&&i>=18)return;r.y+=r.speed*dt;r.x-=18*dt;if(r.y>W.height){r.y=0;r.x=Math.random()*W.width}if(r.x<0)r.x=W.width;if(!inView(r.x,r.y,24))return;ctx.globalAlpha=r.alpha;ctx.fillStyle="#a9d8ff";ctx.fillRect(r.x,r.y,1,r.len)});ctx.globalAlpha=1;
+ W.npcs.forEach(n=>{if(inView(n.x,n.y))drawNpc(n,now)});drawCitySignals(now);const chars=[];if(self&&!self.vehicleId)chars.push({x:self.x,y:self.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true,message:self.message,messageUntil:self.messageUntil});
+ remote.forEach(p=>{if(!p.interiorId&&!p.rideId){const follow=1-Math.exp(-dt*20);p.x+=(p.targetX-p.x)*follow;p.y+=(p.targetY-p.y)*follow;p.drawAction=p.action==="idle"&&Math.hypot(p.targetX-p.x,p.targetY-p.y)>.7?"walk":p.action;if(!p.vehicleId&&inView(p.x,p.y))chars.push(p)}});
+ (W.animals||[]).forEach(a=>{if(!inView(a.x,a.y))return;const phase=a.phase||0,x=a.x+Math.sin(now/1650+phase)*(a.roamX||0),y=a.y+Math.cos(now/1380+phase)*(a.roamY||0);chars.push({kind:"animal",animalKind:a.kind,x:x,y:y,color:a.color,phase:phase,dir:Math.cos(now/1650+phase)<0?-1:1})});
  drawStreetVehicles(now,dt,chars);
- chars.sort((a,b)=>a.y-b.y);chars.forEach(p=>{if(p.kind==="vehicle"){window.GaicaniCityVehicleArt.draw(ctx,p.vehicle,now,{x:p.x,y:p.y,self:p.self,driverName:p.driverName,available:p.available});return}if(p.kind==="animal"){drawAnimalSprite(p.animalKind,Math.round(p.x),Math.round(p.y),p.color,now,p.phase,p.dir);return}drawAvatar(Math.round(p.x),Math.round(p.y),p.name,p.color,p.dir,p.action,p.self,now,p.message,p.messageUntil);if(p.actionUntil&&p.actionUntil<Date.now())p.action="idle"});
+ chars.sort((a,b)=>a.y-b.y);chars.forEach(p=>{if(p.kind==="vehicle"){window.GaicaniCityVehicleArt.draw(ctx,p.vehicle,now,{x:p.x,y:p.y,self:p.self,driverName:p.driverName,available:p.available});return}if(p.kind==="animal"){drawAnimalSprite(p.animalKind,Math.round(p.x),Math.round(p.y),p.color,now,p.phase,p.dir);return}drawAvatar(Math.round(p.x),Math.round(p.y),p.name,p.color,p.dir,p.drawAction||p.action,p.self,now,p.message,p.messageUntil);if(p.actionUntil&&p.actionUntil<Date.now())p.action="idle"});
  if(nearby&&nearby.type==="player"){ctx.strokeStyle="#ff6bd4";ctx.lineWidth=2;ctx.strokeRect(nearby.object.x-16,nearby.object.y-27,32,42)}
- ctx.restore();if(now-lastMiniAt>250){drawMini();lastMiniAt=now}requestAnimationFrame(draw)
+ ctx.restore();if(now-lastMiniAt>(phoneMode?500:250)){drawMini();lastMiniAt=now}requestAnimationFrame(draw)
 }
 function target(){if(!self||ride||self.vehicleId)return null;let best=null,dist=102;function offer(type,o,x,y){const sx=interior?.id==="neon-casino"?self.casinoX:self.x,sy=interior?.id==="neon-casino"?self.casinoY:self.y,d=Math.hypot(x-sx,y-sy);if(d<dist){dist=d;best={type:type,object:o,distance:d}}}if(interior){if(interior.id!=="neon-casino")return null;W.casino.stations.forEach(s=>offer("casinoStation",s,s.x,s.y));remote.forEach(p=>{if(p.interiorId==="neon-casino"&&p.id!==self.id)offer("player",p,p.casinoX,p.casinoY)});return best}W.npcs.forEach(n=>offer("npc",n,n.x,n.y));W.props.forEach(p=>offer("prop",p,p.x,p.y));W.buildings.filter(b=>b.enterable).forEach(b=>offer("building",b,b.x+b.w*.72+9,b.y+b.h+15));(W.landmarks||[]).forEach(l=>offer("landmark",l,l.interactX,l.interactY));notes.forEach(n=>offer("note",n,n.x,n.y));remote.forEach(p=>{if(!p.interiorId&&!p.rideId&&!p.vehicleId&&p.id!==self.id)offer("player",p,p.x,p.y)});return best}
 function refresh(){refreshVehicle();nearby=target();const tip=document.getElementById("cityTip");if(nearby){const o=nearby.object,n=nearby.type==="npc"?o.name:nearby.type==="player"?o.name:nearby.type==="building"?o.name:nearby.type==="landmark"?o.name:nearby.type==="note"?"საიდუმლო წერილი":o.label;tip.textContent="E / ✦  "+n}else tip.textContent=self?.vehicleId?"F · გადმოსვლა — WASD / ისრები · მართვა":nearestVehicle()?"F · მანქანაში ჩაჯდომა — ქალაქი გელოდება":interior?.id==="neon-casino"?"დაათვალიერე სლოტები · იპოვე პოკერის მაგიდა · გაესაუბრე დილერს":"ქუჩის კუთხეში ძველი ტელეფონი რეკავს — იქნებ შენ გეძახის?";const d=self&&W.districtAt(self.x,self.y);if(d&&d.id!==lastDistrict){lastDistrict=d.id;locationPill.innerHTML="<b>"+d.name+"</b><span>2:17 AM · ყოველთვის ღამე</span>"}}
@@ -359,22 +375,31 @@ document.getElementById("playerAddFriendButton").addEventListener("click",()=>{c
 document.getElementById("playerAcceptFriendButton").addEventListener("click",()=>{if(!selectedPlayerName||!socket)return;socket.emit("friend:accept",{fromUsername:selectedPlayerName});toast("მეგობრობის მოთხოვნას ვიღებ...")});
 function selectPlayer(id){const p=remote.get(id),sameCasino=interior?.id==="neon-casino"&&p?.interiorId==="neon-casino";if(!p||p.vehicleId||self?.vehicleId||((p.interiorId||interior)&&!sameCasino)||p.rideId||!self||Math.hypot((sameCasino?p.casinoX:p.x)-(sameCasino?self.casinoX:self.x),(sameCasino?p.casinoY:p.y)-(sameCasino?self.casinoY:self.y))>126)return false;open({type:"player",object:p});return true}
 function canvasPoint(e){const r=canvas.getBoundingClientRect(),insideCasino=interior?.id==="neon-casino",offsetX=insideCasino?Math.max(0,(r.width-W.casino.width)/2):0,offsetY=insideCasino?Math.max(0,(r.height-W.casino.height)/2):0;return{x:e.clientX-r.left+camera.x-offsetX,y:e.clientY-r.top+camera.y-offsetY}}
-canvas.addEventListener("pointerdown",e=>{if(ride)return;const p=canvasPoint(e);if(interior){if(interior.id!=="neon-casino")return;let chosen=null,best=34;remote.forEach(o=>{if(o.interiorId!=="neon-casino"||!self||Math.hypot(o.casinoX-self.casinoX,o.casinoY-self.casinoY)>145)return;const d=Math.hypot(o.casinoX-p.x,o.casinoY-p.y);if(d<best){best=d;chosen=o}});if(chosen){selectPlayer(chosen.id);return}if(nearby&&nearby.distance<96){open(nearby);return}if(e.pointerType!=="mouse"&&self&&!window.GaicaniCasinoUI?.blocksMovement){const dx=p.x-self.casinoX,dy=p.y-self.casinoY,n=Math.hypot(dx,dy)||1;keys.x=dx/n;keys.y=dy/n;sendCityInputNow();window.setTimeout(()=>{if(!touchHeld){keys.x=0;keys.y=0;sendCityInputNow()}},420)}return}let noteHit=null;for(const n of notes)if(Math.hypot(n.x-p.x,n.y-p.y)<30){noteHit=n;break}if(noteHit){open({type:"note",object:noteHit});return}let chosen=null,best=34;remote.forEach(o=>{if(o.interiorId||o.rideId||o.vehicleId||!self||Math.hypot(o.x-self.x,o.y-self.y)>145)return;const d=Math.hypot(o.x-p.x,o.y-p.y);if(d<best){best=d;chosen=o}});if(chosen){selectPlayer(chosen.id);return}if(nearby&&nearby.distance<96){open(nearby);return}if(e.pointerType!=="mouse"&&self){const dx=p.x-self.x,dy=p.y-self.y,n=Math.hypot(dx,dy)||1;keys.x=dx/n;keys.y=dy/n;sendCityInputNow();window.setTimeout(()=>{if(!touchHeld){keys.x=0;keys.y=0;sendCityInputNow()}},420)}});
+canvas.addEventListener("pointerdown",e=>{if(ride)return;const p=canvasPoint(e);if(interior){if(interior.id!=="neon-casino")return;let chosen=null,best=34;remote.forEach(o=>{if(o.interiorId!=="neon-casino"||!self||Math.hypot(o.casinoX-self.casinoX,o.casinoY-self.casinoY)>145)return;const d=Math.hypot(o.casinoX-p.x,o.casinoY-p.y);if(d<best){best=d;chosen=o}});if(chosen){selectPlayer(chosen.id);return}if(nearby&&nearby.distance<96){open(nearby);return}return}let noteHit=null;for(const n of notes)if(Math.hypot(n.x-p.x,n.y-p.y)<30){noteHit=n;break}if(noteHit){open({type:"note",object:noteHit});return}let chosen=null,best=34;remote.forEach(o=>{if(o.interiorId||o.rideId||o.vehicleId||!self||Math.hypot(o.x-self.x,o.y-self.y)>145)return;const d=Math.hypot(o.x-p.x,o.y-p.y);if(d<best){best=d;chosen=o}});if(chosen){selectPlayer(chosen.id);return}if(nearby&&nearby.distance<96){open(nearby);return}});
 document.querySelectorAll("[data-emote]").forEach(b=>b.addEventListener("click",()=>{if(!socket||!joined)return;socket.emit("city:emote",{targetId:playerCard.dataset.targetId,emote:b.dataset.emote},r=>{if(r&&r.error){toast(r.error);return}playerCard.hidden=true;toast(b.dataset.emote==="wave"?"👋 მიესალმე მოთამაშეს":b.dataset.emote==="dance"?"♫ ცეკვავ ნეონის ქვეშ":"🖐 High-five!");cue(590)} )}));
 function interact(){if(window.GaicaniCasinoUI?.blocksMovement)return;if(interior?.id==="arcade-palace"){window.GaicaniArcadeUI?.open();return}if(interior&&interior.id!=="neon-casino")return;open(target())}document.getElementById("touchInteract").addEventListener("click",interact);
 const held=new Set(),codeDir={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
 const touchPad=document.getElementById("touchPad"),touchStickKnob=document.getElementById("touchStickKnob");
-let touchPointerId=null;
-function resetTouchStick(){touchStickKnob.style.left="50%";touchStickKnob.style.top="50%"}
-function updateTouchStick(clientX,clientY){const rect=touchPad.getBoundingClientRect(),travel=Math.max(1,rect.width/2-touchStickKnob.offsetWidth/2-5);let dx=clientX-(rect.left+rect.width/2),dy=clientY-(rect.top+rect.height/2),length=Math.hypot(dx,dy);if(length>travel){dx=dx/length*travel;dy=dy/length*travel;length=travel}touchStickKnob.style.left=`calc(50% + ${dx}px)`;touchStickKnob.style.top=`calc(50% + ${dy}px)`;const deadZone=.13;if(length<=travel*deadZone){keys.x=keys.y=0}else{const strength=Math.min(1,(length/travel-deadZone)/(1-deadZone));keys.x=dx/length*strength;keys.y=dy/length*strength}sendCityInputNow()}
+let touchPointerId=null,touchMetrics=null;
+function resetTouchStick(){touchStickKnob.style.transform="translate(-50%, -50%)";touchMetrics=null}
+function updateTouchStick(clientX,clientY){const metrics=touchMetrics||(touchMetrics={rect:touchPad.getBoundingClientRect(),knob:touchStickKnob.offsetWidth}),rect=metrics.rect,travel=Math.max(1,rect.width/2-metrics.knob/2-5);let dx=clientX-(rect.left+rect.width/2),dy=clientY-(rect.top+rect.height/2),length=Math.hypot(dx,dy);if(length>travel){dx=dx/length*travel;dy=dy/length*travel;length=travel}touchStickKnob.style.transform=`translate(-50%, -50%) translate(${dx}px, ${dy}px)`;const deadZone=.13;if(length<=travel*deadZone){keys.x=keys.y=0}else{const strength=Math.min(1,(length/travel-deadZone)/(1-deadZone));keys.x=dx/length*strength;keys.y=dy/length*strength}sendCityInputNow()}
 function stopTouchStick(){if(touchPointerId!==null){const pointerId=touchPointerId;touchPointerId=null;try{if(touchPad.hasPointerCapture(pointerId))touchPad.releasePointerCapture(pointerId)}catch(_){}}touchHeld=false;resetTouchStick()}
 function stopMovementInput(){if(!held)return;held.clear();stopTouchStick();keys.x=keys.y=0;sendCityInputNow()}
 touchPad.addEventListener("pointerdown",e=>{e.preventDefault();if(touchPointerId!==null)return;touchPointerId=e.pointerId;touchHeld=true;try{touchPad.setPointerCapture(e.pointerId)}catch(_){}updateTouchStick(e.clientX,e.clientY)});
 touchPad.addEventListener("pointermove",e=>{if(e.pointerId===touchPointerId){e.preventDefault();updateTouchStick(e.clientX,e.clientY)}});
 function finishTouchStick(e){if(touchPointerId===null||e.pointerId!==touchPointerId)return;e.preventDefault();stopTouchStick();keys.x=keys.y=0;sendCityInputNow()}
 touchPad.addEventListener("pointerup",finishTouchStick);touchPad.addEventListener("pointercancel",finishTouchStick);touchPad.addEventListener("lostpointercapture",finishTouchStick);
+addEventListener("resize",()=>stopMovementInput(),{passive:true});
 function updateKeys(){keys.x=(held.has("ArrowRight")||held.has("KeyD")?1:0)-(held.has("ArrowLeft")||held.has("KeyA")?1:0);keys.y=(held.has("ArrowDown")||held.has("KeyS")?1:0)-(held.has("ArrowUp")||held.has("KeyW")?1:0);sendCityInputNow()}
-function sendCityInputNow(){if(!socket||!joined||!self||ride||window.GaicaniCityGames?.blocksMovement)return;if(interior&&interior.id!=="neon-casino")return;const active=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden&&!window.GaicaniCityGames?.active&&!window.GaicaniCasinoUI?.blocksMovement;const x=active?keys.x:0,y=active?keys.y:0;if(interior?.id==="neon-casino"){socket.emit("city:casino:input",{x:x,y:y},r=>{if(r&&Number.isFinite(r.x)){recordServerPosition(r,true);if(Math.hypot(keys.x,keys.y)<.01)self.action="idle"}});return}socket.emit("city:input",{x:x,y:y},r=>{if(r&&Number.isFinite(r.x)){recordServerPosition(r,false);if(Math.hypot(keys.x,keys.y)<.01)self.action="idle"}})}
+function sendCityInputNow(){
+ if(!self||!joined)return;
+ const active=movementAllowed(),x=active?keys.x:0,y=active?keys.y:0;
+ if(Math.hypot(x,y)<=.001){
+  if(Math.hypot(motionInput.x,motionInput.y)>.001)queueMotion(0,0,1);
+  if(!(self.actionUntil>Date.now())&&!predictor.getState()?.blocked)self.action="idle";
+  flushMotion(true);
+ }else flushMotion(false);
+}
 document.addEventListener("keydown",e=>{if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(codeDir[e.code]){e.preventDefault();held.add(e.code);updateKeys()}else if(e.code==="KeyF"){e.preventDefault();if(!e.repeat)toggleVehicle()}else if(e.code==="KeyE"||e.code==="Space"){e.preventDefault();interact()}else if(e.code==="Escape"){closeDialog();playerCard.hidden=true;closeCityMessageComposer();if(interior)leaveInterior()}});
 document.addEventListener("keyup",e=>{held.delete(e.code);updateKeys()});addEventListener("blur",()=>stopMovementInput());document.addEventListener("visibilitychange",()=>{if(document.hidden)stopMovementInput()});
 function connect(){
@@ -393,22 +418,22 @@ function connect(){
  socket.on("friend:error",d=>{const n=String(d&&d.targetUsername||selectedPlayerName).toLowerCase();outgoingFriendRequests.delete(n);updatePlayerActions();toast(d&&(d.message||d.msg)||"მოთხოვნა ვერ გაიგზავნა.")});
  socket.on("guest:registerRequired",()=>toast("მეგობრობისთვის საჭიროა რეგისტრაცია."));
  socket.on("connect_error",()=>presence("is-off","კავშირი ვერ მოხერხდა"));
- socket.on("disconnect",()=>{joined=false;fleet.clear();vehiclePending=false;if(self)self.vehicleId=null;refreshVehicle();ride=null;document.getElementById("cityRideOverlay").hidden=true;signals=[];notes=[];renderSignalList();presence("is-off","კავშირი გაწყდა");remote.clear();onlineCount.textContent="1"});
+ socket.on("disconnect",()=>{joined=false;predictor.clear();motionInput={x:0,y:0};held.clear();stopTouchStick();keys.x=keys.y=0;fleet.clear();vehiclePending=false;if(self)self.vehicleId=null;refreshVehicle();ride=null;document.getElementById("cityRideOverlay").hidden=true;signals=[];notes=[];renderSignalList();presence("is-off","კავშირი გაწყდა");remote.clear();onlineCount.textContent="1"});
  socket.on("city:vehicles",d=>{syncVehicles(d?.vehicles);refreshVehicle()});
- socket.on("city:joined",d=>{joined=true;self=d.self;syncVehicles(d.vehicles);recordServerPosition({x:self.x,y:self.y},false);signals=d.signals||[];notes=d.notes||[];renderSignalList();remote.clear();(d.players||[]).forEach(p=>{if(p.id!==self.id)remote.set(p.id,Object.assign({},p,{targetX:p.x,targetY:p.y}))});presence("is-on","ქალაქში ხარ");refresh();drawMini();cue(760)});
- socket.on("city:casino:joined",d=>{if(!d||!self)return;self.casinoX=d.self.x;self.casinoY=d.self.y;recordServerPosition(d.self,true);self.interiorId="neon-casino";interior=W.buildings.find(b=>b.id==="neon-casino")||interior;document.getElementById("interiorExit").hidden=false;remote.forEach(p=>{if(p.interiorId==="neon-casino")p.interiorId=null});(d.players||[]).forEach(p=>{if(p.id===self.id)return;const old=remote.get(p.id)||{};old.id=p.id;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.interiorId="neon-casino";old.casinoX=p.x;old.casinoY=p.y;old.targetCasinoX=p.x;old.targetCasinoY=p.y;old.message=p.message||"";old.messageUntil=p.messageUntil||0;remote.set(p.id,old)});refresh()});
- socket.on("city:casino:snapshot",d=>{if(!d||!Array.isArray(d.players))return;const seen=new Set();d.players.forEach(p=>{if(p.id===self?.id){recordServerPosition(p,true);self.dir=p.dir;if(Math.hypot(keys.x,keys.y)<.01)self.action=p.action||"idle";return}seen.add(p.id);let old=remote.get(p.id)||{};old.id=p.id;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.interiorId="neon-casino";old.casinoX=Number.isFinite(old.casinoX)?old.casinoX:p.x;old.casinoY=Number.isFinite(old.casinoY)?old.casinoY:p.y;old.targetCasinoX=p.x;old.targetCasinoY=p.y;old.message=p.message||"";old.messageUntil=p.messageUntil||0;remote.set(p.id,old)});remote.forEach(p=>{if(p.interiorId==="neon-casino"&&!seen.has(p.id))p.interiorId=null})});
+ socket.on("city:joined",d=>{joined=true;self=d.self;predictor.clear();syncVehicles(d.vehicles);acceptMotion(self.motion);signals=d.signals||[];notes=d.notes||[];renderSignalList();remote.clear();(d.players||[]).forEach(p=>{if(p.id!==self.id)remote.set(p.id,Object.assign({},p,{targetX:p.x,targetY:p.y}))});presence("is-on","ქალაქში ხარ");refresh();drawMini();cue(760)});
+ socket.on("city:casino:joined",d=>{if(!d||!self)return;self.casinoX=d.self.x;self.casinoY=d.self.y;acceptMotion(d.self.motion);self.interiorId="neon-casino";interior=W.buildings.find(b=>b.id==="neon-casino")||interior;document.getElementById("interiorExit").hidden=false;remote.forEach(p=>{if(p.interiorId==="neon-casino")p.interiorId=null});(d.players||[]).forEach(p=>{if(p.id===self.id)return;const old=remote.get(p.id)||{};old.id=p.id;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.interiorId="neon-casino";old.casinoX=p.x;old.casinoY=p.y;old.targetCasinoX=p.x;old.targetCasinoY=p.y;old.message=p.message||"";old.messageUntil=p.messageUntil||0;remote.set(p.id,old)});refresh()});
+ socket.on("city:casino:snapshot",d=>{if(!d||!Array.isArray(d.players))return;const seen=new Set();d.players.forEach(p=>{if(p.id===self?.id){acceptMotion(p.motion);return}seen.add(p.id);let old=remote.get(p.id)||{};old.id=p.id;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.interiorId="neon-casino";old.casinoX=Number.isFinite(old.casinoX)?old.casinoX:p.x;old.casinoY=Number.isFinite(old.casinoY)?old.casinoY:p.y;old.targetCasinoX=p.x;old.targetCasinoY=p.y;old.message=p.message||"";old.messageUntil=p.messageUntil||0;remote.set(p.id,old)});remote.forEach(p=>{if(p.interiorId==="neon-casino"&&!seen.has(p.id))p.interiorId=null})});
  socket.on("city:casino:playerJoined",p=>{if(!p||p.id===self?.id)return;const old=remote.get(p.id)||{};old.id=p.id;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.interiorId="neon-casino";old.casinoX=p.x;old.casinoY=p.y;old.targetCasinoX=p.x;old.targetCasinoY=p.y;old.message=p.message||"";old.messageUntil=p.messageUntil||0;remote.set(p.id,old)});
  socket.on("city:casino:playerLeft",d=>{const p=d&&remote.get(d.id);if(p)p.interiorId=null});
  socket.on("city:error",d=>toast(d&&d.message||"ქალაქთან დაკავშირება ვერ მოხერხდა"));
- socket.on("city:snapshot",d=>{if(!self||!d||!Array.isArray(d.players))return;syncVehicles(d.vehicles);const seen=new Set();d.players.forEach(p=>{if(p.id===self.id){const changed=(self.vehicleId||null)!==(p.vehicleId||null);self.vehicleId=p.vehicleId||null;if(changed){self.x=p.x;self.y=p.y}recordServerPosition(p,false);self.dir=p.dir;if(Math.hypot(keys.x,keys.y)<.01)self.action=p.action||"idle";return}seen.add(p.id);let old=remote.get(p.id);if(!old)old=Object.assign({},p,{targetX:p.x,targetY:p.y});old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.vehicleId=p.vehicleId||null;old.gameId=p.gameId||null;old.gameStartedAt=p.gameStartedAt||0;old.targetX=p.x;old.targetY=p.y;old.interiorId=p.interiorId||null;old.rideId=p.rideId||null;remote.set(p.id,old)});Array.from(remote.keys()).forEach(id=>{if(!seen.has(id))remote.delete(id)});onlineCount.textContent=String(remote.size+1)});
- socket.on("city:stopped",d=>{if(self&&d&&Math.hypot(keys.x,keys.y)<.01){recordServerPosition(d,false);self.action="idle"}});
- socket.on("city:casino:stopped",d=>{if(self&&d&&Math.hypot(keys.x,keys.y)<.01){recordServerPosition(d,true);self.action="idle"}});
+ socket.on("city:snapshot",d=>{if(!self||!d||!Array.isArray(d.players))return;syncVehicles(d.vehicles);const seen=new Set();d.players.forEach(p=>{if(p.id===self.id){if(p.motion&&p.motion.epoch>=(predictor.getEpoch()||0)){self.vehicleId=p.vehicleId||null;self.gameId=p.gameId||null;acceptMotion(p.motion)}return}seen.add(p.id);let old=remote.get(p.id);if(!old)old=Object.assign({},p,{targetX:p.x,targetY:p.y});old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.vehicleId=p.vehicleId||null;old.gameId=p.gameId||null;old.gameStartedAt=p.gameStartedAt||0;old.targetX=p.x;old.targetY=p.y;old.interiorId=p.interiorId||null;old.rideId=p.rideId||null;remote.set(p.id,old)});Array.from(remote.keys()).forEach(id=>{if(!seen.has(id))remote.delete(id)});onlineCount.textContent=String(remote.size+1)});
+ socket.on("city:stopped",d=>{if(d?.motion)acceptMotion(d.motion)});
+ socket.on("city:casino:stopped",d=>{if(d?.motion)acceptMotion(d.motion)});
  socket.on("city:signals",d=>{signals=Array.isArray(d)?d:[];renderSignalList()});
  socket.on("city:notes",d=>{notes=Array.isArray(d)?d:[]});
  socket.on("city:note:thrown",d=>{if(d)noteFlights.push({fromX:d.fromX,fromY:d.fromY,x:d.x,y:d.y,startAt:performance.now(),duration:1100})});
  socket.on("city:signal:wave",d=>{if(d&&d.targetId===self?.id)toast(d.name+" ანძის სიგნალიდან მოგესალმა 👋");if(d&&d.fromId===self?.id)toast("სიგნალთან ხელი დაუქნიე 👋")});
- socket.on("city:signal:followed",d=>{if(self&&d){self.x=d.x;self.y=d.y;self.action="wave";self.actionUntil=Date.now()+900}});
+ socket.on("city:signal:followed",d=>{if(self&&d){acceptMotion(d.motion);self.action="wave";self.actionUntil=Date.now()+900}});
  socket.on("city:note:found",d=>{if(!d)return;showDialog("ნარიყალასთან იპოვე","საიდუმლო წერილი · "+d.name,d.text,[{label:"✉ ქალაქში პასუხი",run:()=>{closeDialog();openCityMessageComposer("city")}},{label:"ლამაზი საიდუმლოა",run:closeDialog}])});
  socket.on("city:note:claimed",d=>{if(d&&d.authorId===self?.id)toast(d.name+"-მა შენი საიდუმლო წერილი იპოვა ✨")});
  socket.on("city:mother:emote",d=>{if(!d)return;[d.fromId,d.targetId].forEach(id=>{const p=self&&self.id===id?self:remote.get(id);if(p){p.action="wine";p.actionUntil=Date.now()+1200}})});
@@ -420,16 +445,17 @@ function connect(){
  socket.on("city:ride:waiting",d=>setRide(d,"waiting"));
  socket.on("city:ride:start",d=>setRide(Object.assign({},d,{startedAt:Date.now(),messages:[]}),"riding"));
  socket.on("city:ride:message",d=>{if(ride&&d){ride.messages=ride.messages||[];ride.messages.push(Object.assign({receivedAt:Date.now()},d));ride.messages=ride.messages.slice(-6)}});
- socket.on("city:ride:end",d=>{ride=null;document.getElementById("cityRideOverlay").hidden=true;if(self&&d&&Number.isFinite(d.x)){self.x=d.x;self.y=d.y}if(d&&d.message)toast(d.message);sendCityInputNow()});
+ socket.on("city:ride:end",d=>{ride=null;document.getElementById("cityRideOverlay").hidden=true;if(self&&d&&Number.isFinite(d.x)){acceptMotion(d.motion)}if(d&&d.message)toast(d.message);sendCityInputNow()});
  socket.on("city:message",d=>{if(!d||!d.id||typeof d.text!=="string")return;const p=self&&d.id===self.id?self:remote.get(d.id);if(!p)return;p.message=String(d.text).slice(0,120);p.messageUntil=Date.now()+5000});
  socket.on("city:emote",d=>{if(!d||!d.from)return;if(self&&d.from.id===self.id){self.action=d.emote;self.actionUntil=Date.now()+1200}if(self&&d.to&&d.to.id===self.id){self.action=d.emote==="highfive"?"highfive":"wave";self.actionUntil=Date.now()+1200}const a=remote.get(d.from.id);if(a){a.action=d.emote;a.actionUntil=Date.now()+1200}const t=remote.get(d.to&&d.to.id);if(t){t.action=d.emote==="highfive"?"highfive":"wave";t.actionUntil=Date.now()+1200}if(d.to&&self&&d.to.id===self.id)toast(d.emote==="wave"?d.from.name+" მოგესალმა 👋":d.from.name+" გთავაზობს high-five-ს 🖐");cue(590)});
  socket.connect()
 }
-setInterval(()=>{if(!socket||!joined||!self||ride)return;if(interior&&interior.id!=="neon-casino")return;const active=cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden&&!window.GaicaniCityGames?.blocksMovement&&!window.GaicaniCasinoUI?.blocksMovement;socket.emit(interior?.id==="neon-casino"?"city:casino:input":"city:input",{x:active?keys.x:0,y:active?keys.y:0})},45);
+setInterval(()=>flushMotion(false),50);
+
 document.getElementById("fullscreenButton").addEventListener("click",()=>{const root=document.getElementById("cityApp");if(!document.fullscreenElement&&root.requestFullscreen)root.requestFullscreen().catch(()=>{});else if(document.exitFullscreen)document.exitFullscreen().catch(()=>{})});
 document.getElementById("soundButton").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-label",soundOn?"ხმოვანი ეფექტების გამორთვა":"ხმოვანი ეფექტების ჩართვა");e.currentTarget.title=soundOn?"ეფექტები ჩართულია":"ხმოვანი ეფექტები";e.currentTarget.textContent=soundOn?"♫":"♪";cue(660);toast(soundOn?"ხმოვანი ეფექტები ჩართულია":"ხმოვანი ეფექტები გამორთულია")});
 addEventListener("pagehide",()=>{if(socket&&joined)socket.emit("city:leave")});
-window.GaicaniCityGameBridge={getSocket:()=>socket,getSelf:()=>self,getPlayer:id=>remote.get(id),getPlayers:()=>Array.from(remote.values()),getTargetId:()=>playerCard.dataset.targetId||null,toast:toast,cue:cue,stop:()=>{held.clear();keys.x=keys.y=0;sendCityInputNow()}};
+window.GaicaniCityGameBridge={getSocket:()=>socket,getSelf:()=>self,getPlayer:id=>remote.get(id),getPlayers:()=>Array.from(remote.values()),getTargetId:()=>playerCard.dataset.targetId||null,toast:toast,cue:cue,stop:stopMovementInput,getMotionStats:()=>({epoch:predictor.getEpoch(),pending:predictor.pendingCount(),queued:predictor.queuedCount(),phone:phoneMode,pixelRatio:renderDpr})};
 drawMini();requestAnimationFrame(draw);connect();
 })();
 

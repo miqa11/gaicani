@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080a18">
   <meta name="description" content="Tbilisi 1999: Neon Nights — Gaicani-ს საერთო, ღამის ქალაქი.">
   <title>Tbilisi 1999: Neon Nights — GAICANI</title>
-  <link rel="stylesheet" href="/city.css?v=10">
+  <link rel="stylesheet" href="/city.css?v=11">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -172,12 +172,15 @@
         <span>დააწკაპუნე / შეეხე პერსონაჟს</span>
       </div>
 
-      <div class="touch-controls" id="touchControls" aria-label="სენსორული გადაადგილება">
-        <div class="touch-stick" id="touchPad" role="group" aria-label="სენსორული ჯოისტიკი">
+      <div class="touch-controls" id="touchControls" aria-label="სენსორული მართვა">
+        <div class="touch-stick" id="touchPad" role="group" aria-label="სენსორული ჯოისტიკი" aria-describedby="touchMoveHint">
           <div class="touch-stick-base" aria-hidden="true"></div>
           <div class="touch-stick-knob" id="touchStickKnob" aria-hidden="true"></div>
+          <span class="touch-stick-label" id="touchMoveHint">გაასრიალე · აუშვი გასაჩერებლად</span>
         </div>
-        <button type="button" class="touch-interact" id="touchInteract">✦<span>ინტერაქცია</span></button>
+        <div class="touch-actions">
+          <button type="button" class="touch-interact" id="touchInteract" aria-label="ახლომდებარე ობიექტთან ან პერსონაჟთან ინტერაქცია">✦<span>ქმედება</span></button>
+        </div>
       </div>
     </section>
 
@@ -193,7 +196,9 @@
   <script src="/city-architecture.js?v=1"></script>
   <script src="/city-vehicles.js?v=1"></script>
   <script src="/city-vehicle-art.js?v=1"></script>
-  <script src="/city.js?v=12"></script>
+  <script src="/city-motion.js?v=1"></script>
+  <script src="/city-prediction.js?v=1"></script>
+  <script src="/city.js?v=13"></script>
   <script src="/city-arcade-games.js?v=2"></script>
   <script src="/city-game-ui.js?v=2"></script>
   <script src="/city-arcade-ui.js?v=1"></script>
