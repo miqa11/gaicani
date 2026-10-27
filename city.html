@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080a18">
   <meta name="description" content="Tbilisi 1999: Neon Nights — Gaicani-ს საერთო, ღამის ქალაქი.">
   <title>Tbilisi 1999: Neon Nights — GAICANI</title>
-  <link rel="stylesheet" href="/city.css?v=8">
+  <link rel="stylesheet" href="/city.css?v=9">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -27,7 +27,11 @@
       <canvas id="cityCanvas" aria-label="თბილისის ღამის ქალაქი. გადაადგილდი ისრებით ან WASD-ით."></canvas>
       <div class="city-location" id="locationPill"><b>რუსთაველის გამზირი</b><span>2:17 AM · ყოველთვის ღამე</span></div>
       <div class="city-minimap-wrap">
-        <canvas id="miniMap" width="168" height="116" aria-label="ქალაქის რუკა"></canvas>
+        <canvas id="miniMap" width="168" height="116" aria-label="ქალაქის რუკა — კაზინო და არკადა მონიშნულია"></canvas>
+        <div class="city-minimap-markers" aria-hidden="true">
+          <span class="city-map-marker casino">🎰 Casino</span>
+          <span class="city-map-marker arcade">🕹 Arcade</span>
+        </div>
         <span>ქალაქის რუკა</span>
       </div>
       <div class="city-online-pill">● <span id="onlineCount">1</span> მოთამაშე</div>
@@ -180,7 +184,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/city-world.js?v=6"></script>
-  <script src="/city.js?v=10"></script>
+  <script src="/city.js?v=11"></script>
   <script src="/city-arcade-games.js?v=2"></script>
   <script src="/city-game-ui.js?v=2"></script>
   <script src="/city-arcade-ui.js?v=1"></script>

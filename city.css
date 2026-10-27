@@ -39,7 +39,11 @@ button { color: inherit; }
 .city-minimap-wrap { position: absolute; top: 17px; right: 18px; padding: 5px; border: 1px solid rgba(154,129,255,.55); border-radius: 9px; background: rgba(10,10,27,.88); box-shadow: 0 8px 25px #0008; pointer-events: auto; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .city-minimap-wrap:hover { border-color: #ff75d5; box-shadow: 0 0 18px #d13aaa55; }
 .city-minimap-wrap canvas { display: block; width: 168px; height: 116px; image-rendering: pixelated; }
-.city-minimap-wrap span { display: block; margin: 4px 2px 1px; font-size: 9px; color: #b9b6d3; }
+.city-minimap-wrap > span { display: block; margin: 4px 2px 1px; font-size: 9px; color: #b9b6d3; }
+.city-minimap-markers { position: absolute; top: 6px; left: 6px; width: 168px; height: 116px; pointer-events: none; }
+.city-map-marker { position: absolute; display: block; transform: translate(-50%,-50%); padding: 2px 4px; border: 1px solid var(--marker-color); border-radius: 4px; background: #070a19ed; box-shadow: 0 0 8px #65efff55,0 0 9px #ff64d233; color: #fff; font-size: 8px; font-weight: 900; line-height: 1.25; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+.city-map-marker.casino { left: 57.3%; top: 27%; --marker-color:#ff64d2; }
+.city-map-marker.arcade { left: 61.6%; top: 49%; --marker-color:#65efff; }
 .city-map-overlay { position: absolute; z-index: 11; inset: 12px; display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow: hidden; border: 1px solid rgba(154,129,255,.72); border-radius: 14px; background: rgba(7,8,24,.97); box-shadow: 0 16px 60px #000c, 0 0 30px #8e55ff33; }
 .city-map-overlay[hidden] { display: none; }
 .city-map-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex: 0 0 auto; }
@@ -109,7 +113,9 @@ kbd { min-width: 18px; height: 19px; padding: 2px 4px; border: 1px solid #6e629d
   .city-location span { font-size: 8px; }
   .city-minimap-wrap { top: 9px; right: 9px; padding: 4px; }
   .city-minimap-wrap canvas { width: 105px; height: 73px; }
-  .city-minimap-wrap span { font-size: 7px; margin-top: 3px; }
+  .city-minimap-wrap > span { font-size: 7px; margin-top: 3px; }
+  .city-minimap-markers { top: 5px; left: 5px; width: 105px; height: 73px; }
+  .city-map-marker { padding: 1px 3px; font-size: 7px; }
   .city-map-overlay { inset: 7px; gap: 7px; padding: 9px; }
   .city-map-header h2 { font-size: 14px; }
   .city-map-header p { max-width: 260px; font-size: 9px; }

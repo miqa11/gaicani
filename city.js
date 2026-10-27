@@ -200,7 +200,8 @@ function makeMap(){
  g.fillStyle="#10101e";g.fillRect(1478,738,45,58);g.fillStyle="#5c3c74";g.fillRect(1484,744,32,49);g.fillStyle="#f754b9";g.fillRect(1490,750,20,18);
  g.fillStyle="#0b1220";g.fillRect(1948,731,48,66);g.fillStyle="#37d9f4";g.fillRect(1954,737,36,35);g.fillStyle="#0d1b2a";g.fillRect(1959,741,26,25);for(let y=0;y<4;y++)for(let x=0;x<5;x++){g.fillStyle=["#e64cae","#5cdbfb","#ffbd56","#9d70ff"][(x+y*3)%4];g.fillRect(1962+x*5,744+y*5,3,3)}
  drawLandmarkStructures(g);
- W.districts.forEach(d=>{g.fillStyle="rgba(7,8,20,.72)";g.fillRect(d.x-100,d.y-48,200,27);g.strokeStyle=d.color;g.lineWidth=1;g.strokeRect(d.x-100,d.y-48,200,27);label(g,d.en,d.x,d.y-34,8,d.color,"center")});
+  W.districts.forEach(d=>{g.fillStyle="rgba(7,8,20,.72)";g.fillRect(d.x-100,d.y-48,200,27);g.strokeStyle=d.color;g.lineWidth=1;g.strokeRect(d.x-100,d.y-48,200,27);label(g,d.en,d.x,d.y-34,8,d.color,"center")});
+  [{name:"CASINO",x:1650,y:416,color:"#ff64d2"},{name:"PIXEL ARCADE",x:1775,y:832,color:"#65efff"}].forEach(place=>{g.fillStyle="rgba(5,7,20,.94)";g.fillRect(place.x-88,place.y-15,176,30);g.strokeStyle=place.color;g.lineWidth=2;g.strokeRect(place.x-88,place.y-15,176,30);label(g,place.name,place.x,place.y,19,place.color,"center")});
  return map
 }
 const staticMap=makeMap();
