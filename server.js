@@ -4,6 +4,7 @@ const { Server } = require("socket.io");
 const path       = require("path");
 const cityWorld  = require("./city-world.js");
 const cityVehicles = require("./city-vehicles.js");
+const { createCityMotionController } = require("./server-city-motion.js");
 const { createCityGameEngine } = require("./city-game-engine.js");
 const { createCityCasinoEngine } = require("./city-casino-engine.js");
 const fs         = require("fs");
@@ -14003,6 +14004,7 @@ const CITY_ROOM = "city:night";
 const CITY_CASINO_ROOM = "citycasino:neon-casino";
 const cityPlayers = new Map();
 const cityGarage = cityVehicles.createGarage(cityWorld);
+const cityMotionController = createCityMotionController(cityWorld, cityGarage);
 const cityGameEngine = createCityGameEngine({ io, players:cityPlayers, registeredUsers, roomName:CITY_ROOM, saveAuthUsers });
 const cityCasinoEngine = createCityCasinoEngine({ io, registeredUsers, spendableCoins, ensureCoins, settlePendingCoins,
   changeCoins, saveAuthUsers, syncCoinSeat: at => { if (at.poker) broadcastPokerRoom(at.room); else broadcastBjRoom(at.room); }, georgiaDay });
@@ -14011,12 +14013,13 @@ const CITY_ICEBREAKERS = ["რომელი სიმღერა გახა
 let cityRideSequence=0, cityLastTick = Date.now(), cityLastEphemeralCleanup=0;
 const CITY_PALETTE = ["#bf75ef", "#58d8f2", "#f27ba9", "#e9a550", "#66d7a7", "#8d99ff", "#e66c52"];
 function cityPublicPlayer(p) {
-  return { id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
+  const motion = cityMotionController.view(p);
+  return { motion:motion, id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
     action: p.action, interiorId: p.interiorId || null, rideId: p.rideId || null, vehicleId:p.vehicleId||null, gameId:p.gameId||null, gameStartedAt:p.gameStartedAt||0 };
 }
 function cityList() { return Array.from(cityPlayers.values(), cityPublicPlayer); }
 function cityPushVehicles() { io.to(CITY_ROOM).emit("city:vehicles", { vehicles:cityGarage.list() }); }
-function cityCasinoPublicPlayer(p) { return { id:p.id, name:p.name, color:p.color, x:p.casinoX, y:p.casinoY, dir:p.dir, action:p.action, message:p.message, messageUntil:p.messageUntil }; }
+function cityCasinoPublicPlayer(p) { return { motion:cityMotionController.view(p), id:p.id, name:p.name, color:p.color, x:p.casinoX, y:p.casinoY, dir:p.dir, action:p.action, message:p.message, messageUntil:p.messageUntil }; }
 function cityCasinoList() { return Array.from(cityPlayers.values()).filter(p => p.interiorId === "neon-casino").map(cityCasinoPublicPlayer); }
 function cityFind(socket) { return cityPlayers.get(socket.id); }
 function citySignalList() { return Array.from(citySignals.values()); }
@@ -14029,7 +14032,7 @@ function cityStationArrival(stationId) { const st=cityStation(stationId); if(!st
 function cityEndRide(ride,message) {
   if(!ride||!cityRides.has(ride.id))return;
   clearTimeout(ride.timer);clearTimeout(ride.waitTimer);cityRides.delete(ride.id);
-  for(const id of ride.members){const p=cityPlayers.get(id),sock=io.sockets.sockets.get(id);if(!p)continue;const stationId=ride.status==="riding"?(p.rideStation==="funicular-west"?"funicular-east":"funicular-west"):p.rideStation;p.rideId=null;p.inputX=p.inputY=0;const at=cityStationArrival(stationId);p.x=at.x;p.y=at.y;if(sock){sock.leave("cityride:"+ride.id);sock.emit("city:ride:end",{x:p.x,y:p.y,message:message||"საბაგირო სადგურში დაბრუნდა."})}}
+  for(const id of ride.members){const p=cityPlayers.get(id),sock=io.sockets.sockets.get(id);if(!p)continue;const stationId=ride.status==="riding"?(p.rideStation==="funicular-west"?"funicular-east":"funicular-west"):p.rideStation;p.rideId=null;p.inputX=p.inputY=0;const at=cityStationArrival(stationId);p.x=at.x;p.y=at.y;if(sock){sock.leave("cityride:"+ride.id);sock.emit("city:ride:end",{x:p.x,y:p.y,motion:cityMotionController.view(p),message:message||"საბაგირო სადგურში დაბრუნდა."})}}
 }
 function cityLeaveRide(socketId,message) {
  const p=cityPlayers.get(socketId);if(!p||!p.rideId)return;
@@ -14037,7 +14040,7 @@ function cityLeaveRide(socketId,message) {
  const sock=io.sockets.sockets.get(socketId);if(sock)sock.leave("cityride:"+ride.id);
  ride.members=ride.members.filter(id=>id!==socketId);p.rideId=null;p.inputX=p.inputY=0;
  const station=ride.status==="riding"?(p.rideStation==="funicular-west"?"funicular-east":"funicular-west"):p.rideStation;
- const at=cityStationArrival(station);p.x=at.x;p.y=at.y;if(sock)sock.emit("city:ride:end",{x:p.x,y:p.y,message:message||"კაბინიდან ჩამოხვედი."});
+ const at=cityStationArrival(station);p.x=at.x;p.y=at.y;if(sock)sock.emit("city:ride:end",{x:p.x,y:p.y,motion:cityMotionController.view(p),message:message||"კაბინიდან ჩამოხვედი."});
  if(!ride.members.length){clearTimeout(ride.timer);clearTimeout(ride.waitTimer);cityRides.delete(ride.id)}
 }
 function cityBeginRide(ride) {
@@ -14065,6 +14068,7 @@ setInterval(() => {
       if (p.gameId) p.action = "phone";
       cityPushVehicles();
     }
+    if (cityMotionController.maintain(p, now)) continue;
     if (p.interiorId === "neon-casino" && !p.rideId && !p.gameId) {
       let dx=p.casinoInputX||0,dy=p.casinoInputY||0;
       const length=Math.hypot(dx,dy);if(length>1){dx/=length;dy/=length;}
@@ -14166,9 +14170,16 @@ io.on("connection", (socket) => {
     reply({ ok:true, self:cityPublicPlayer(p), vehicles:cityGarage.list() });
   });
 
+  socket.on("city:motion", (data, ack) => {
+    const p = cityFind(socket), reply = typeof ack === "function" ? ack : () => {};
+    if (!p) return reply({ error:"Not in the city" });
+    const result = cityMotionController.process(p, data, Date.now());
+    reply(result);
+  });
+
   socket.on("city:input", (data, ack) => {
     const p = cityFind(socket), now = Date.now();
-    if (!p || p.interiorId || p.rideId || p.gameId) return;
+    if (!p || p.interiorId || p.rideId || p.gameId || cityMotionController.active(p)) return;
     const x = Number(data && data.x), y = Number(data && data.y), nx=Number.isFinite(x)?Math.max(-1,Math.min(1,x)):0, ny=Number.isFinite(y)?Math.max(-1,Math.min(1,y)):0;
     if(Math.abs(nx)+Math.abs(ny)<0.01){const wasMoving=Math.abs(p.inputX)+Math.abs(p.inputY)>.01;p.inputX=p.inputY=0;p.action="idle";p.actionUntil=0;p.lastInputAt=now;if(typeof ack==="function")ack({x:p.x,y:p.y});if(wasMoving||typeof ack==="function")socket.emit("city:stopped",{x:p.x,y:p.y});return}
     if(now-p.lastInputAt<35)return;p.lastInputAt=now;p.inputX=nx;p.inputY=ny;
@@ -14214,7 +14225,7 @@ io.on("connection", (socket) => {
     if(p.id===id)return reply({error:"ეს შენი სიგნალია."});
     const spots=[[target.x+32,target.y],[target.x-32,target.y],[target.x,target.y+34],[target.x,target.y-34]].find(q=>cityWorld.isWalkable(q[0],q[1],11));
     if(!spots)return reply({error:"სიგნალის გვერდით ადგილი არ არის."});
-    p.x=spots[0];p.y=spots[1];p.inputX=p.inputY=0;socket.emit("city:signal:followed",{x:p.x,y:p.y});reply({ok:true})
+    p.x=spots[0];p.y=spots[1];p.inputX=p.inputY=0;socket.emit("city:signal:followed",{x:p.x,y:p.y,motion:cityMotionController.view(p)});reply({ok:true})
   });
   socket.on("city:signal:wave",(data,ack)=>{
     const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{},id=data&&data.targetId,sig=citySignals.get(id);
@@ -14298,7 +14309,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("city:casino:input", (data, ack) => {
-    const p=cityFind(socket),now=Date.now();if(!p||p.interiorId!=="neon-casino"||p.rideId||p.gameId)return;
+    const p=cityFind(socket),now=Date.now();if(!p||p.interiorId!=="neon-casino"||p.rideId||p.gameId||cityMotionController.active(p))return;
     const x=Number(data&&data.x),y=Number(data&&data.y),nx=Number.isFinite(x)?Math.max(-1,Math.min(1,x)):0,ny=Number.isFinite(y)?Math.max(-1,Math.min(1,y)):0;
     if(Math.abs(nx)+Math.abs(ny)<.01){const wasMoving=Math.abs(p.casinoInputX||0)+Math.abs(p.casinoInputY||0)>.01;p.casinoInputX=p.casinoInputY=0;p.action="idle";p.actionUntil=0;p.lastCasinoInputAt=now;if(typeof ack==="function")ack({x:p.casinoX,y:p.casinoY});if(wasMoving||typeof ack==="function")socket.emit("city:casino:stopped",{x:p.casinoX,y:p.casinoY});return}
     if(now-(p.lastCasinoInputAt||0)<35)return;p.lastCasinoInputAt=now;p.casinoInputX=nx;p.casinoInputY=ny;
