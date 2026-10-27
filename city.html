@@ -7,6 +7,8 @@
   <meta name="description" content="Tbilisi 1999: Neon Nights — Gaicani-ს საერთო, ღამის ქალაქი.">
   <title>Tbilisi 1999: Neon Nights — GAICANI</title>
   <link rel="stylesheet" href="/city.css?v=11">
+  <link rel="stylesheet" href="/city-garden.css?v=1">
+  <link rel="stylesheet" href="/city-audio.css?v=1">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -27,10 +29,11 @@
       <canvas id="cityCanvas" aria-label="თბილისის ღამის ქალაქი. გადაადგილდი ისრებით ან WASD-ით. F — მანქანაში ჩაჯდომა ან გადმოსვლა."></canvas>
       <div class="city-location" id="locationPill"><b>რუსთაველის გამზირი</b><span>2:17 AM · ყოველთვის ღამე</span></div>
       <div class="city-minimap-wrap">
-        <canvas id="miniMap" width="168" height="116" aria-label="ქალაქის რუკა — კაზინო და არკადა მონიშნულია"></canvas>
+        <canvas id="miniMap" width="168" height="116" aria-label="ქალაქის რუკა — კაზინო, არკადა და Neon Garden მონიშნულია"></canvas>
         <div class="city-minimap-markers" aria-hidden="true">
           <span class="city-map-marker casino">🎰 Casino</span>
           <span class="city-map-marker arcade">🕹 Arcade</span>
+          <span class="city-map-marker garden">♫ Garden</span>
         </div>
         <span>ქალაქის რუკა</span>
       </div>
@@ -193,13 +196,15 @@
   </main>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/city-world.js?v=6"></script>
+  <script src="/city-world.js?v=7"></script>
   <script src="/city-architecture.js?v=1"></script>
-  <script src="/city-vehicles.js?v=1"></script>
+  <script src="/city-vehicles.js?v=2"></script>
   <script src="/city-vehicle-art.js?v=1"></script>
   <script src="/city-motion.js?v=1"></script>
   <script src="/city-prediction.js?v=1"></script>
-  <script src="/city.js?v=14"></script>
+  <script src="/city-audio.js?v=1"></script>
+  <script src="/city-garden.js?v=1"></script>
+  <script src="/city.js?v=15"></script>
   <script src="/city-arcade-games.js?v=2"></script>
   <script src="/city-game-ui.js?v=3"></script>
   <script src="/city-arcade-ui.js?v=1"></script>

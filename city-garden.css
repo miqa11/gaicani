@@ -1,0 +1,38 @@
+.garden-controls { position:absolute; z-index:4; left:18px; bottom:68px; width:min(470px,calc(100% - 36px)); padding:12px 14px; border:1px solid #70f2c88a; border-left:3px solid #80f9c7; border-radius:10px; background:#101a2bf5; box-shadow:0 6px 24px #0006; }
+.garden-controls[hidden], .garden-controls [hidden], .garden-wayfinder[hidden] { display:none; }
+.garden-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.garden-heading b { color:#9bffdd; font:9px "Press Start 2P",monospace; line-height:1.5; }
+.garden-controls button { min-height:44px; min-width:44px; border:1px solid #9ae8cf77; border-radius:7px; background:#243746; color:#f5f4e8; font:700 11px "Noto Sans Georgian",sans-serif; cursor:pointer; padding:8px 10px; touch-action:manipulation; }
+.garden-heading button { padding:4px 10px; font-size:20px; }
+.garden-controls button:hover { background:#314957; }
+.garden-controls button:disabled { opacity:.45; cursor:default; }
+.garden-controls small { display:block; color:#b8c9d1; font-size:9px; line-height:1.6; }
+.garden-actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:8px; }
+#gardenDance { border-color:#f07cc9; background:#5b2e60; }
+#gardenOptions { border-top:1px solid #ffffff20; margin-top:10px; padding-top:10px; }
+#gardenOptions > label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:11px; margin-bottom:8px; }
+.garden-controls select { min-height:44px; min-width:0; max-width:100%; border:1px solid #86a8ba77; border-radius:6px; padding:8px; color:#edecf9; background:#111d30; font:11px "Noto Sans Georgian",sans-serif; }
+.garden-sync input { width:20px; height:20px; accent-color:#c178e5; }
+.garden-private { display:flex; gap:7px; margin-bottom:8px; }
+.garden-private select { flex:1; }
+.garden-wayfinder { position:absolute; z-index:2; left:18px; top:92px; padding:9px 12px; color:#baffdd; border:1px solid #7ee4b44d; background:#0c1d2be8; border-radius:7px; font:9px "Noto Sans Georgian",sans-serif; pointer-events:none; }
+.city-map-marker.garden { --marker-color:#81ffcf; left:48%; top:74%; }
+.garden-private-message { position:absolute; z-index:9; top:110px; left:50%; transform:translateX(-50%); width:min(420px,calc(100% - 28px)); padding:13px 16px; background:#1a1733f5; border:1px solid #c493f0; border-radius:9px; box-shadow:0 8px 30px #0007; color:#f3e5ff; }
+.garden-private-message[hidden] { display:none; }
+.garden-private-message strong { display:block; color:#d5b6ff; font-size:11px; margin-right:36px; }
+.garden-private-message p { font-size:12px; line-height:1.6; overflow-wrap:anywhere; margin:8px 0; white-space:pre-wrap; }
+.garden-private-message button { min-width:44px; min-height:44px; border:1px solid #a78ac077; border-radius:6px; background:#33284a; color:#fff; padding:7px 11px; cursor:pointer; }
+@media(max-width:700px),(any-pointer:coarse) {
+ .garden-controls { left:12px; right:12px; bottom:calc(var(--touch-size,116px) + 24px); width:auto; max-height:calc(100% - var(--touch-size,116px) - 140px); overflow:auto; padding:9px 11px; box-shadow:none; }
+ .garden-heading b { font-size:8px; }
+ .garden-actions { gap:6px; }
+ .garden-actions button { flex:1; font-size:10px; padding:7px; }
+ .garden-wayfinder { left:12px; top:112px; max-width:calc(100% - 24px); font-size:8px; padding:8px 10px; }
+ .garden-private-message { top:110px; max-height:50%; overflow:auto; }
+}
+@media(orientation:landscape) and (max-height:560px) {
+ .garden-controls { left:auto; right:calc(var(--touch-action-size,64px) + 24px); bottom:8px; width:min(430px,calc(100% - var(--touch-size,100px) - var(--touch-action-size,64px) - 56px)); max-height:calc(100% - 88px); }
+ .garden-controls small { font-size:8px; }
+ .garden-heading b { font-size:7px; }
+ .garden-wayfinder { left:10px; top:75px; padding:5px 8px; }
+}
