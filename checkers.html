@@ -724,7 +724,9 @@
   // player sees their own pieces at the bottom (same convention as poker/chess).
   function gridIndexToSquare(gridIdx) {
     const row = Math.floor(gridIdx / 8), col = gridIdx % 8;
-    if (myColor === "b") {
+    // Keep one fixed overhead view for local two-player games; Red remains
+    // at the bottom and Black at the top as the turn changes.
+    if (!localMode && myColor === "b") {
       const file = 7 - col, rank = row;
       return rank * 8 + file;
     }
@@ -736,7 +738,7 @@
   // for animation (piece position, trail dots), honoring the same board flip.
   function squareToGridIndex(square) {
     const file = square % 8, rank = Math.floor(square / 8);
-    if (myColor === "b") {
+    if (!localMode && myColor === "b") {
       const col = 7 - file, row = rank;
       return row * 8 + col;
     }
@@ -1038,27 +1040,28 @@
     const prevRoom = latestRoom; // captured before it's overwritten below
     latestRoom = room;
     const me = localMode
-      ? room.players.find(p => p.color === room.turn)
+      ? room.players.find(p => p.color === "r")
       : room.players.find(p => p.username.toLowerCase() === myUsernameLower);
     const opp = localMode
-      ? room.players.find(p => p.color !== room.turn)
+      ? room.players.find(p => p.color === "b")
       : room.players.find(p => p.username.toLowerCase() !== myUsernameLower);
     myColor = localMode ? room.turn : (me ? me.color : null);
+    const bottomColor = localMode ? "r" : myColor;
     if (selectedSquare !== null && room.mustContinueFrom !== null && selectedSquare !== room.mustContinueFrom) selectedSquare = null;
     if (room.mustContinueFrom !== null) selectedSquare = room.mustContinueFrom;
 
     if (me) { $("meAvatar").src = "/" + (me.avatar || "avatar1.png"); }
     $("meName").textContent = (me && me.username) || "";
-    $("meColorDot").style.background = myColor === "r" ? "#c0392b" : "#1c1d21";
+    $("meColorDot").style.background = bottomColor === "r" ? "#c0392b" : "#1c1d21";
     if (opp) { $("oppAvatar").src = "/" + (opp.avatar || "avatar1.png"); }
     $("oppName").textContent = (opp && opp.username) || "მოწინააღმდეგე";
-    const oppColor = myColor === "r" ? "b" : "r";
+    const oppColor = bottomColor === "r" ? "b" : "r";
     $("oppColorDot").style.background = oppColor === "r" ? "#c0392b" : "#1c1d21";
 
-    $("meBar").classList.toggle("turn", room.turn === myColor && room.status === "playing" && !room.result);
-    $("oppBar").classList.toggle("turn", room.turn !== myColor && room.status === "playing" && !room.result);
+    $("meBar").classList.toggle("turn", room.turn === bottomColor && room.status === "playing" && !room.result);
+    $("oppBar").classList.toggle("turn", room.turn !== bottomColor && room.status === "playing" && !room.result);
 
-    $("meCaptured").textContent = "დარჩა: " + countPieces(room.board, myColor);
+    $("meCaptured").textContent = "დარჩა: " + countPieces(room.board, bottomColor);
     $("oppCaptured").textContent = "დარჩა: " + countPieces(room.board, oppColor);
 
     const banner = $("turnBanner");

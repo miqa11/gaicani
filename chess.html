@@ -684,7 +684,9 @@
   // black (so each player always sees their own side at the bottom).
   function gridIndexToSquare(gridIdx) {
     const row = Math.floor(gridIdx / 8), col = gridIdx % 8;
-    if (myColor === "b") {
+    // A shared-device game is viewed from above like a real board: keep
+    // White at the bottom for both players instead of flipping every turn.
+    if (!localMode && myColor === "b") {
       const file = 7 - col, rank = row; // rank 0 at top visually for black view
       return rank * 8 + file;
     }
@@ -980,23 +982,24 @@
   function renderGame(room) {
     latestRoom = room;
     const me = localMode
-      ? room.players.find(p => p.color === room.turn)
+      ? room.players.find(p => p.color === "w")
       : room.players.find(p => p.username.toLowerCase() === myUsernameLower);
     const opp = localMode
-      ? room.players.find(p => p.color !== room.turn)
+      ? room.players.find(p => p.color === "b")
       : room.players.find(p => p.username.toLowerCase() !== myUsernameLower);
     myColor = localMode ? room.turn : (me ? me.color : null);
+    const bottomColor = localMode ? "w" : myColor;
 
     if (me) { $("meAvatar").src = "/" + (me.avatar || "avatar1.png"); }
     $("meName").textContent = (me && me.username) || "";
     if (opp) { $("oppAvatar").src = "/" + (opp.avatar || "avatar1.png"); }
     $("oppName").textContent = (opp && opp.username) || "მოწინააღმდეგე";
 
-    $("meBar").classList.toggle("turn", room.turn === myColor && room.status === "playing" && !room.result);
-    $("oppBar").classList.toggle("turn", room.turn !== myColor && room.status === "playing" && !room.result);
+    $("meBar").classList.toggle("turn", room.turn === bottomColor && room.status === "playing" && !room.result);
+    $("oppBar").classList.toggle("turn", room.turn !== bottomColor && room.status === "playing" && !room.result);
 
-    $("meCaptured").textContent = capturedGlyphs(room.board, myColor);
-    $("oppCaptured").textContent = capturedGlyphs(room.board, myColor === "w" ? "b" : "w");
+    $("meCaptured").textContent = capturedGlyphs(room.board, bottomColor);
+    $("oppCaptured").textContent = capturedGlyphs(room.board, bottomColor === "w" ? "b" : "w");
 
     $("gameStatusLabel").textContent = room.result
       ? "თამაში დასრულდა"
