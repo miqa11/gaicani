@@ -13,8 +13,8 @@ function createCityMotionController(world, garage) {
       mode,
       x: mode === "casino" ? player.casinoX : player.x,
       y: mode === "casino" ? player.casinoY : player.y,
-      key: [player.interiorId || "", player.rideId || "", player.gameId || "", player.vehicleId || ""].join("|"),
-      blocked: !!(player.rideId || player.gameId || (player.interiorId && mode !== "casino"))
+      key: [player.interiorId || "", player.rideId || "", player.gameId || "", player.vehicleId || "", player.gardenSeatId || ""].join("|"),
+      blocked: !!(player.rideId || player.gameId || player.gardenSeatId || (player.interiorId && mode !== "casino"))
     };
   }
   function ensure(player, now) {
@@ -33,12 +33,17 @@ function createCityMotionController(world, garage) {
   function view(player, now) {
     const state = ensure(player, now);
     return { epoch: state.epoch, seq: state.seq, mode: state.mode, x: state.x, y: state.y,
-      dir: player.dir || "down", action: player.action || "idle", vehicleId: player.vehicleId || null, blocked: state.blocked };
+      dir: player.dir || "down", action: player.action || "idle", vehicleId: player.vehicleId || null, blocked: state.blocked,
+      gardenDance: player.gardenDance || null, gardenSeatId: player.gardenSeatId || null, gardenSeatKind: player.gardenSeatKind || null };
   }
   function active(player) { return !!states.get(player)?.active; }
   function maintain(player, now) {
     const state = ensure(player, now);
-    if (state.active && !state.blocked && now - state.lastCommandAt > 500 && !(player.actionUntil > now)) player.action = "idle";
+    if (state.active && !(player.actionUntil > now)) {
+      if (player.gardenSeatId) player.action = "sit";
+      else if (player.gardenDance) player.action = "dance";
+      else if (!state.blocked && now - state.lastCommandAt > 500) player.action = "idle";
+    }
     return state.active;
   }
   function process(player, payload, now) {
@@ -73,7 +78,7 @@ function createCityMotionController(world, garage) {
       state.x = next.x; state.y = next.y; state.seq = command.seq;
       player.dir = next.dir;
       state.lastCommandAt = at;
-      if (!state.blocked && !(player.actionUntil > at)) player.action = next.moving ? (player.vehicleId ? "drive" : "walk") : "idle";
+      if (!state.blocked && !(player.actionUntil > at)) player.action = next.moving ? (player.vehicleId ? "drive" : "walk") : player.gardenDance ? "dance" : "idle";
       if (player.vehicleId) garage.sync(player);
     }
     return reply();

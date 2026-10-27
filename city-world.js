@@ -5,39 +5,40 @@
   if (root) root.GaicaniCityWorld = world;
 })(typeof window !== "undefined" ? window : globalThis, function () {
   "use strict";
-  const width = 2880, height = 1980;
+  const width = 2880, height = 3420;
   const districts = [
     { id: "rustaveli", name: "რუსთაველის გამზირი", en: "RUSTAVELI AVENUE", x: 420, y: 440, color: "#ff4fc9" },
     { id: "old-town", name: "ძველი თბილისი", en: "OLD TBILISI", x: 1220, y: 420, color: "#ffc66b" },
     { id: "arcade", name: "არკადების უბანი", en: "ARCADE DISTRICT", x: 2070, y: 420, color: "#70f5ff" },
     { id: "underground", name: "მიწისქვეშა გადასასვლელი", en: "UNDERGROUND", x: 1420, y: 1110, color: "#b689ff" },
     { id: "bakery", name: "24/7 საცხობი", en: "OPEN ALL NIGHT", x: 680, y: 1510, color: "#ffae55" },
-    { id: "riverside", name: "მტკვრის სანაპირო", en: "RIVERSIDE", x: 2290, y: 1480, color: "#68e8ff" }
+    { id: "riverside", name: "მტკვრის სანაპირო", en: "RIVERSIDE", x: 2290, y: 1480, color: "#68e8ff" },
+    { id: "neon-garden", name: "Neon Garden — 1999", en: "NEON GARDEN · 1999", x: 1400, y: 2550, color: "#74ffca" }
   ];
   const buildings = [
     { id: "cinema", x: 115, y: 120, w: 300, h: 190, name: "კინოთეატრი თბილისი", sign: "კინო", color: "#e440b5", type: "cinema" },
     { id: "cafe-balcony", x: 635, y: 115, w: 270, h: 195, name: "კაფე აივანი", sign: "აივანი", color: "#50d8ff", type: "cafe" },
     { id: "courtyard", x: 1030, y: 105, w: 330, h: 210, name: "ძველი ეზო", sign: "ეზო", color: "#ffb25d", type: "courtyard" },
     { id: "photo-shop", x: 1510, y: 100, w: 280, h: 210, name: "ფოტოსალონი", sign: "ფოტო", color: "#fc5fc8", type: "shop" },
-    { id: "arcade", x: 1990, y: 110, w: 360, h: 205, name: "პიქსელების არკადა", sign: "ARKADA", color: "#62f4ff", type: "arcade", enterable: true },
+    { id: "arcade", x: 1990, y: 110, w: 360, h: 205, name: "პიქსელების არკადა", sign: "ARKADA", color: "#62f4ff", type: "arcade" },
     { id: "radio", x: 255, y: 455, w: 245, h: 195, name: "რადიო 99.9", sign: "FM 99.9", color: "#ffb84f", type: "radio" },
     { id: "balcony-house", x: 760, y: 440, w: 280, h: 205, name: "მეზობლების სახლი", sign: "სახლი", color: "#d175ff", type: "house" },
-    { id: "marani", x: 1260, y: 430, w: 305, h: 210, name: "მარანი", sign: "მარანი", color: "#ff6457", type: "cafe", enterable: true },
+    { id: "marani", x: 1260, y: 430, w: 305, h: 210, name: "მარანი", sign: "მარანი", color: "#ff6457", type: "cafe" },
     { id: "neon-casino", x: 1575, y: 430, w: 150, h: 210, name: "ღამის კაზინო", sign: "CASINO 99", color: "#ff58d2", type: "casino", enterable: true },
-    { id: "internet-cafe", x: 1740, y: 435, w: 320, h: 205, name: "ინტერნეტ კაფე 1999", sign: "INTERNET", color: "#66ddff", type: "internet", enterable: true },
+    { id: "internet-cafe", x: 1740, y: 435, w: 320, h: 205, name: "ინტერნეტ კაფე 1999", sign: "INTERNET", color: "#66ddff", type: "internet" },
     { id: "cassette-shop", x: 2205, y: 425, w: 220, h: 210, name: "კასეტების მაღაზია", sign: "კასეტა", color: "#e84fa5", type: "shop" },
-    { id: "bakery", x: 265, y: 875, w: 340, h: 205, name: "ღამის საცხობი", sign: "ცხელი პური", color: "#ffb34e", type: "bakery", enterable: true },
+    { id: "bakery", x: 265, y: 875, w: 340, h: 205, name: "ღამის საცხობი", sign: "ცხელი პური", color: "#ffb34e", type: "bakery" },
     { id: "flowers", x: 735, y: 890, w: 300, h: 185, name: "ყვავილების კიოსკი", sign: "ყვავილები", color: "#ff67bd", type: "shop" },
-    { id: "passage", x: 1150, y: 875, w: 375, h: 220, name: "მიწისქვეშა გადასასვლელი", sign: "ქვემოთ ↓", color: "#9d74ff", type: "passage", enterable: true },
+    { id: "passage", x: 1150, y: 875, w: 375, h: 220, name: "მიწისქვეშა გადასასვლელი", sign: "ქვემოთ ↓", color: "#9d74ff", type: "passage" },
     { id: "arcade-palace", x: 1540, y: 850, w: 470, h: 235, name: "პიქსელების სასახლე", sign: "PIXEL PALACE", color: "#71f7ff", type: "arcade", enterable: true },
     { id: "tea-room", x: 2040, y: 890, w: 320, h: 190, name: "ჩაის ოთახი", sign: "ჩაი", color: "#ff9e64", type: "cafe" },
     { id: "yard-five", x: 110, y: 1315, w: 300, h: 210, name: "ეზო N5", sign: "ეზო №5", color: "#ce75ff", type: "courtyard" },
     { id: "all-night-shop", x: 585, y: 1310, w: 340, h: 205, name: "24 საათი", sign: "24/7", color: "#ffe260", type: "shop" },
-    { id: "rooftop", x: 1100, y: 1315, w: 345, h: 205, name: "სახურავის კიბე", sign: "სახურავი ↑", color: "#ff61c7", type: "house", enterable: true },
+    { id: "rooftop", x: 1100, y: 1315, w: 345, h: 205, name: "სახურავის კიბე", sign: "სახურავი ↑", color: "#ff61c7", type: "house" },
     { id: "vinyl-club", x: 1590, y: 1325, w: 300, h: 195, name: "ვინილის კლუბი", sign: "VINYL", color: "#66e2ff", type: "music" },
     { id: "river-cafe", x: 2035, y: 1320, w: 300, h: 195, name: "სანაპიროს კაფე", sign: "მტკვარი", color: "#64ddff", type: "cafe" },
     { id: "blue-hour-apartments", x: 430, y: 120, w: 180, h: 190, name: "ლურჯი საათის სახლი", sign: "ლურჯი საათი", color: "#7588ff", type: "apartment" },
-    { id: "radio-bar", x: 1805, y: 115, w: 165, h: 195, name: "რადიო ბარი", sign: "RADIO BAR", color: "#ff62c9", type: "bar", enterable: true },
+    { id: "radio-bar", x: 1805, y: 115, w: 165, h: 195, name: "რადიო ბარი", sign: "RADIO BAR", color: "#ff62c9", type: "bar" },
     { id: "late-shop", x: 2360, y: 120, w: 125, h: 190, name: "ღამის პატარა მაღაზია", sign: "24/7", color: "#ffe36b", type: "shop" },
     { id: "bookshop", x: 505, y: 445, w: 230, h: 195, name: "ძველი წიგნების მაღაზია", sign: "წიგნები", color: "#e9a764", type: "shop" },
     { id: "repair-shop", x: 1060, y: 445, w: 185, h: 195, name: "საათების სახელოსნო", sign: "შეკეთება", color: "#59cfe3", type: "shop" },
@@ -55,7 +56,75 @@
     { id: "funicular-west", type: "station", line: "tbilisi-cable", end: "west", name: "საბაგიროს სადგური", sign: "საბაგირო", x: 2463, y: 1090, interactX: 2463, interactY: 1090, color: "#ff525c" },
     { id: "funicular-east", type: "station", line: "tbilisi-cable", end: "east", name: "ნარიყალას საბაგირო", sign: "საბაგირო", x: 2700, y: 985, interactX: 2700, interactY: 985, color: "#ff525c" }
   ];
-  const blockers = buildings.map(function (b) { return { x: b.x, y: b.y, w: b.w, h: b.h }; }).concat([
+  const garden = {
+    id: "neon-garden", name: "Neon Garden — 1999",
+    bounds: { x: 120, y: 1840, w: 2320, h: 1440 },
+    gate: { x: 1280, y: 1834, w: 240, h: 24 },
+    danceFloor: { x: 1040, y: 2260, w: 680, h: 520 },
+    dj: { x: 1200, y: 2070, w: 360, h: 120 },
+    bar: { x: 270, y: 2110, w: 460, h: 140 },
+    speakers: [
+      { id: "speaker-nw", x: 1090, y: 2200, w: 50, h: 62 },
+      { id: "speaker-ne", x: 1620, y: 2200, w: 50, h: 62 },
+      { id: "speaker-sw", x: 1040, y: 2810, w: 50, h: 62 },
+      { id: "speaker-se", x: 1670, y: 2810, w: 50, h: 62 }
+    ],
+    tables: [
+      { id: "table-west", x: 500, y: 2560, w: 80, h: 40 },
+      { id: "table-midwest", x: 760, y: 2780, w: 80, h: 40 },
+      { id: "table-east", x: 1990, y: 2470, w: 80, h: 40 },
+      { id: "table-southeast", x: 2100, y: 2850, w: 80, h: 40 },
+      { id: "table-southwest", x: 650, y: 3090, w: 80, h: 40 }
+    ],
+    seats: [],
+    trees: [],
+    corners: [
+      { id: "willow-corner", name: "ჩუმი კუთხე · Willow Corner", x: 250, y: 2890, w: 310, h: 270 },
+      { id: "cassette-corner", name: "კასეტების კუთხე · Cassette Corner", x: 2030, y: 2990, w: 290, h: 220 }
+    ],
+    npcs: [
+      { id: "garden-bartender", name: "ბესო · NPC", role: "ბარმენი · NPC", x: 500, y: 2210, color: "#ffd283", line: "1999-იდან აქ ვმუშაობ. ყინული ახალია — ამბები ძველი!" },
+      { id: "garden-dj", name: "DJ ნიკა · NPC", role: "DJ · NPC", x: 1380, y: 2130, color: "#75fff0", line: "ეს მიქსი ორიგინალია. ბასს მტკვარიც კი ფეხს აყოლებს!" },
+      { id: "garden-dancer-one", name: "მარი · NPC", role: "მოცეკვავე · NPC", x: 1200, y: 2460, color: "#ff77cb", dance: "running-man", line: "ბოლო ავტობუსი წავიდა? მაშინ კიდევ ერთი სიმღერა!" },
+      { id: "garden-dancer-two", name: "ჯეი · NPC", role: "მოცეკვავე · NPC", x: 1550, y: 2570, color: "#9a90ff", dance: "robot", line: "ჩემი რობოტი 1998 წლის მოდელია — ხანდახან ჭედავს." },
+      { id: "garden-dancer-three", name: "თეკლა · NPC", role: "მოცეკვავე · NPC", x: 1330, y: 2700, color: "#73f5c0", dance: "cabbage-patch", line: "ამ ნაბიჯს ჩემი ბებია უკეთ აკეთებს. ოღონდ არ უთხრათ!" },
+      { id: "garden-dancer-four", name: "ბექა · NPC", role: "მოცეკვავე · NPC", x: 1560, y: 2360, color: "#ffbc67", dance: "electric-slide", line: "ორი ნაბიჯი მარჯვნივ, ერთი მეგობრისკენ." },
+      { id: "garden-friend-two", name: "ლიზი · NPC", role: "ბაღის სტუმარი · NPC", x: 870, y: 2400, color: "#ff8baa", line: "ხელს რომ დაუქნევ, მთელი ბაღი უფრო თბილი ხდება." },
+      { id: "garden-friend-three", name: "დათო · NPC", role: "ბაღის სტუმარი · NPC", x: 1970, y: 2940, color: "#80c6ff", line: "ეს ჩვენი ჩუმი კუთხეა. ახლოს მდგარ მეგობარს ჩურჩულით მიწერე." },
+      { id: "garden-friend-four", name: "ანა · NPC", role: "ბაღის სტუმარი · NPC", x: 850, y: 3030, color: "#bea0ff", line: "ბაღში საათი სულ 1999-ს აჩვენებს. არ გაასწორო!" },
+      { id: "garden-friend", name: "სოფო · NPC", role: "ბაღის სტუმარი · NPC", x: 1920, y: 2700, color: "#ffb776", line: "გინდა საიდუმლო? სამხრეთის კუთხეში ძველი კასეტა იმალება." }
+    ],
+    secrets: [
+      { id: "lost-mixtape", x: 2200, y: 3140, kind: "cassette", label: "დაკარგული მიქსტეიპი", line: "SIDE B · თბილისი, 1999. ვიღაცამ ფანქრით მიაწერა: «კიდევ შევხვდებით»." },
+      { id: "garden-fireflies", x: 355, y: 3100, kind: "fireflies", label: "ნეონის ციცინათელები", line: "სამჯერ აციმციმდნენ. ბესო ამბობს, რომ ეს ბაღის იღბლიანი ნიშანია." },
+      { id: "garden-poster", x: 2250, y: 2000, kind: "poster", label: "1999 წლის აფიშა", line: "NEON GARDEN — მეგობრები, მუსიკა და ღამე, რომელიც არ მთავრდება." }
+    ]
+  };
+  for (let i = 0; i < 6; i++) garden.seats.push({ id: "bar-stool-" + (i + 1), x: 320 + i * 70, y: 2290, dir: "up", kind: "stool" });
+  garden.tables.forEach(function (table) {
+    garden.seats.push({ id: table.id + "-left", x: table.x - 30, y: table.y + 58, dir: "up", kind: "chair" });
+    garden.seats.push({ id: table.id + "-right", x: table.x + 30, y: table.y + 58, dir: "up", kind: "chair" });
+  });
+  [{ x: 350, y: 2990, kind: "couch" }, { x: 450, y: 2990, kind: "couch" },
+    { x: 2070, y: 3100, kind: "couch" }, { x: 2140, y: 3100, kind: "couch" },
+    { x: 1980, y: 2100, kind: "bench" }, { x: 2050, y: 2100, kind: "bench" },
+    { x: 1280, y: 3090, kind: "bench" }, { x: 1360, y: 3090, kind: "bench" },
+    { x: 1440, y: 3090, kind: "bench" }].forEach(function (seat, i) {
+    garden.seats.push(Object.assign({ id: "lounge-" + (i + 1), dir: "down" }, seat));
+  });
+  for (let x = 210; x < 2400; x += 190) if (x < 1190 || x > 1610) garden.trees.push({ x: x, y: 1930 });
+  for (let y = 2120; y < 3220; y += 210) { garden.trees.push({ x: 200, y: y }); garden.trees.push({ x: 2360, y: y }); }
+  for (let x = 300; x < 2300; x += 200) garden.trees.push({ x: x, y: 3205 });
+  const gardenBlockers = [
+    { x: 120, y: 1840, w: 1160, h: 18 }, { x: 1520, y: 1840, w: 920, h: 18 },
+    { x: 120, y: 1840, w: 18, h: 1440 }, { x: 2422, y: 1840, w: 18, h: 1440 },
+    { x: 120, y: 3262, w: 2320, h: 18 }, garden.bar, garden.dj
+  ].concat(garden.speakers).concat(garden.tables.map(function (table) {
+    return { x: table.x - table.w / 2, y: table.y - table.h / 2, w: table.w, h: table.h };
+  })).concat(garden.trees.map(function (tree) { return { x: tree.x - 8, y: tree.y - 8, w: 16, h: 16 }; }));
+  function gardenContains(x, y) { const b = garden.bounds; return x > b.x + 18 && x < b.x + b.w - 18 && y > b.y + 18 && y < b.y + b.h - 18; }
+  function gardenDanceFloorContains(x, y) { const b = garden.danceFloor; return x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h; }
+  const blockers = buildings.map(function (b) { return { x: b.x, y: b.y, w: b.w, h: b.h }; }).concat(gardenBlockers).concat([
     { x: 2762, y: 343, w: 36, h: 22 },
     { x: 2727, y: 598, w: 34, h: 28 },
     { x: 2638, y: 732, w: 166, h: 26 }
@@ -142,5 +211,6 @@
   }
   return { width: width, height: height, tile: 48, districts: districts, buildings: buildings, landmarks: landmarks,
     blockers: blockers, npcs: npcs, animals: animals, props: props, spawns: spawns, casino: casino, casinoIsWalkable: casinoIsWalkable,
-    isWalkable: isWalkable, districtAt: districtAt };
+    isWalkable: isWalkable, districtAt: districtAt, garden: garden, gardenContains: gardenContains,
+    gardenDanceFloorContains: gardenDanceFloorContains };
 });

@@ -24,6 +24,7 @@
   function isDriveable(world, x, y, radius, otherVehicles, ignoreId, dir) {
     const r = Number.isFinite(radius) ? radius : 26;
     if (!Number.isFinite(x) || !Number.isFinite(y) || !world.isWalkable(x, y, r)) return false;
+    if (world.garden && y + r >= world.garden.bounds.y) return false;
     const fleet = otherVehicles || [], vehicle = fleet.find(v => v.id === ignoreId) || byId(ignoreId) || { radius:r, dir:"right" };
     const body = footprint(vehicle, dir);
     // Arcade steering permits changing lanes with WASD. Use body width for the road shoulder,

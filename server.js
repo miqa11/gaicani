@@ -5,6 +5,7 @@ const path       = require("path");
 const cityWorld  = require("./city-world.js");
 const cityVehicles = require("./city-vehicles.js");
 const { createCityMotionController } = require("./server-city-motion.js");
+const { createCityGarden } = require("./server-city-garden.js");
 const { createCityGameEngine } = require("./city-game-engine.js");
 const { createCityCasinoEngine } = require("./city-casino-engine.js");
 const fs         = require("fs");
@@ -14005,6 +14006,7 @@ const CITY_CASINO_ROOM = "citycasino:neon-casino";
 const cityPlayers = new Map();
 const cityGarage = cityVehicles.createGarage(cityWorld);
 const cityMotionController = createCityMotionController(cityWorld, cityGarage);
+const cityGarden = createCityGarden({ world:cityWorld, players:cityPlayers, cleanText:text=>cleanShortText(text,120), blockedText:findBannedWord });
 const cityGameEngine = createCityGameEngine({ io, players:cityPlayers, registeredUsers, roomName:CITY_ROOM, saveAuthUsers });
 const cityCasinoEngine = createCityCasinoEngine({ io, registeredUsers, spendableCoins, ensureCoins, settlePendingCoins,
   changeCoins, saveAuthUsers, syncCoinSeat: at => { if (at.poker) broadcastPokerRoom(at.room); else broadcastBjRoom(at.room); }, georgiaDay });
@@ -14015,7 +14017,7 @@ const CITY_PALETTE = ["#bf75ef", "#58d8f2", "#f27ba9", "#e9a550", "#66d7a7", "#8
 function cityPublicPlayer(p) {
   const motion = cityMotionController.view(p);
   return { motion:motion, id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
-    action: p.action, interiorId: p.interiorId || null, rideId: p.rideId || null, vehicleId:p.vehicleId||null, gameId:p.gameId||null, gameStartedAt:p.gameStartedAt||0 };
+    action: p.action, gardenDance:p.gardenDance||null, gardenSeatId:p.gardenSeatId||null, gardenSeatKind:p.gardenSeatKind||null, interiorId: p.interiorId || null, rideId: p.rideId || null, vehicleId:p.vehicleId||null, gameId:p.gameId||null, gameStartedAt:p.gameStartedAt||0 };
 }
 function cityList() { return Array.from(cityPlayers.values(), cityPublicPlayer); }
 function cityPushVehicles() { io.to(CITY_ROOM).emit("city:vehicles", { vehicles:cityGarage.list() }); }
@@ -14050,6 +14052,7 @@ function cityBeginRide(ride) {
 }
 function cityRemove(socketId) {
   const p = cityPlayers.get(socketId); if (!p) return;
+  cityGarden.remove(p);
   if (p.vehicleId) { cityGarage.release(p, false); cityPushVehicles(); }
   cityGameEngine.remove(socketId);
   if (p.interiorId === "neon-casino") io.to(CITY_CASINO_ROOM).emit("city:casino:playerLeft", { id:socketId });
@@ -14062,12 +14065,14 @@ setInterval(() => {
   const now = Date.now(), dt = Math.min(0.08, Math.max(0, (now - cityLastTick) / 1000));
   cityLastTick = now;
   for (const p of cityPlayers.values()) {
+    cityGarden.maintain(p);
     // A game or other session can start through its own engine. Never leave its vehicle reserved or moving.
     if (p.vehicleId && (p.interiorId || p.rideId || p.gameId)) {
       if (cityGarage.release(p, true).error) cityGarage.release(p, false);
       if (p.gameId) p.action = "phone";
       cityPushVehicles();
     }
+    if (p.gardenSeatId || p.gardenDance) { cityMotionController.maintain(p, now); if (!(p.actionUntil > now)) p.action=p.gardenSeatId?"sit":"dance"; continue; }
     if (cityMotionController.maintain(p, now)) continue;
     if (p.interiorId === "neon-casino" && !p.rideId && !p.gameId) {
       let dx=p.casinoInputX||0,dy=p.casinoInputY||0;
@@ -14111,7 +14116,7 @@ setInterval(() => {
 }, 40).unref();
 const citySnapshotTimer = setInterval(() => {
   if(Date.now()-cityLastEphemeralCleanup>1000){cityLastEphemeralCleanup=Date.now();let sigChanged=false,noteChanged=false;for(const [id,x] of citySignals)if(x.expiresAt<=Date.now()){citySignals.delete(id);sigChanged=true}for(const [id,x] of cityNotes)if(x.expiresAt<=Date.now()){cityNotes.delete(id);noteChanged=true}for(const [id,x] of cityDuels)if(x.expiresAt<=Date.now())cityDuels.delete(id);for(const [id,expiresAt] of cityWineChats)if(expiresAt<=Date.now())cityWineChats.delete(id);if(sigChanged)cityPushSignals();if(noteChanged)cityPushNotes()}
-  if (cityPlayers.size) io.to(CITY_ROOM).emit("city:snapshot", { players: cityList(), vehicles:cityGarage.list() });
+  if (cityPlayers.size) io.to(CITY_ROOM).emit("city:snapshot", { players: cityList(), vehicles:cityGarage.list(), garden:cityGarden.publicState() });
   if (cityPlayers.size) io.to(CITY_CASINO_ROOM).emit("city:casino:snapshot", { players:cityCasinoList() });
 }, 120);
 citySnapshotTimer.unref();
@@ -14125,7 +14130,7 @@ io.on("connection", (socket) => {
     }
     if (cityPlayers.has(socket.id)) {
       if (typeof ack === "function") ack({ ok: true });
-      socket.emit("city:joined", { self: cityPublicPlayer(cityPlayers.get(socket.id)), players: cityList(), vehicles:cityGarage.list(), signals:citySignalList(), notes:cityNoteList(), gameBlockedPlayers:cityGameEngine.blockedNames(cityPlayers.get(socket.id)) });
+      socket.emit("city:joined", { self: cityPublicPlayer(cityPlayers.get(socket.id)), players: cityList(), vehicles:cityGarage.list(), garden:cityGarden.publicState(), signals:citySignalList(), notes:cityNoteList(), gameBlockedPlayers:cityGameEngine.blockedNames(cityPlayers.get(socket.id)) });
       return;
     }
     if (cityPlayers.size >= 120) {
@@ -14149,7 +14154,7 @@ io.on("connection", (socket) => {
     };
     cityPlayers.set(socket.id, p);
     socket.join(CITY_ROOM);
-    socket.emit("city:joined", { self: cityPublicPlayer(p), players: cityList(), vehicles:cityGarage.list(), signals:citySignalList(), notes:cityNoteList(), gameBlockedPlayers:cityGameEngine.blockedNames(p) });
+    socket.emit("city:joined", { self: cityPublicPlayer(p), players: cityList(), vehicles:cityGarage.list(), garden:cityGarden.publicState(), signals:citySignalList(), notes:cityNoteList(), gameBlockedPlayers:cityGameEngine.blockedNames(p) });
     socket.to(CITY_ROOM).emit("city:playerJoined", cityPublicPlayer(p));
     if (typeof ack === "function") ack({ ok: true });
   });
@@ -14170,9 +14175,31 @@ io.on("connection", (socket) => {
     reply({ ok:true, self:cityPublicPlayer(p), vehicles:cityGarage.list() });
   });
 
+  function gardenReply(ack, result) {
+    const p=cityFind(socket), reply=typeof ack==="function"?ack:()=>{};
+    if(result.error)return reply(result);
+    io.to(CITY_ROOM).emit("city:garden:state",cityGarden.publicState());
+    reply({ok:true,self:p?cityPublicPlayer(p):null,garden:cityGarden.publicState()});
+  }
+  socket.on("city:garden:dance",(data,ack)=>gardenReply(ack,cityGarden.dance(cityFind(socket),data)));
+  socket.on("city:garden:stop",(_data,ack)=>gardenReply(ack,cityGarden.stop(cityFind(socket))));
+  socket.on("city:garden:sit",(data,ack)=>gardenReply(ack,cityGarden.sit(cityFind(socket),data&&data.seatId)));
+  socket.on("city:garden:stand",(_data,ack)=>gardenReply(ack,cityGarden.stand(cityFind(socket))));
+  socket.on("city:garden:whisper",(data,ack)=>{
+    const result=cityGarden.whisper(cityFind(socket),data),reply=typeof ack==="function"?ack:()=>{};
+    if(result.error)return reply(result);
+    io.to(result.message.targetId).emit("city:garden:whisper",result.message);
+    socket.emit("city:garden:whisper",result.message);reply({ok:true});
+  });
+
   socket.on("city:motion", (data, ack) => {
     const p = cityFind(socket), reply = typeof ack === "function" ? ack : () => {};
     if (!p) return reply({ error:"Not in the city" });
+    const currentMotion=cityMotionController.view(p);
+    if(data&&data.epoch===currentMotion.epoch&&Array.isArray(data.commands)&&data.commands.length<=32){
+      const fresh=data.commands.filter(command=>command&&command.seq>currentMotion.seq);
+      if(fresh.every((command,index)=>command.seq===currentMotion.seq+index+1&&Number.isFinite(command.dt)&&command.dt>0&&command.dt<=50))cityGarden.beforeMove(p,{commands:fresh});
+    }
     const result = cityMotionController.process(p, data, Date.now());
     reply(result);
   });
@@ -14180,6 +14207,7 @@ io.on("connection", (socket) => {
   socket.on("city:input", (data, ack) => {
     const p = cityFind(socket), now = Date.now();
     if (!p || p.interiorId || p.rideId || p.gameId || cityMotionController.active(p)) return;
+    cityGarden.beforeMove(p, data);
     const x = Number(data && data.x), y = Number(data && data.y), nx=Number.isFinite(x)?Math.max(-1,Math.min(1,x)):0, ny=Number.isFinite(y)?Math.max(-1,Math.min(1,y)):0;
     if(Math.abs(nx)+Math.abs(ny)<0.01){const wasMoving=Math.abs(p.inputX)+Math.abs(p.inputY)>.01;p.inputX=p.inputY=0;p.action="idle";p.actionUntil=0;p.lastInputAt=now;if(typeof ack==="function")ack({x:p.x,y:p.y});if(wasMoving||typeof ack==="function")socket.emit("city:stopped",{x:p.x,y:p.y});return}
     if(now-p.lastInputAt<35)return;p.lastInputAt=now;p.inputX=nx;p.inputY=ny;
