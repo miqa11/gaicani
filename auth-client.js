@@ -153,8 +153,12 @@
   /* ══════════════════════════════════════════════════════════════════
      REGISTER
      ══════════════════════════════════════════════════════════════════ */
-  $("signup-btn")?.addEventListener("click", doRegister);
-  $("signup-confirm")?.addEventListener("keydown", e => { if (e.key === "Enter") doRegister(); });
+  if ($("auth-section-signup")?.tagName === "FORM") {
+    $("auth-section-signup").addEventListener("submit", e => { e.preventDefault(); if (!$("signup-btn")?.disabled) doRegister(); });
+  } else {
+    $("signup-btn")?.addEventListener("click", doRegister);
+    $("signup-confirm")?.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229 && !e.repeat && !$("signup-btn")?.disabled) doRegister(); });
+  }
 
   async function doRegister() {
     const username = ($("signup-username")?.value || "").trim();
@@ -208,8 +212,12 @@
   /* ══════════════════════════════════════════════════════════════════
      LOGIN
      ══════════════════════════════════════════════════════════════════ */
-  $("login-btn")?.addEventListener("click", doLogin);
-  $("login-password")?.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+  if ($("auth-section-login")?.tagName === "FORM") {
+    $("auth-section-login").addEventListener("submit", e => { e.preventDefault(); if (!$("login-btn")?.disabled) doLogin(); });
+  } else {
+    $("login-btn")?.addEventListener("click", doLogin);
+    $("login-password")?.addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229 && !e.repeat && !$("login-btn")?.disabled) doLogin(); });
+  }
 
   async function doLogin() {
     const username = ($("login-username")?.value || "").trim();

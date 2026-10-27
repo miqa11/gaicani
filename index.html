@@ -627,7 +627,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
       </div><!-- /auth-section-guest -->
 
       <!-- ════════ SIGN-IN SECTION ════════ -->
-      <div id="auth-section-login" style="display:none">
+      <form id="auth-section-login" style="display:none" novalidate>
         <p style="text-align:center;color:#b5bac1;font-size:.85em;margin:0 0 16px;">
           შედი შენი ანგარიშით — სახელი დაცულია,<br>მეგობრებს მოუგზავნე Private Chat.
         </p>
@@ -639,17 +639,17 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
                  placeholder="პაროლი" autocomplete="current-password" maxlength="100" />
         </div>
         <div id="login-error" class="auth-form-error"></div>
-        <button id="login-btn" class="auth-submit-btn">შესვლა</button>
+        <button id="login-btn" type="submit" class="auth-submit-btn">შესვლა</button>
         <p class="auth-form-note">
           ანგარიში არ გაქვს?
           <a href="#" onclick="document.getElementById('auth-tab-signup').click();return false;">
             დარეგისტრირდი
           </a>
         </p>
-      </div><!-- /auth-section-login -->
+      </form><!-- /auth-section-login -->
 
       <!-- ════════ SIGN-UP SECTION ════════ -->
-      <div id="auth-section-signup" style="display:none">
+      <form id="auth-section-signup" style="display:none" novalidate>
         <p style="text-align:center;color:#b5bac1;font-size:.85em;margin:0 0 16px;">
           დაარეგისტრირე სახელი — მხოლოდ შენ შეძლებ მის გამოყენებას.<br>
           მეგობრებს ჩატის დროს Private Message გაუგზავნე.
@@ -688,7 +688,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
         </details>
 
         <div id="signup-error" class="auth-form-error"></div>
-        <button id="signup-btn" class="auth-submit-btn">რეგისტრაცია</button>
+        <button id="signup-btn" type="submit" class="auth-submit-btn">რეგისტრაცია</button>
         <p class="auth-form-note">
           უკვე გაქვს ანგარიში?
           <a href="#" onclick="document.getElementById('auth-tab-login').click();return false;">
@@ -698,7 +698,7 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
           <a href="/terms.html" target="_blank">Terms</a> &
           <a href="/privacy.html" target="_blank">Privacy</a>.
         </p>
-      </div><!-- /auth-section-signup -->
+      </form><!-- /auth-section-signup -->
 
       <!-- Donation — shown to everyone on the way into a chat -->
       <div class="donate-card">
@@ -836,5 +836,6 @@ body:not(.rc-theme-light):not(.rc-theme-pink):not(.rc-theme-ocean):not(.rc-theme
   }
 </script>
 
+  <script src="/keyboard-actions.js?v=1"></script>
 </body>
 </html>

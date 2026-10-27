@@ -6,7 +6,7 @@ const dot=document.getElementById("connectionDot"), connection=document.getEleme
 const locationPill=document.getElementById("locationPill"), cityToast=document.getElementById("cityToast"), cityDialog=document.getElementById("cityDialog"), playerCard=document.getElementById("playerCard"), cityMessageComposer=document.getElementById("cityMessageComposer");
 const keys={x:0,y:0}, remote=new Map(), rain=[];
 const V=window.GaicaniCityVehicles, fleet=new Map();
-let vehiclePending=false;
+let vehiclePending=false,cityMessageSending=false,cityMessageRequest=0;
 const predictor=window.GaicaniCityPrediction.create(W,()=>Array.from(fleet.values()));
 let motionInput={x:0,y:0},lastMotionSendAt=0;
 let phoneMode=false,renderDpr=1,viewWidth=1,viewHeight=1;
@@ -364,12 +364,27 @@ function updatePlayerActions(){
 function replaceFriends(list){friendNames.clear();(list||[]).forEach(f=>{const n=typeof f==="string"?f:f&&(f.lc||f.username);if(n)friendNames.add(String(n).toLowerCase())});updatePlayerActions()}
 function openCityMessageComposer(mode,targetId){stopMovementInput();composerMode=mode||"city";messageTargetId=targetId||null;playerCard.hidden=true;cityMessageComposer.hidden=false;const title=document.getElementById("cityMessageTitle"),desc=cityMessageComposer.querySelector("p"),input=document.getElementById("cityMessageInput"),send=document.getElementById("cityMessageSend");if(composerMode==="note"){title.textContent="საიდუმლო წერილი";desc.textContent="ქაღალდის თვითმფრინავს ნარიყალიდან ქვემოთ გაუშვებ.";input.placeholder="დატოვე ღამის საიდუმლო…";send.textContent="თვითმფრინავის გაშვება ↗"}else if(composerMode==="wine"){title.textContent="ღვინის შეთავაზება";desc.textContent="ეს პირადი შეტყობინება მხოლოდ ამ მოთამაშეს მიუვა.";input.placeholder="რა გინდა უთხრა?";send.textContent="პირადად გაგზავნა ↗"}else if(composerMode==="ride"){title.textContent="საბაგიროს პირადი ჩატი";desc.textContent="ამ შეტყობინებას მხოლოდ შენ და მგზავრი ხედავთ.";input.placeholder="რას ეტყვი მგზავრს?";send.textContent="მგზავრს გაგზავნა ↗"}else{title.textContent="ქალაქში თქვი რამე";desc.textContent="შენი სიტყვა რამდენიმე წამით პერსონაჟის თავზე გამოჩნდება.";input.placeholder="რას ეტყვი ღამის ქალაქს?";send.textContent="გაგზავნა ↗"}input.value="";updateCityMessageCount();setTimeout(()=>input.focus(),30)}
 function closeCityMessageComposer(){cityMessageComposer.hidden=true;composerMode="city";messageTargetId=null}
-function updateCityMessageCount(){const input=document.getElementById("cityMessageInput"),button=document.getElementById("cityMessageSend");document.getElementById("cityMessageCount").textContent=input.value.length+"/120";button.disabled=!input.value.trim()}
+function updateCityMessageCount(){const input=document.getElementById("cityMessageInput"),button=document.getElementById("cityMessageSend");document.getElementById("cityMessageCount").textContent=input.value.length+"/120";button.disabled=cityMessageSending||!input.value.trim()}
 document.getElementById("playerSayButton").addEventListener("click",openCityMessageComposer);
 document.getElementById("cityMessageClose").addEventListener("click",closeCityMessageComposer);
 document.getElementById("cityMessageInput").addEventListener("input",updateCityMessageCount);
-document.getElementById("cityMessageInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();document.getElementById("cityMessageForm").requestSubmit()}});
-document.getElementById("cityMessageForm").addEventListener("submit",e=>{e.preventDefault();const input=document.getElementById("cityMessageInput"),button=document.getElementById("cityMessageSend"),text=input.value.trim();if(!text)return;if(!socket||!joined){toast("ქალაქთან კავშირი არ არის");return}button.disabled=true;const done=r=>{button.disabled=false;if(!r||r.error){toast(r&&r.error||"შეტყობინება ვერ გაიგზავნა");updateCityMessageCount();return}input.value="";updateCityMessageCount();closeCityMessageComposer();toast("შეტყობინება გაგზავნილია ✨")};if(composerMode==="note")socket.emit("city:note:drop",{text},done);else if(composerMode==="wine")socket.emit("city:mother:message",{targetId:messageTargetId,text},done);else if(composerMode==="ride")socket.emit("city:ride:message",{text},done);else socket.emit("city:message",{text},done)});
+document.getElementById("cityMessageForm").addEventListener("submit",e=>{
+ e.preventDefault();const input=document.getElementById("cityMessageInput"),text=input.value.trim();
+ if(cityMessageSending||!text)return;if(!socket||!joined){toast("ქალაქთან კავშირი არ არის");return}
+ const draft=input.value,mode=composerMode,targetId=messageTargetId,request=++cityMessageRequest;
+ cityMessageSending=true;updateCityMessageCount();
+ const done=r=>{
+  if(request!==cityMessageRequest)return;
+  cityMessageSending=false;updateCityMessageCount();
+  if(!r||r.error){toast(r?.error||"შეტყობინება ვერ გაიგზავნა");return}
+  if(input.value===draft&&composerMode===mode&&messageTargetId===targetId){input.value="";updateCityMessageCount();closeCityMessageComposer()}
+  toast("შეტყობინება გაგზავნილია ✨");
+ };
+ if(mode==="note")socket.emit("city:note:drop",{text},done);
+ else if(mode==="wine")socket.emit("city:mother:message",{targetId,text},done);
+ else if(mode==="ride")socket.emit("city:ride:message",{text},done);
+ else socket.emit("city:message",{text},done);
+});
 document.getElementById("playerMessageButton").addEventListener("click",()=>{if(!selectedPlayerName||!friendNames.has(selectedPlayerName.toLowerCase()))return;window.location.href="/friend-chat.html?friend="+encodeURIComponent(selectedPlayerName)});
 document.getElementById("playerAddFriendButton").addEventListener("click",()=>{const name=selectedPlayerName,lc=name.toLowerCase();if(!name||!socket||!joined||friendNames.has(lc))return;outgoingFriendRequests.add(lc);updatePlayerActions();socket.emit("friend:request",{toUsername:name});toast("მეგობრობის მოთხოვნა გაიგზავნა. პირად ჩატს მიღების შემდეგ გახსნი.",3600)});
 document.getElementById("playerAcceptFriendButton").addEventListener("click",()=>{if(!selectedPlayerName||!socket)return;socket.emit("friend:accept",{fromUsername:selectedPlayerName});toast("მეგობრობის მოთხოვნას ვიღებ...")});
@@ -418,7 +433,7 @@ function connect(){
  socket.on("friend:error",d=>{const n=String(d&&d.targetUsername||selectedPlayerName).toLowerCase();outgoingFriendRequests.delete(n);updatePlayerActions();toast(d&&(d.message||d.msg)||"მოთხოვნა ვერ გაიგზავნა.")});
  socket.on("guest:registerRequired",()=>toast("მეგობრობისთვის საჭიროა რეგისტრაცია."));
  socket.on("connect_error",()=>presence("is-off","კავშირი ვერ მოხერხდა"));
- socket.on("disconnect",()=>{joined=false;predictor.clear();motionInput={x:0,y:0};held.clear();stopTouchStick();keys.x=keys.y=0;fleet.clear();vehiclePending=false;if(self)self.vehicleId=null;refreshVehicle();ride=null;document.getElementById("cityRideOverlay").hidden=true;signals=[];notes=[];renderSignalList();presence("is-off","კავშირი გაწყდა");remote.clear();onlineCount.textContent="1"});
+ socket.on("disconnect",()=>{joined=false;cityMessageRequest++;cityMessageSending=false;updateCityMessageCount();predictor.clear();motionInput={x:0,y:0};held.clear();stopTouchStick();keys.x=keys.y=0;fleet.clear();vehiclePending=false;if(self)self.vehicleId=null;refreshVehicle();ride=null;document.getElementById("cityRideOverlay").hidden=true;signals=[];notes=[];renderSignalList();presence("is-off","კავშირი გაწყდა");remote.clear();onlineCount.textContent="1"});
  socket.on("city:vehicles",d=>{syncVehicles(d?.vehicles);refreshVehicle()});
  socket.on("city:joined",d=>{joined=true;self=d.self;predictor.clear();syncVehicles(d.vehicles);acceptMotion(self.motion);signals=d.signals||[];notes=d.notes||[];renderSignalList();remote.clear();(d.players||[]).forEach(p=>{if(p.id!==self.id)remote.set(p.id,Object.assign({},p,{targetX:p.x,targetY:p.y}))});presence("is-on","ქალაქში ხარ");refresh();drawMini();cue(760)});
  socket.on("city:casino:joined",d=>{if(!d||!self)return;self.casinoX=d.self.x;self.casinoY=d.self.y;acceptMotion(d.self.motion);self.interiorId="neon-casino";interior=W.buildings.find(b=>b.id==="neon-casino")||interior;document.getElementById("interiorExit").hidden=false;remote.forEach(p=>{if(p.interiorId==="neon-casino")p.interiorId=null});(d.players||[]).forEach(p=>{if(p.id===self.id)return;const old=remote.get(p.id)||{};old.id=p.id;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.interiorId="neon-casino";old.casinoX=p.x;old.casinoY=p.y;old.targetCasinoX=p.x;old.targetCasinoY=p.y;old.message=p.message||"";old.messageUntil=p.messageUntil||0;remote.set(p.id,old)});refresh()});
