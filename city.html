@@ -155,12 +155,13 @@
         <button type="button" class="dialog-close" id="cityMessageClose" aria-label="დახურვა">×</button>
         <h2 id="cityMessageTitle">ქალაქში თქვი რამე</h2>
         <p>შენი სიტყვა რამდენიმე წამით პერსონაჟის თავზე გამოჩნდება.</p>
-        <form id="cityMessageForm">
-          <textarea id="cityMessageInput" rows="2" maxlength="120" placeholder="რას ეტყვი ღამის ქალაქს?" aria-label="შეტყობინება"></textarea>
+        <form id="cityMessageForm" data-enter-submit>
+          <textarea id="cityMessageInput" enterkeyhint="send" aria-describedby="cityMessageKeyboardHint" rows="2" maxlength="120" placeholder="რას ეტყვი ღამის ქალაქს?" aria-label="შეტყობინება"></textarea>
           <div class="city-message-actions">
             <small id="cityMessageCount">0/120</small>
             <button type="submit" id="cityMessageSend">გაგზავნა ↗</button>
           </div>
+          <small id="cityMessageKeyboardHint" style="display:block;margin-top:7px;color:#aaa5c7;font-size:9px">Enter · გაგზავნა / Shift+Enter · ახალი ხაზი</small>
         </form>
       </section>
 
@@ -198,10 +199,11 @@
   <script src="/city-vehicle-art.js?v=1"></script>
   <script src="/city-motion.js?v=1"></script>
   <script src="/city-prediction.js?v=1"></script>
-  <script src="/city.js?v=13"></script>
+  <script src="/city.js?v=14"></script>
   <script src="/city-arcade-games.js?v=2"></script>
-  <script src="/city-game-ui.js?v=2"></script>
+  <script src="/city-game-ui.js?v=3"></script>
   <script src="/city-arcade-ui.js?v=1"></script>
   <script src="/city-casino-ui.js?v=1"></script>
+  <script src="/keyboard-actions.js?v=1"></script>
 </body>
 </html>

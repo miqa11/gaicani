@@ -110,7 +110,7 @@
     const s=match.state,me=currentPlayerId();heading(screen,"Math Duel","Same problem for both players · first correct answer earns a speed point.");scoreline(screen,s);
     if(s.stage==="answering"&&match.status==="playing"){
       status(screen,"Round "+s.round+" / "+s.totalRounds);screen.appendChild(el("p","game-question",s.question));addCountdown(screen,s.deadlineAt);
-      const locked=!!s.mySubmitted,form=el("form","game-input"),input=el("input");input.type="number";input.step="1";input.inputMode="numeric";input.placeholder="Your answer";input.disabled=locked;input.setAttribute("aria-label","Your answer");
+      const locked=!!s.mySubmitted,form=el("form","game-input"),input=el("input");form.setAttribute("data-enter-submit","");input.enterKeyHint="done";input.type="number";input.step="1";input.inputMode="numeric";input.placeholder="Your answer";input.disabled=locked;input.setAttribute("aria-label","Your answer");
       const submit=btn(locked?"Locked ✓":"Submit",e=>{},"primary",locked);submit.type="submit";form.addEventListener("submit",e=>{e.preventDefault();if(input.value.trim())gameEvent("city:game:action",{type:"answer",answer:input.value.trim()})});form.append(input,submit);screen.appendChild(form);
       const other=match.players.find(p=>p.id!==me);status(screen,locked?"Your answer is locked.":(s.locked&&s.locked[other.id]?other.name+" has answered.":"Waiting for both answers…"));
     }else{
