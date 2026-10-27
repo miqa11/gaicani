@@ -5,14 +5,19 @@
   const socket=bridge.getSocket();
   const invitePanel=document.getElementById("cityGameInvite"),inviteTitle=document.getElementById("cityGameInviteTitle"),inviteText=document.getElementById("cityGameInviteText"),inviteActions=document.getElementById("cityGameInviteActions");
   const dimmer=document.getElementById("cityGameDimmer"),phone=document.getElementById("cityGamePhone"),screen=document.getElementById("cityGameScreen"),playersLine=document.getElementById("cityGamePlayers"),title=document.getElementById("cityGameTitle"),reaction=document.getElementById("cityGameReaction");
+  const phoneKicker=phone.querySelector(".city-game-header small"),phoneFooter=phone.querySelector(".city-game-footer");
   const gameButton=document.getElementById("playerGameButton"),blockButton=document.getElementById("playerGameBlockButton");
   const games=[
     {id:"ttt",name:"Tic-Tac-Toe",icon:"✕○",description:"Take turns on a neon 3×3 board."},
     {id:"math",name:"Math Duel",icon:"∑",description:"Race through five quick arithmetic rounds."},
     {id:"rps",name:"Rock · Paper · Scissors",icon:"✊",description:"Secret picks. First to two round wins."},
-    {id:"quiz",name:"Quiz Duel",icon:"A?",description:"Five questions across six playful categories."}
+    {id:"quiz",name:"Quiz Duel",icon:"A?",description:"Five questions across six playful categories."},
+    {id:"pacman",name:"Pac-Man",icon:"ᗧ",description:"Race for the highest maze score.",arcade:true},
+    {id:"snake",name:"Snake",icon:"🐍",description:"Grab as many pixels as you can.",arcade:true},
+    {id:"tetris",name:"Tetris",icon:"🟦",description:"Clear lines before the stack reaches the top.",arcade:true},
+    {id:"pong",name:"Pong",icon:"🏓",description:"Beat the cabinet and post your score.",arcade:true}
   ];
-  let invitation=null,match=null,selectingGame=false,accountBlocks=new Set(),sessionBlocks=new Set(),reactionTimer=0;
+  let invitation=null,match=null,selectingGame=false,accountBlocks=new Set(),sessionBlocks=new Set(),reactionTimer=0,arcadeRun=null,arcadeRunNode=null,arcadeRunKey="";
   const gameNames=Object.fromEntries(games.map(g=>[g.id,g.name]));
 
   function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n}
@@ -25,8 +30,8 @@
     if(!invitation){invitePanel.hidden=true;return}
     invitePanel.hidden=false;inviteActions.replaceChildren();
     if(invitation.kind==="incoming"){
-      inviteTitle.textContent="🎮 Game invitation";inviteText.textContent=invitation.fromName+" wants to play a quick game with you.";
-      const accept=el("button","game-button primary","Accept · take out your phone");accept.addEventListener("click",()=>socket.emit("city:game:inviteRespond",{inviteId:invitation.inviteId,accept:true},r=>{if(r&&r.error)bridge.toast(r.error)}));
+      inviteTitle.textContent=invitation.arcadeMode?"⚔️ Arcade challenge":"🎮 Game invitation";inviteText.textContent=invitation.arcadeMode?invitation.fromName+" challenges you to a retro cabinet score race.":invitation.fromName+" wants to play a quick game with you.";
+      const accept=el("button","game-button primary",invitation.arcadeMode?"Accept · play at the cabinet":"Accept · take out your phone");accept.addEventListener("click",()=>socket.emit("city:game:inviteRespond",{inviteId:invitation.inviteId,accept:true},r=>{if(r&&r.error)bridge.toast(r.error)}));
       const decline=el("button","game-button","Decline");decline.addEventListener("click",()=>socket.emit("city:game:inviteRespond",{inviteId:invitation.inviteId,accept:false},()=>hideInvite()));inviteActions.append(accept,decline);
     }else{
       inviteTitle.textContent="📱 Invitation sent";inviteText.textContent="Waiting for "+(invitation.toName||"the other player")+" to accept.";
@@ -48,6 +53,12 @@
     if(!target)return;
     gameButton.disabled=true;socket.emit("city:game:invite",{targetId},r=>{gameButton.disabled=false;if(r&&r.error)bridge.toast(r.error);else{document.getElementById("playerCard").hidden=true;bridge.toast("📱 Invitation sent")}});
   });
+  function inviteArcade(targetId){
+    const target=bridge.getPlayer(targetId);
+    if(!target||target.interiorId!=="arcade-palace"){bridge.toast("Meet them inside the Pixel Palace first.");return}
+    if(match||invitation){bridge.toast("Finish the current game invitation first.");return}
+    socket.emit("city:game:invite",{targetId,arcade:true},r=>{if(r&&r.error)bridge.toast(r.error)});
+  }
   blockButton.addEventListener("click",()=>{
     const targetId=bridge.getTargetId(),target=targetId&&bridge.getPlayer(targetId);if(!target)return;
     const blocked=!sessionBlocks.has(String(target.name).toLowerCase());
@@ -68,9 +79,10 @@
   function updateCountdowns(){document.querySelectorAll(".game-countdown[data-deadline]").forEach(node=>{const left=Math.max(0,Math.ceil((Number(node.dataset.deadline)-Date.now())/1000));node.textContent=left+"s"})}
   function lobbyView(){
     const host=currentPlayerId()===match.hostId,selected=match.game;
-    heading(screen,selected&&!selectingGame?gameNames[selected]:"Choose a game",host?"Pick a quick game for both phones.":(match.players.find(p=>p.id===match.hostId)?.name||"Your friend")+" is choosing the game.");
+    const availableGames=games.filter(g=>!!g.arcade===!!match.arcadeMode);
+    heading(screen,selected&&!selectingGame?gameNames[selected]:"Choose a game",host?(match.arcadeMode?"Choose a cabinet for a 60-second score race.":"Pick a quick game for both phones."):(match.players.find(p=>p.id===match.hostId)?.name||"Your friend")+" is choosing the game.");
     if(!selected||selectingGame){
-      const grid=el("div","game-choice-grid");games.forEach(g=>{const card=el("button","game-choice-card"+(selected===g.id?" selected":""));card.type="button";card.disabled=!host;card.append(el("b","",g.icon+"  "+g.name),el("small","",g.description));if(host)card.addEventListener("click",()=>gameEvent("city:game:choose",{game:g.id},()=>{selectingGame=false}));grid.appendChild(card)});screen.appendChild(grid);
+      const grid=el("div","game-choice-grid");availableGames.forEach(g=>{const card=el("button","game-choice-card"+(selected===g.id?" selected":""));card.type="button";card.disabled=!host;card.append(el("b","",g.icon+"  "+g.name),el("small","",g.description));if(host)card.addEventListener("click",()=>gameEvent("city:game:choose",{game:g.id},()=>{selectingGame=false}));grid.appendChild(card)});screen.appendChild(grid);
       if(!host)status(screen,"Waiting for the inviter to choose…");
     }else{
       const chosen=games.find(g=>g.id===selected);resultBox(screen,chosen.icon+"  "+chosen.name,chosen.description);
@@ -132,15 +144,46 @@
       if(match.status==="finished"){scoreline(screen,s);resultBox(screen,match.result&&match.result.text||"Quiz complete","Final score");finalActions(screen)}else status(screen,"Next question starting…");
     }
   }
+  function destroyArcadeRun(){
+    if(arcadeRun&&arcadeRun.destroy)arcadeRun.destroy();
+    arcadeRun=null;arcadeRunNode=null;arcadeRunKey="";
+  }
+  function renderArcadeRace(){
+    const game=games.find(g=>g.id===match.game),s=match.state,me=currentPlayerId();
+    heading(screen,game?game.icon+"  "+game.name:"ARCADE RACE","Both players get the same 60-second run. Highest score wins.");
+    scoreline(screen,s);
+    const records=(match.players||[]).map(p=>p.name+" record: "+(p.arcadeRecord||0)).join("  ·  ");
+    status(screen,records);
+    if(match.status==="playing"){
+      if(s.mySubmitted)status(screen,"Your score is locked. Waiting for your rival…");
+      else addCountdown(screen,s.deadlineAt);
+      const key=match.id+"|"+match.game+"|"+s.deadlineAt;
+      if(arcadeRunKey!==key){
+        destroyArcadeRun();
+        arcadeRunKey=key;arcadeRunNode=el("div","arcade-race-surface");
+        if(window.GaicaniArcadeGames){
+          arcadeRun=window.GaicaniArcadeGames.mount(match.game,arcadeRunNode,{deadlineAt:s.deadlineAt,onFinish:score=>gameEvent("city:game:action",{type:"submitScore",score})});
+        }else status(screen,"Arcade game controls could not load.");
+      }
+      if(arcadeRunNode)screen.appendChild(arcadeRunNode);
+    }else if(match.status==="finished"){
+      const scores=match.result&&match.result.scores||s.scores||{};
+      resultBox(screen,match.result&&match.result.text||"Score race complete.",match.players.map(p=>p.name+": "+(scores[p.id]||0)+" · record "+(p.arcadeRecord||0)).join("  —  "));
+      finalActions(screen);
+    }
+  }
   function renderCityGame(){
-    if(!match){dimmer.hidden=true;phone.hidden=true;return;}
+    if(!match){destroyArcadeRun();dimmer.hidden=true;phone.hidden=true;phone.classList.remove("arcade-match");phoneKicker.textContent="GAICANI MOBILE";phoneFooter.hidden=false;return;}
     dimmer.hidden=false;phone.hidden=false;renderInviteStatusLine(playersLine,match);
+    phone.classList.toggle("arcade-match",!!match.arcadeMode);phoneKicker.textContent=match.arcadeMode?"PIXEL PALACE · CABINET DUEL":"GAICANI MOBILE";phoneFooter.hidden=!!match.arcadeMode;
     title.textContent=match.game?gameNames[match.game]||"NEON GAMES":"NEON GAMES";screen.replaceChildren();
     if(match.status==="lobby"||!match.game)lobbyView();
     else if(match.game==="ttt")renderTtt();
     else if(match.game==="math")renderMath();
     else if(match.game==="rps")renderRps();
     else if(match.game==="quiz")renderQuiz();
+    else if(match.arcadeMode&&games.some(g=>g.id===match.game&&g.arcade))renderArcadeRace();
+    else destroyArcadeRun();
   }
   function leaveMatch(){if(match)socket.emit("city:game:leave",{matchId:match.id});}
   document.getElementById("cityGameClose").addEventListener("click",leaveMatch);
@@ -149,8 +192,8 @@
   socket.on("auth:authenticated",u=>{accountBlocks=new Set((u&&u.blockedUsers||[]).map(x=>String(x).toLowerCase()));updatePlayerCard()});
   socket.on("city:joined",d=>{sessionBlocks=new Set((d&&d.gameBlockedPlayers||[]).map(x=>String(x).toLowerCase()));updatePlayerCard()});
   socket.on("city:game:blocks",list=>{sessionBlocks=new Set((list||[]).map(x=>String(x).toLowerCase()));updatePlayerCard()});
-  socket.on("city:game:inviteRequest",d=>showInvite({kind:"incoming",inviteId:d.inviteId,fromId:d.fromId,fromName:d.fromName}));
-  socket.on("city:game:invitePending",d=>showInvite({kind:"outgoing",inviteId:d.inviteId,toName:d.toName}));
+  socket.on("city:game:inviteRequest",d=>showInvite({kind:"incoming",inviteId:d.inviteId,fromId:d.fromId,fromName:d.fromName,arcadeMode:!!d.arcadeMode}));
+  socket.on("city:game:invitePending",d=>showInvite({kind:"outgoing",inviteId:d.inviteId,toName:d.toName,arcadeMode:!!d.arcadeMode}));
   socket.on("city:game:inviteDeclined",d=>{if(invitation&&invitation.inviteId===d.inviteId)hideInvite();bridge.toast((d.playerName||"Player")+" declined the game invitation.")});
   socket.on("city:game:inviteCancelled",d=>{if(invitation&&(!d.inviteId||invitation.inviteId===d.inviteId)){hideInvite();if(d.message)bridge.toast(d.message)}});
   socket.on("city:game:started",data=>{hideInvite();match=data;selectingGame=false;reaction.hidden=true;renderCityGame()});
@@ -160,5 +203,5 @@
   socket.on("disconnect",()=>{match=null;hideInvite();renderCityGame();updatePlayerCard()});
   window.addEventListener("keydown",e=>{if(e.key==="Escape"){if(invitation){if(invitation.kind==="incoming")socket.emit("city:game:inviteRespond",{inviteId:invitation.inviteId,accept:false});else if(invitation.inviteId)socket.emit("city:game:inviteCancel",{inviteId:invitation.inviteId});hideInvite()}else if(match)leaveMatch()}});
   setInterval(updateCountdowns,250);
-  window.GaicaniCityGames={get active(){return !!match},get blocksMovement(){return !!match||!!invitation},updatePlayerCard,renderCityGame};
+  window.GaicaniCityGames={get active(){return !!match},get blocksMovement(){return !!match||!!invitation},updatePlayerCard,renderCityGame,inviteArcade};
 })();

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080a18">
   <meta name="description" content="Tbilisi 1999: Neon Nights — Gaicani-ს საერთო, ღამის ქალაქი.">
   <title>Tbilisi 1999: Neon Nights — GAICANI</title>
-  <link rel="stylesheet" href="/city.css?v=7">
+  <link rel="stylesheet" href="/city.css?v=8">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -34,6 +34,20 @@
       <section class="city-signal-list" id="citySignalList" aria-label="ანძის სიგნალები" hidden></section>
 
       <div class="city-toast" id="cityToast" role="status" aria-live="polite" hidden></div>
+      <section class="city-arcade-panel" id="cityArcadePanel" hidden role="dialog" aria-modal="true" aria-labelledby="cityArcadeTitle">
+        <div class="arcade-window">
+          <header class="arcade-header">
+            <div><small>TBILISI 1999 · ARCADE DISTRICT</small><h2 id="cityArcadeTitle">PIXEL PALACE</h2></div>
+            <button type="button" id="cityArcadeExit" aria-label="ქუჩაში დაბრუნება">×</button>
+          </header>
+          <nav class="arcade-tabs" aria-label="არკადის მენიუ">
+            <button type="button" data-arcade-tab="games" class="active">🕹 თამაშები</button>
+            <button type="button" data-arcade-tab="versus">⚔️ გამოწვევა</button>
+            <button type="button" data-arcade-tab="records">🏆 რეკორდები</button>
+          </nav>
+          <main class="arcade-content" id="cityArcadeContent"></main>
+        </div>
+      </section>
       <section class="city-dialog" id="cityDialog" hidden role="dialog" aria-modal="false" aria-labelledby="dialogTitle">
         <button type="button" class="dialog-close" id="dialogClose" aria-label="დახურვა">×</button>
         <span class="dialog-kicker" id="dialogKicker">ღამის ქალაქი</span>
@@ -165,9 +179,11 @@
   </main>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/city-world.js?v=5"></script>
-  <script src="/city.js?v=8"></script>
-  <script src="/city-game-ui.js?v=1"></script>
+  <script src="/city-world.js?v=6"></script>
+  <script src="/city.js?v=10"></script>
+  <script src="/city-arcade-games.js?v=2"></script>
+  <script src="/city-game-ui.js?v=2"></script>
+  <script src="/city-arcade-ui.js?v=1"></script>
   <script src="/city-casino-ui.js?v=1"></script>
 </body>
 </html>

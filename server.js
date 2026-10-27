@@ -14001,7 +14001,7 @@ for (const [, u] of registeredUsers) {
 const CITY_ROOM = "city:night";
 const CITY_CASINO_ROOM = "citycasino:neon-casino";
 const cityPlayers = new Map();
-const cityGameEngine = createCityGameEngine({ io, players:cityPlayers, registeredUsers, roomName:CITY_ROOM });
+const cityGameEngine = createCityGameEngine({ io, players:cityPlayers, registeredUsers, roomName:CITY_ROOM, saveAuthUsers });
 const cityCasinoEngine = createCityCasinoEngine({ io, registeredUsers, spendableCoins, ensureCoins, settlePendingCoins,
   changeCoins, saveAuthUsers, syncCoinSeat: at => { if (at.poker) broadcastPokerRoom(at.room); else broadcastBjRoom(at.room); }, georgiaDay });
 const citySignals = new Map(), cityNotes = new Map(), cityRides = new Map(), cityDuels = new Map(), cityWineChats = new Map();

@@ -29,7 +29,7 @@
     { id: "bakery", x: 265, y: 875, w: 340, h: 205, name: "ღამის საცხობი", sign: "ცხელი პური", color: "#ffb34e", type: "bakery", enterable: true },
     { id: "flowers", x: 735, y: 890, w: 300, h: 185, name: "ყვავილების კიოსკი", sign: "ყვავილები", color: "#ff67bd", type: "shop" },
     { id: "passage", x: 1150, y: 875, w: 375, h: 220, name: "მიწისქვეშა გადასასვლელი", sign: "ქვემოთ ↓", color: "#9d74ff", type: "passage", enterable: true },
-    { id: "game-room", x: 1645, y: 875, w: 315, h: 205, name: "სათამაშო ოთახი", sign: "GAME ROOM", color: "#74fcff", type: "arcade", enterable: true },
+    { id: "arcade-palace", x: 1540, y: 850, w: 470, h: 235, name: "პიქსელების სასახლე", sign: "PIXEL PALACE", color: "#71f7ff", type: "arcade", enterable: true },
     { id: "tea-room", x: 2040, y: 890, w: 320, h: 190, name: "ჩაის ოთახი", sign: "ჩაი", color: "#ff9e64", type: "cafe" },
     { id: "yard-five", x: 110, y: 1315, w: 300, h: 210, name: "ეზო N5", sign: "ეზო №5", color: "#ce75ff", type: "courtyard" },
     { id: "all-night-shop", x: 585, y: 1310, w: 340, h: 205, name: "24 საათი", sign: "24/7", color: "#ffe260", type: "shop" },
