@@ -37,7 +37,7 @@ function createCityGarden({ world, players, epoch = Date.now(), cleanText, block
     return player.gardenSeatId ? stand(player) : { ok: true };
   }
   function dance(player, data, now = Date.now()) {
-    if (!isAvailable(player)) return { error: "საცეკვაოდ Neon Garden-ში ფეხით მოდი." };
+    if (!isAvailable(player)) return { error: "საცეკვაოდ ნეონის ბაღში ფეხით მოდი." };
     if (!world.gardenDanceFloorContains(player.x, player.y)) return { error: "შუაში, საცეკვაო მოედანზე დადექი." };
     if (!data || !moves.has(data.move)) return { error: "აირჩიე ცეკვის მოძრაობა." };
     if (player.gardenSeatId) { const result = stand(player); if (result.error) return result; }

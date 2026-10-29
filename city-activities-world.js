@@ -6,9 +6,10 @@
     g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); g.ellipse(x, y, radius, radius * .45, 0, 0, Math.PI * 2); g.stroke();
   }
   function badge(g, x, y, symbol, color) {
-    g.fillStyle = '#101525dc'; g.fillRect(x - 12, y - 8, 24, 17);
-    g.strokeStyle = color; g.lineWidth = 1; g.strokeRect(x - 12, y - 8, 24, 17);
-    g.fillStyle = color; g.font = 'bold 11px monospace'; g.textAlign = 'center'; g.fillText(symbol, x, y + 4);
+    g.font = 'bold 10px sans-serif'; const width = Math.max(24, g.measureText(symbol).width + 10);
+    g.fillStyle = '#101525dc'; g.fillRect(x - width / 2, y - 8, width, 17);
+    g.strokeStyle = color; g.lineWidth = 1; g.strokeRect(x - width / 2, y - 8, width, 17);
+    g.fillStyle = color; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillText(symbol, x, y + 4);
   }
   function draw(g, time, { self, players = [], state, world }) {
     if (!self || self.interiorId || !state) return;
@@ -20,7 +21,7 @@
     for (const def of catalog) {
       if (!state.capabilities?.includes(def.id) || !palette[def.id] || !visible(def.location)) continue;
       const { x, y } = def.location;
-      badge(g, x, y + 24, { fishing: '><', bugs: '*', treasure: '?', photography: '[o]', parkour: '^',delivery:'BOX',market:'SHOP',repair:'FIX',bar:'SODA',taxi:'TAXI' }[def.id], palette[def.id]);
+      badge(g, x, y + 24, { fishing: '><', bugs: '*', treasure: '?', photography: '[o]', parkour: '^',delivery:"გზავნილი",market:"ბაზარი",repair:"შეკეთება",bar:"სასმელი",taxi:"ტაქსი" }[def.id], palette[def.id]);
       if (def.id === 'fishing') {
         // A narrow tackle mat stays on the bank; the float is in the river.
         g.fillStyle = '#40524d'; g.fillRect(x - 13, y - 5, 26, 10);

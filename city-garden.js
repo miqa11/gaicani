@@ -2,11 +2,11 @@
 (function (root) {
   "use strict";
   const colors = ["#ff64cf", "#6df8e5", "#b699ff", "#ffd582", "#79c6ff"];
-  const moves = [["running-man", "Running Man"], ["cabbage-patch", "Cabbage Patch"], ["electric-slide", "Electric Slide"], ["robot", "The Robot"]];
+  const moves = [["running-man", "მორბენალი"], ["cabbage-patch", "წრიული"], ["electric-slide", "სრიალი"], ["robot", "რობოტი"]];
   let bridge = null, socket = null, panel = null, state = { epoch: Date.now(), seats: [] }, occupied = new Map(), lastUiKey = "";
   function box(g, color, x, y, w, h) { g.fillStyle = color; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
   function text(g, value, x, y, size = 12, color = "#fff1ec") {
-    g.fillStyle = color; g.font = '800 ' + size + 'px "Noto Sans Georgian", monospace'; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(value, x, y);
+    g.fillStyle = color; g.font = '800 ' + size + 'px "Noto Sans Georgian", monospace'; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(value, x, y, 600);
   }
   function neon(g, value, x, y, w, color, size = 18) {
     box(g, "#101425", x - w / 2 - 5, y - 21, w + 10, 42);
@@ -57,9 +57,9 @@
     };
     fence(120, 1840, 1160, 18); fence(1520, 1840, 920, 18); fence(120, 1840, 18, 1440); fence(2422, 1840, 18, 1440); fence(120, 3262, 2320, 18);
     [1260, 1540].forEach(x => { box(g, "#242c43", x - 12, 1768, 24, 92); box(g, "#bf8bc8", x - 14, 1767, 28, 7); });
-    neon(g, "NEON GARDEN · 1999", 1400, 1776, 420, "#82ffcc", 22);
+    neon(g, "ნეონის ბაღი · 1999", 1400, 1776, 420, "#82ffcc", 22);
     text(g, "მუსიკა · მეგობრები · ყოველთვის ღამე", 1400, 1812, 11, "#edd4f7");
-    neon(g, "DANCE UNDER THE TBILISI SKY", 1380, 2014, 590, "#ff84d7", 18);
+    neon(g, "იცეკვე თბილისის ცის ქვეშ", 1380, 2014, 590, "#ff84d7", 18);
     const dj = garden.dj;
     box(g, "#090e22", dj.x - 10, dj.y - 8, dj.w + 20, dj.h + 20); box(g, "#463254", dj.x, dj.y, dj.w, dj.h);
     box(g, "#7ee9df", dj.x + 4, dj.y + 3, dj.w - 8, 4); box(g, "#2a1e3e", dj.x + 12, dj.y + 16, dj.w - 24, 70);
@@ -69,7 +69,7 @@
       box(g, "#ff71c5", x - 5, dj.y + 44, 10, 10);
     });
     for (let i = 0; i < 7; i++) { box(g, "#75f1df", dj.x + 143 + i * 9, dj.y + 33, 4, 28); box(g, "#edd8a3", dj.x + 141 + i * 9, dj.y + 36 + i % 3 * 6, 8, 4); }
-    neon(g, "DJ NIKA · ORIGINAL MIXES", 1380, dj.y + 102, 330, "#7af9e5", 14);
+    neon(g, "დიჯეი ნიკა · ორიგინალური მუსიკა", 1380, dj.y + 102, 330, "#7af9e5", 14);
     const bar = garden.bar;
     box(g, "#17172b", bar.x - 9, bar.y - 6, bar.w + 18, bar.h + 16); box(g, "#6a3b54", bar.x, bar.y, bar.w, bar.h);
     box(g, "#a87375", bar.x + 7, bar.y + 8, bar.w - 14, 28);
@@ -79,7 +79,7 @@
     box(g, "#211b2e", bar.x + 14, bar.y + 50, bar.w - 28, 53); box(g, "#c89773", bar.x - 3, bar.y + 111, bar.w + 6, 26);
     box(g, "#f4c997", bar.x - 3, bar.y + 111, bar.w + 6, 4);
     for (let x = bar.x + 30; x < bar.x + bar.w; x += 60) { box(g, "#e5bf69", x, bar.y + 104, 14, 14); box(g, "#fff0c0", x, bar.y + 103, 14, 3); }
-    neon(g, "BESO'S · ლუდი & STORIES", bar.x + bar.w / 2, bar.y - 34, 420, "#ffd37f", 18);
+    neon(g, "ბესოსთან · ლუდი და ამბები", bar.x + bar.w / 2, bar.y - 34, 420, "#ffd37f", 18);
     garden.speakers.forEach(s => {
       box(g, "#090d1a", s.x, s.y, s.w, s.h); box(g, "#4e405e", s.x + 3, s.y + 3, s.w - 6, s.h - 6);
       [15, 42].forEach((offset, i) => { g.fillStyle = "#0d1725"; g.beginPath(); g.arc(s.x + s.w / 2, s.y + offset, i ? 17 : 9, 0, Math.PI * 2); g.fill(); g.strokeStyle = "#8e718d"; g.lineWidth = 2; g.stroke(); });
@@ -91,14 +91,14 @@
       box(g, "#f16bb5", t.x - 6, t.y + 4, 12, 6); box(g, "#a0f8cf", t.x - 3, t.y - 4, 4, 12);
     });
     garden.seats.forEach(s => seat(g, s));
-    garden.corners.forEach((c, i) => { neon(g, i ? "SIDE B · QUIET CORNER" : "WILLOW LOUNGE", c.x + c.w / 2, c.y - 22, c.w, colors[i + 1], 12); });
+    garden.corners.forEach((c, i) => { neon(g, i ? "მეორე მხარე · მყუდრო კუთხე" : "ტირიფის მოსასვენებელი", c.x + c.w / 2, c.y - 22, c.w, colors[i + 1], 12); });
     [1950, 2440, 2890, 3180].forEach((y, row) => {
       g.strokeStyle = "#0a1022"; g.lineWidth = 2; g.beginPath(); g.moveTo(165, y); g.quadraticCurveTo(1280, y + 45, 2390, y); g.stroke();
       for (let i = 0; i < 39; i++) { const x = 180 + i * 57, yy = y + Math.sin(i / 38 * Math.PI) * 22; box(g, "#58475b", x, yy, 2, 5); box(g, colors[(i + row) % 5], x - 2, yy + 4, 6, 7); }
     });
     garden.secrets.forEach(s => {
       if (s.kind === "cassette") { box(g, "#d89cbe", s.x - 10, s.y - 7, 20, 14); box(g, "#302641", s.x - 7, s.y - 4, 14, 6); box(g, "#f3dab9", s.x - 6, s.y - 3, 3, 3); box(g, "#f3dab9", s.x + 3, s.y - 3, 3, 3); }
-      if (s.kind === "poster") { box(g, "#d6b795", s.x - 25, s.y - 40, 50, 65); box(g, "#723b87", s.x - 22, s.y - 37, 44, 37); text(g, "'99", s.x, s.y - 18, 18, "#f9d8a6"); text(g, "NEON", s.x, s.y + 10, 8, "#2a263b"); }
+      if (s.kind === "poster") { box(g, "#d6b795", s.x - 25, s.y - 40, 50, 65); box(g, "#723b87", s.x - 22, s.y - 37, 44, 37); text(g, "'99", s.x, s.y - 18, 18, "#f9d8a6"); text(g, "ნეონი", s.x, s.y + 10, 8, "#2a263b"); }
     });
     g.restore();
   }
@@ -190,11 +190,16 @@
   }
   function mount(api) {
     bridge = api; socket = api.socket();
-    const wayfinder = document.createElement("div"); wayfinder.id = "gardenWayfinder"; wayfinder.className = "garden-wayfinder"; wayfinder.textContent = "↓ NEON GARDEN · სამხრეთის ღია ჭიშკარი"; wayfinder.hidden = true;
-    panel = document.createElement("section"); panel.id = "gardenControls"; panel.className = "garden-controls"; panel.hidden = true; panel.setAttribute("aria-label", "Neon Garden — 1999");
-    panel.innerHTML = '<div class="garden-heading"><b>NEON GARDEN — 1999</b><button id="gardenExpand" type="button" aria-expanded="false" aria-controls="gardenOptions">⋯</button></div><small id="gardenStatus"></small><div class="garden-actions"><button id="gardenDance" type="button">♫ Dance</button><button id="gardenSay" type="button">💬 საუბარი</button><button id="gardenSit" type="button">▰ დაჯდომა</button><button id="gardenPoseStop" type="button" hidden>■ შეჩერება</button></div><div id="gardenOptions" hidden><label>რეტრო მოძრაობა<select id="gardenDanceMove"></select></label><label class="garden-sync"><input id="gardenDanceSync" type="checkbox"> ჯგუფთან სინქრონულად</label><div class="garden-private"><select id="gardenWhisperTarget" aria-label="პირადი საუბრის ადრესატი"><option value="">პირადი საუბარი · ახლოს მდგომი მოთამაშე</option></select><button id="gardenWhisper" type="button" disabled>ჩუმად</button></div><small>ცეკვას მოძრაობა აჩერებს · NPC-ები ნამდვილი მოთამაშეები არ არიან.</small></div>';
+    const wayfinder = document.createElement("div"); wayfinder.id = "gardenWayfinder"; wayfinder.className = "garden-wayfinder"; wayfinder.textContent = "↓ ნეონის ბაღი · სამხრეთის ღია ჭიშკარი"; wayfinder.hidden = true;
+    panel = document.createElement("section"); panel.id = "gardenControls"; panel.className = "garden-controls"; panel.hidden = true; panel.setAttribute("aria-label", "ნეონის ბაღი — 1999");
+    panel.innerHTML = "<div class=\"garden-heading\"><b>ნეონის ბაღი — 1999</b><button id=\"gardenExpand\" type=\"button\" aria-expanded=\"false\" aria-controls=\"gardenOptions\">⋯</button></div><small id=\"gardenStatus\"></small><div class=\"garden-actions\"><button id=\"gardenDance\" type=\"button\">♫ ცეკვა</button><button id=\"gardenSay\" type=\"button\">💬 საუბარი</button><button id=\"gardenSit\" type=\"button\">▰ დაჯდომა</button><button id=\"gardenPoseStop\" type=\"button\" hidden>■ შეჩერება</button></div><div id=\"gardenOptions\" hidden><label>რეტრო მოძრაობა<select id=\"gardenDanceMove\"></select></label><label class=\"garden-sync\"><input id=\"gardenDanceSync\" type=\"checkbox\"> ჯგუფთან სინქრონულად</label><div class=\"garden-private\"><select id=\"gardenWhisperTarget\" aria-label=\"პირადი საუბრის ადრესატი\"><option value=\"\">პირადი საუბარი · ახლოს მდგომი მოთამაშე</option></select><button id=\"gardenWhisper\" type=\"button\" disabled>ჩუმად</button></div><small>ცეკვას მოძრაობა აჩერებს · ქალაქის პერსონაჟები ნამდვილი მოთამაშეები არ არიან.</small></div>";
     document.querySelector(".city-world").append(wayfinder, panel);
     moves.forEach(([id, name]) => { const option = document.createElement("option"); option.value = id; option.textContent = name; document.getElementById("gardenDanceMove").appendChild(option); });
+    const danceChoices=document.createElement('div');danceChoices.className='garden-dance-choices';danceChoices.setAttribute('aria-label','ცეკვის არჩევა');
+    const danceNames={'running-man':'მორბენალი','cabbage-patch':'წრიული','electric-slide':'სრიალი','robot':'რობოტი'};
+    moves.forEach(([id])=>{const b=document.createElement('button');b.type='button';b.textContent=danceNames[id]||id;b.dataset.move=id;b.setAttribute('aria-pressed','false');b.onclick=()=>{document.getElementById('gardenDanceMove').value=id;danceChoices.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));command('city:garden:dance',{move:id,sync:document.getElementById('gardenDanceSync').checked});};danceChoices.append(b);});
+    panel.querySelector('.garden-actions').after(danceChoices);document.getElementById('gardenDanceMove').parentElement.hidden=true;
+    panel.querySelector('.garden-heading b').textContent='ნეონის ბაღი';document.getElementById('gardenDance').textContent='ცეკვა';
     document.getElementById("gardenDance").addEventListener("click", () => command("city:garden:dance", { move: document.getElementById("gardenDanceMove").value, sync: document.getElementById("gardenDanceSync").checked }));
     document.getElementById("gardenPoseStop").addEventListener("click", () => command(bridge.self()?.gardenSeatId ? "city:garden:stand" : "city:garden:stop"));
     document.getElementById("gardenSit").addEventListener("click", () => { const s = nearestSeat(); if (s) command("city:garden:sit", { seatId: s.id }); });

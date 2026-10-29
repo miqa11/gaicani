@@ -54,7 +54,7 @@
       g.save(); g.textAlign = "center"; g.textBaseline = "middle";
       g.font = '700 9px "Noto Sans Georgian", sans-serif';
       const occupants=(vehicle.seats||[]).filter(s=>s.playerId);
-      const text = (o.self?vehicle.model:'F · Get In') + ' · ' + (occupants.length?occupants.map(s=>s.name).join(', '):vehicle.model);
+      const text = (o.self?vehicle.model:"ჩაჯდომა") + ' · ' + (occupants.length?occupants.map(s=>s.name).join(', '):vehicle.model);
       const tw = Math.min(220, g.measureText(text).width + 16), yy = y - (vehicle.dir === "up" || vehicle.dir === "down" ? length / 2 + 14 : width / 2 + 16);
       rect(g, "#080d20eb", x - tw / 2, yy - 10, tw, 20);
       g.strokeStyle = o.self ? "#76f1dd" : "#ffd58b"; g.lineWidth = 1; g.strokeRect(x - tw / 2, yy - 10, tw, 20);

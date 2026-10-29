@@ -39,8 +39,8 @@
     if(options.pose==='wave'){g.fillStyle=yellow?'#ffe16b':'#efc49d';g.fillRect(p.x+7,p.y-17,4,14);}
     if(options.pose==='dance'){g.fillStyle=p.color||'#b69af1';g.fillRect(p.x-15,p.y-8,8,4);g.fillRect(p.x+7,p.y-8,8,4);}
    }
-   g.restore();g.fillStyle=color;g.textAlign='center';g.font='bold 15px monospace';g.fillText('GAICANI • TBILISI 1999',320,402);
-   g.font='11px monospace';g.fillStyle='#d0c7e4';g.fillText(String(options.title||'A night in the city').slice(0,70),320,422);
+   g.restore();g.fillStyle=color;g.textAlign='center';g.font='bold 15px monospace';g.fillText("გაიკანი • თბილისი 1999",320,402);
+   g.font='11px monospace';g.fillStyle='#d0c7e4';g.fillText(String(options.title||"ღამე ქალაქში").slice(0,70),320,422);
    if(options.sticker==='star'){g.fillStyle='#ffe16b';g.font='30px monospace';g.fillText('★',592,60);}
    return out;
   };

@@ -17,7 +17,8 @@ test("only the Casino and functional Arcade remain enterable; Casino layout is u
   assert.deepEqual(world.buildings.filter(b => b.enterable).map(b => b.id).sort(), ["arcade-palace", "neon-casino"]);
   const baseline = execFileSync("git", ["show", "HEAD:city-world.js"], { cwd: __dirname + "/..", encoding: "utf8" });
   const context = { module: { exports: {} } }; vm.runInNewContext(baseline, context);
-  assert.deepEqual(JSON.parse(JSON.stringify(world.casino)), JSON.parse(JSON.stringify(context.module.exports.casino)));
+  const geometry = value => JSON.parse(JSON.stringify(value, (key, item) => key === "label" ? undefined : item));
+  assert.deepEqual(geometry(world.casino), geometry(context.module.exports.casino));
   assert.equal(world.buildings.length, context.module.exports.buildings.length);
 });
 
@@ -34,7 +35,7 @@ test("the huge garden has an open city gate, solid fences, clear floor, and reac
   assert.equal(world.gardenContains(1400, 1750), false);
   assert.equal(vehicles.isDriveable(world, 1620, 1900, 26, [], "lada-2106", "down"), true);
   assert.ok(world.garden.npcs.length >= 10);
-  assert.ok(world.garden.npcs.every(npc => npc.name.includes("NPC")));
+  assert.ok(world.garden.npcs.every(npc => npc.name.includes("ქალაქის პერსონაჟი")));
 });
 
 test("four real dance moves loop, share a group clock, and reject unavailable players", () => {

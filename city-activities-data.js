@@ -2,53 +2,53 @@
 (function(root,factory){const W=typeof module==='object'&&module.exports?require('./city-world'):root.GaicaniCityWorld;const data=factory(W);if(typeof module==='object'&&module.exports)module.exports=data;if(root)root.GaicaniCityActivitiesData=data;})(typeof window==='undefined'?globalThis:window,function(W){
  'use strict';
  function point(x,y,label,interiorId){if(interiorId)return {x,y,label,interiorId};for(let r=0;r<=100;r+=10)for(const [dx,dy]of [[r,0],[-r,0],[0,r],[0,-r]])if(W.isWalkable(x+dx,y+dy,18))return {x:x+dx,y:y+dy,label};throw Error('No safe activity location: '+label);}
- const categories=['Explore','Jobs','Multiplayer','Gaicanians','Games','Collections'];
+ const categories=['აღმოჩენა','სამუშაოები','მეგობრებთან','გაიკანელები','თამაშები','კოლექციები'];
  const rows=[
- ['fishing','River fishing','Explore',2,'Cast a rod, watch for a bite, and land common, rare, or legendary fish.',2475,1700,'Mtkvari riverbank',12,'fishing'],
- ['treasure','Hidden treasures','Explore',2,'Follow clues and solve locks. Some discoveries need a partner.',420,700,'Old-town courtyard',15,'treasure'],
- ['bugs','Glow-bug catching','Explore',2,'Swing your net at the right moment and fill your insect book.',450,2050,'Garden orchard',8,'bugs'],
- ['photography','City photography','Explore',2,'Frame landmarks, cars, citizens, and consenting friends.',2740,980,'River viewpoint',5,'photography'],
- ['parkour','Courtyard parkour','Games',2,'Jump through checkpoints in an outdoor time trial.',960,1700,'South courtyard',12,'parkour'],
- ['delivery','City deliveries','Jobs',3,'Carry pizza, flowers, packages, or letters to real city destinations.',420,1100,'Delivery counter',12,'delivery'],
- ['taxi','Taxi rides','Jobs',3,'Agree on a destination and fare with a real passenger.',900,700,'Taxi rank',0,'taxi'],
- ['repair','Mechanic workshop','Jobs',3,'Repair tires, engines, and lights on the existing city cars.',1000,1700,'Outdoor mechanic bay',8,'repair'],
- ['bar','Garden refreshments','Jobs',3,'Mix fictional nonalcoholic drinks to order and serve them.',500,2290,'Neon Garden bar',8,'bar'],
- ['market','Citizen street market','Collections',3,'Buy supplies and cosmetics or sell your catches using virtual coins.',980,1100,'Market plaza',0,'market'],
- ['racing','Street races','Multiplayer',4,'Challenge drivers to a sprint or circuit with ordered checkpoints.',540,700,'Rustaveli race start',15,'racing'],
- ['dance-battle','Dance battles','Multiplayer',4,'Challenge a friend to synchronized rhythm cues. Spectators can cheer.',1400,2500,'Neon Garden dance floor',10,'dance-battle'],
- ['hide-seek','Hide and seek','Multiplayer',4,'Hide inside the marked garden zone or find the other players.',700,2850,'Garden play area',8,'hide-seek'],
- ['tag','Tag and chase','Multiplayer',4,'Touch another player to pass the role. No instant tag-backs.',1100,2950,'Garden chase area',8,'tag'],
- ['karaoke','Karaoke stage','Multiplayer',4,'Queue for original text performances and applaud your friends.',1900,2500,'Garden karaoke stage',0,'karaoke'],
- ['photo-booth','Retro photo booth','Multiplayer',4,'Choose poses, frames and stickers for an opt-in group portrait.',2100,2800,'Garden photo booth',0,'photo-booth'],
- ['car-meet','Car meetups','Multiplayer',4,'Paint your car, inspect cosmetics, and vote in a live showcase.',1240,1740,'South parking plaza',0,'car-meet'],
- ['graffiti','Pixel graffiti','Multiplayer',4,'Draw on a designated wall and submit your work for approval.',1540,1740,'Approved art wall',0,'graffiti'],
- ['help','Help a Gaicanian','Gaicanians',5,'Water flowers, recover tools, clean, carry groceries, and prepare the garden.',760,1740,'Citizen help corner',10,'help'],
- ['friendship','Citizen friendships','Gaicanians',5,'Talk, remember shared moments, and unlock personal stories.',480,2300,'Citizen gathering spot',0,'friendship'],
- ['pets','Pet care','Gaicanians',5,'Feed, walk, and find the little animals around the city.',2200,3000,'Pet corner',8,'pets'],
- ['detective','Neighborhood mysteries','Gaicanians',5,'Question citizens, inspect clues, and solve handcrafted cases.',1500,1740,'Detective noticeboard',15,'detective'],
- ['tournament','Arcade tournaments','Games',6,'Compete in the existing Arcade games during a timed tournament.',1979,1103,'Pixel Palace Arcade',0,'tournament'],
- ['dj','DJ booth','Games',6,'Take a timed turn selecting the original garden music.',1400,2220,'Neon Garden DJ booth',0,'dj'],
- ['collectibles','City collection trail','Collections',6,'Discover hats, car decorations, stickers, souvenirs, and retro technology.',960,700,'Collectors corner',5,'collectibles'],
- ['environment','City interactions','Explore',6,'Sit, recycle, feed birds, use the phone, play, and listen to musicians.',420,1690,'Neighborhood square',0,'environment']
+ ['fishing','მდინარეზე თევზაობა','აღმოჩენა',2,"ჩააგდე ანკესი, დაელოდე ჩაკბეჩას და დაიჭირე ჩვეულებრივი, იშვიათი ან ლეგენდარული თევზი.",2475,1700,'მტკვრის სანაპირო',12,'fishing'],
+ ['treasure','დამალული განძი','აღმოჩენა',2,"მიჰყევი მინიშნებებს და გახსენი საკეტები. ზოგი განძის აღმოჩენას მეგობარი სჭირდება.",420,700,'ძველი ქალაქის ეზო',15,'treasure'],
+ ['bugs','მწერების დაჭერა','აღმოჩენა',2,"სწორ დროს მოიქნიე ბადე და შეავსე მწერების ალბომი.",450,2050,'ბაღის ხეხილი',8,'bugs'],
+ ['photography','ქალაქის ფოტოგრაფია','აღმოჩენა',2,"გადაუღე ფოტო ღირსშესანიშნაობებს, მანქანებს, მოქალაქეებსა და თანახმა მეგობრებს.",2740,980,'მდინარის გადასახედი',5,'photography'],
+ ['parkour','ეზოს პარკური','თამაშები',2,"გაიარე საკონტროლო რგოლები ახტომით და შეეჯიბრე დროს.",960,1700,'სამხრეთის ეზო',12,'parkour'],
+ ['delivery','ქალაქის გზავნილები','სამუშაოები',3,"მიიტანე პიცა, ყვავილები, ამანათი ან წერილი ქალაქის სხვადასხვა ადგილას.",420,1100,'გზავნილების დახლი',12,'delivery'],
+ ['taxi','ტაქსით მგზავრობა','სამუშაოები',3,"შეუთანხმდი ნამდვილ მგზავრს დანიშნულებასა და საფასურზე.",900,700,'ტაქსის გაჩერება',0,'taxi'],
+ ['repair','ავტოსახელოსნო','სამუშაოები',3,"შეაკეთე ქალაქის მანქანების საბურავები, ძრავა და ფარები.",1000,1700,'ღია ავტოსახელოსნო',8,'repair'],
+ ['bar','ბაღის გამაგრილებელი სასმელები','სამუშაოები',3,"მოამზადე შეკვეთილი უალკოჰოლო სასმელები და გაუმასპინძლდი სტუმრებს.",500,2290,'ნეონის ბაღის ბარი',8,'bar'],
+ ['market','ქუჩის ბაზარი','კოლექციები',3,"ვირტუალური მონეტებით იყიდე ნივთები და დეკორაციები ან გაყიდე ნადავლი.",980,1100,'ბაზრის მოედანი',0,'market'],
+ ['racing','ქუჩის რბოლები','მეგობრებთან',4,"გამოიწვი მძღოლები რბოლაში და გაიარეთ საკონტროლო წერტილები რიგით.",540,700,'რუსთაველის რბოლის სტარტი',15,'racing'],
+ ['dance-battle','საცეკვაო შეჯიბრი','მეგობრებთან',4,"შეეჯიბრე მეგობარს რიტმულ ცეკვაში. მაყურებლებს შეუძლიათ გამხნევება.",1400,2500,'ნეონის ბაღის საცეკვაო მოედანი',10,'dance-battle'],
+ ['hide-seek','დამალობანა','მეგობრებთან',4,"დაიმალე ბაღის მონიშნულ სივრცეში ან იპოვე სხვა მოთამაშეები.",700,2850,'ბაღის სათამაშო სივრცე',8,'hide-seek'],
+ ['tag','დაჭერობანა','მეგობრებთან',4,"შეეხე სხვა მოთამაშეს როლის გადასაცემად. მაშინვე უკან დაჭერა არ შეიძლება.",1100,2950,'ბაღის სარბენი სივრცე',8,'tag'],
+ ['karaoke','კარაოკეს სცენა','მეგობრებთან',4,"დაელოდე სცენაზე გამოსვლის რიგს და დაუკარი ტაში მეგობრებს.",1900,2500,'ბაღის კარაოკეს სცენა',0,'karaoke'],
+ ['photo-booth','რეტრო ფოტოკაბინა','მეგობრებთან',4,"თანახმა მეგობრებთან ჯგუფური ფოტოსთვის აირჩიე პოზები, ჩარჩოები და სტიკერები.",2100,2800,'ბაღის ფოტოკაბინა',0,'photo-booth'],
+ ['car-meet','ავტომოყვარულთა შეხვედრა','მეგობრებთან',4,"შეღებე მანქანა, დაათვალიერე დეკორაციები და მიეცი ხმა გამოფენაზე.",1240,1740,'სამხრეთის ავტოსადგომი',0,'car-meet'],
+ ['graffiti','პიქსელური გრაფიტი','მეგობრებთან',4,"დახატე სპეციალურ კედელზე და გაგზავნე ნამუშევარი დასამტკიცებლად.",1540,1740,'გრაფიტის კედელი',0,'graffiti'],
+ ['help','დაეხმარე გაიკანელს','გაიკანელები',5,"მორწყე ყვავილები, იპოვე ხელსაწყოები, დაალაგე და მოამზადე ბაღი.",760,1740,'დახმარების კუთხე',10,'help'],
+ ['friendship','გაიკანელებთან მეგობრობა','გაიკანელები',5,"ესაუბრე გაიკანელებს, დააგროვე მოგონებები და გაიგე მათი ისტორიები.",480,2300,'შეკრების ადგილი',0,'friendship'],
+ ['pets','ცხოველებზე ზრუნვა','გაიკანელები',5,"აჭამე, გაასეირნე და იპოვე ქალაქის პატარა ცხოველები.",2200,3000,'ცხოველების კუთხე',8,'pets'],
+ ['detective','უბნის საიდუმლოებები','გაიკანელები',5,"გამოკითხე მოქალაქეები, შეისწავლე მინიშნებები და გამოიძიე საქმეები.",1500,1740,'გამომძიებლის დაფა',15,'detective'],
+ ['tournament','არკადის ტურნირები','თამაშები',6,"მიიღე მონაწილეობა არკადის თამაშების დროში შეზღუდულ ტურნირში.",1979,1103,'პიქსელების სასახლე',0,'tournament'],
+ ['dj','დიჯეის პულტი','თამაშები',6,"შენი ჯერის განმავლობაში შეარჩიე ბაღის მუსიკა.",1400,2220,'ნეონის ბაღის დიჯეის პულტი',0,'dj'],
+ ['collectibles','ქალაქის კოლექციები','კოლექციები',6,"აღმოაჩინე ქუდები, მანქანის დეკორაციები, სტიკერები, სუვენირები და რეტრო ტექნიკა.",960,700,'კოლექციონერების კუთხე',5,'collectibles'],
+ ['environment','ქალაქის გასართობები','აღმოჩენა',6,"დაისვენე, დაახარისხე ნარჩენები, აჭამე ჩიტებს, დარეკე, ითამაშე და მოუსმინე მუსიკოსებს.",420,1690,'უბნის მოედანი',0,'environment']
  ];
- const activities=rows.map(([id,name,category,phase,description,x,y,label,reward,kind])=>({id,name,category,phase,description,location:point(x,y,label),reward,kind,cooldownMs:reward?60000:1000,mode:category==='Multiplayer'?'multiplayer':'solo',durationMs:180000}));
+ const activities=rows.map(([id,name,category,phase,description,x,y,label,reward,kind])=>({id,name,category,phase,description,location:point(x,y,label),reward,kind,cooldownMs:reward?60000:1000,mode:category==='მეგობრებთან'?'multiplayer':'solo',durationMs:180000}));
  activities.find(a=>a.id==='photography').anywhere=true;
  for(const id of ['delivery','taxi'])activities.find(a=>a.id===id).vehicle=true;
  activities.find(a=>a.id==='taxi').anywhere=true;
  activities.find(a=>a.id==='taxi').durationMs=600000;
  const items=[
- {id:'fish-common',name:'River perch',type:'fish',rarity:'common',sell:3}, {id:'fish-rare',name:'Silver trout',type:'fish',rarity:'rare',sell:12}, {id:'fish-legendary',name:'Neon sturgeon',type:'fish',rarity:'legendary',sell:35},
- {id:'bug-common',name:'Garden beetle',type:'insect',rarity:'common',sell:2},{id:'bug-rare',name:'Neon firefly',type:'insect',rarity:'rare',sell:10},
- {id:'rod',name:'Fishing rod',type:'supply',price:15},{id:'net',name:'Butterfly net',type:'supply',price:12},{id:'hat',name:'Retro bucket hat',type:'cosmetic',price:20},
- {id:'sticker',name:'Gaicanian sticker',type:'sticker',price:5},{id:'car-star',name:'Car star decal',type:'vehicle',price:25},{id:'souvenir',name:'Yellow citizen souvenir',type:'collectible',price:10},{id:'cassette',name:'Hidden mixtape',type:'collectible',sell:4},{id:'pager',name:'1999 pager',type:'collectible',sell:8},{id:'pet-food',name:'Pet treats',type:'supply',price:2}
+ {id:'fish-common',name:'მდინარის ქორჭილა',type:'fish',rarity:'common',sell:3}, {id:'fish-rare',name:'ვერცხლისფერი კალმახი',type:'fish',rarity:'rare',sell:12}, {id:'fish-legendary',name:'ნეონის ზუთხი',type:'fish',rarity:'legendary',sell:35},
+ {id:'bug-common',name:'ბაღის ხოჭო',type:'insect',rarity:'common',sell:2},{id:'bug-rare',name:'ნეონის ციცინათელა',type:'insect',rarity:'rare',sell:10},
+ {id:'rod',name:'ანკესი',type:'supply',price:15},{id:'net',name:'მწერების ბადე',type:'supply',price:12},{id:'hat',name:'რეტრო ქუდი',type:'cosmetic',price:20},
+ {id:'sticker',name:'გაიკანელის სტიკერი',type:'sticker',price:5},{id:'car-star',name:'მანქანის ვარსკვლავის დეკორი',type:'vehicle',price:25},{id:'souvenir',name:'ყვითელი გაიკანელის სუვენირი',type:'collectible',price:10},{id:'cassette',name:'დამალული კასეტა',type:'collectible',sell:4},{id:'pager',name:'1999 წლის პეიჯერი',type:'collectible',sell:8},{id:'pet-food',name:'ცხოველის სასუსნავი',type:'supply',price:2}
  ];
  const npcs=[
- {id:'g-mzi',name:'Mzi',personality:'cheerful gardener',x:760,y:1740,color:'#ffdc55',job:'flowers',story:'I planted the first night-blooming flower here.'},
- {id:'g-beka',name:'Beka',personality:'careful mechanic',x:1000,y:1700,color:'#f2ca3e',job:'repair',story:'My oldest engine still hums like a cassette player.'},
- {id:'g-lali',name:'Lali',personality:'curious collector',x:980,y:1100,color:'#ffe578',job:'market',story:'A tiny pager once brought this whole street together.'},
- {id:'g-niko',name:'Niko',personality:'shy animal lover',x:2200,y:3000,color:'#ffda5a',job:'pets',story:'Our lost cat always follows the warmest bakery window.'},
- {id:'g-eka',name:'Eka',personality:'energetic host',x:500,y:2290,color:'#ffdf69',job:'bar',story:'The garden opened with three chairs and one borrowed speaker.'},
- {id:'g-dato',name:'Dato',personality:'thoughtful storyteller',x:480,y:2300,color:'#edca4a',job:'friendship',story:'Every courtyard keeps one story that nobody has written down.'}
+ {id:'g-mzi',name:"მზი",personality:"მხიარული მებაღე",x:760,y:1740,color:'#ffdc55',job:'flowers',story:"აქ პირველი ღამით მოყვავილე ყვავილი მე დავრგე."},
+ {id:'g-beka',name:"ბექა",personality:"ყურადღებიანი ხელოსანი",x:1000,y:1700,color:'#f2ca3e',job:'repair',story:"ჩემი ყველაზე ძველი ძრავა ჯერ კიდევ კასეტის დამკვრელივით ღიღინებს."},
+ {id:'g-lali',name:"ლალი",personality:"ცნობისმოყვარე კოლექციონერი",x:980,y:1100,color:'#ffe578',job:'market',story:"ერთმა პატარა პეიჯერმა ერთხელ მთელი ქუჩა შეკრიბა."},
+ {id:'g-niko',name:"ნიკო",personality:"მორცხვი ცხოველების მოყვარული",x:2200,y:3000,color:'#ffda5a',job:'pets',story:"ჩვენი დაკარგული კატა ყოველთვის ყველაზე თბილ საცხობს პოულობს."},
+ {id:'g-eka',name:"ეკა",personality:"ენერგიული მასპინძელი",x:500,y:2290,color:'#ffdf69',job:'bar',story:"ბაღი სამი სკამითა და ერთი ნათხოვარი დინამიკით გაიხსნა."},
+ {id:'g-dato',name:"დათო",personality:"დაფიქრებული მეზღაპრე",x:480,y:2300,color:'#edca4a',job:'friendship',story:"ყველა ეზო ინახავს ამბავს, რომელიც ჯერ არავის დაუწერია."}
  ].map(n=>({...n,...point(n.x,n.y,n.name)}));
  return {categories,activities,items,npcs,point};
 });

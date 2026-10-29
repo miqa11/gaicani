@@ -229,3 +229,11 @@ test("parkour rejects teleporting, car entry, disconnect and timeouts without pr
   }
 });
 
+
+test("Georgian treasure answers open the same authoritative lock without changing item IDs",()=>{
+ const f=setup();assert.ok(f.begin("treasure",{trail:1}).ok);f.clues();
+ assert.ok(f.active().choices.every(c=>!/[A-Za-z]/.test(c.label)));
+ assert.ok(f.active().choices.some(c=>c.id==="pager"&&c.label==="პეიჯერი"));
+ assert.ok(f.act("solve","პეიჯერი").ok);assert.equal(f.active().status,"success");
+ assert.equal(f.engine.profile(f.p).inventory.pager,1);assert.equal(f.user.coins,115);
+});

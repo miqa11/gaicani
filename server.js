@@ -14250,7 +14250,7 @@ io.on("connection", (socket) => {
 
   socket.on("city:casino:reaction", (data, ack) => {
     const p=cityFind(socket),reply=typeof ack==="function"?ack:()=>{};
-    const messages={celebrate:"🎉 Lucky night!",laugh:"😂 დილერი ისევ სძინავს!",again:"🎰 One more spin!"};
+    const messages={celebrate:"🎉 იღბლიანი ღამე!",laugh:"😂 დილერი ისევ სძინავს!",again:"🎰 კიდევ დატრიალება!"};
     const text=data&&messages[data.id];
     if(!p||p.interiorId!=="neon-casino")return reply({error:"კაზინოს სტუმრებს შეუძლიათ რეაქციების გაგზავნა."});
     if(Date.now()-(p.lastCasinoReactionAt||0)<1400)return reply({error:"ცოტა მოიცადე."});
