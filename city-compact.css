@@ -81,3 +81,17 @@
  .city-app .city-context-actions { left:calc(var(--touch-size,88px) + 20px); right:calc(var(--touch-action-size,44px) + 20px); bottom:8px; }
  .city-app .city-hud-stack .garden-wayfinder { display:none; }
 }
+
+/* A tracked destination occupies one short row; details are explicitly expandable. */
+.city-app .city-hud-stack #cityActivityHud { width:max-content; max-width:100%; padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+.city-app #cityActivityHud .activity-hud-head { gap:4px; width:max-content; max-width:100%; }
+.city-app #cityActivityHud .activity-toggle { min-width:0; max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-height:26px; padding:3px 6px; font-size:10px; line-height:18px; }
+.city-app #cityActivityHud .activity-distance-short { flex-shrink:0; font-size:9px; color:#fff2c2; background:#10192ade; border-radius:3px; padding:3px; }
+.city-app #cityActivityHud .activity-dismiss { min-height:26px; min-width:26px; padding:0; line-height:24px; background:#10192ade; }
+.city-app #cityActivityHud .activity-hud-details { width:min(330px,calc(100vw - 24px)); box-sizing:border-box; margin-top:4px; padding:7px; border-radius:5px; background:#10192af2; max-height:27vh; overflow:auto; }
+.city-app #cityActivityHud .activity-hud-details[hidden] { display:none; }
+.city-app #cityActivityHud .activity-instruction { margin:0 0 4px; font-size:10px; }
+.city-app #cityActivityHud .activity-distance { margin:3px 0; font-size:9px; }
+.city-app #cityActivityHud .activity-play { gap:4px; }
+.city-app #cityActivityHud .activity-play button { min-height:28px; padding:4px 7px; font-size:10px; }
+@media(max-width:360px) { .city-app #cityActivityHud .activity-toggle { max-width:165px; } }
