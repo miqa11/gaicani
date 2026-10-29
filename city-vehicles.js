@@ -92,10 +92,11 @@
   }
   function createGarage(world,options={}) {
     const fleet=createFleet(),players=options.players||new Map(),invites=new Map(),clock=options.now||Date.now;
+    const wear=new Map();for(const v of fleet){v.condition={tires:100,engine:100,lights:100};wear.set(v.id,{x:v.x,y:v.y,distance:0});}
     const relationship=options.relationship||(()=>({blocked:false,friends:false}));
     const find=id=>fleet.find(v=>v.id===id)||null;
     const obstacles=()=>[...players.values(),...(world.npcs||[]),...(world.garden?.npcs||[])].filter(p=>!p.vehicleId&&!p.interiorId&&!p.rideId);
-    const list=()=>fleet.map(v=>({...v,seats:v.seats.map(s=>({...s}))}));
+    const list=()=>fleet.map(v=>({...v,condition:{...v.condition},seats:v.seats.map(s=>({...s}))}));
     function stopped(v){return v&&Math.abs(v.velocity)<5;}
     function syncOccupants(v){for(const seat of v.seats){const p=players.get(seat.playerId);if(!p)continue;const at=seat.id===0?{x:v.x,y:v.y}:seatPoint(v,seat.id);Object.assign(p,at,{dir:v.dir,vehicleAngle:v.angle,vehicleSpeed:seat.id===0?v.velocity:0});}}
     function conflicts(p,v){return v.seats.some(s=>s.playerId&&s.playerId!==p.id&&relationship(p,players.get(s.playerId)).blocked);}
@@ -133,6 +134,8 @@
     function invite(p,target){const v=find(p?.vehicleId);if(!v||v.driverId!==p.id||!target||target.id===p.id||target.vehicleId||target.interiorId||target.rideId||target.gameId||Math.hypot(target.x-v.x,target.y-v.y)>150||conflicts(target,v))return {error:'მოსაწვევად ახლოს მდგომი მოთამაშე აირჩიე.'};if(p.lastCarInvite&&clock()-p.lastCarInvite<1000)return {error:'ერთი წამი მოიცადე.'};p.lastCarInvite=clock();invites.set(v.id+':'+target.id,clock()+60000);return {ok:true,vehicleId:v.id,name:p.name,expiresAt:clock()+60000};}
     function maintain(){
       for(const v of fleet){
+        const w=wear.get(v.id);w.distance+=Math.min(50,Math.hypot(v.x-w.x,v.y-w.y));w.x=v.x;w.y=v.y;
+        if(w.distance>=200){const units=Math.floor(w.distance/200);w.distance%=200;for(const [part,rate]of [['tires',1],['engine',.6],['lights',.4]])v.condition[part]=Math.max(60,v.condition[part]-units*rate);}
         const driver=players.get(v.driverId);if(!driver){v.driverId=null;v.velocity=0;}
         for(const s of v.seats){const p=players.get(s.playerId);if(s.playerId&&!p){s.playerId=null;s.name='';s.color='';}else if(p&&s.id>0&&conflicts(p,v)){v.velocity=0;const d=players.get(v.driverId);if(d)d.vehicleSpeed=0;release(p,true,true);}}
         syncOccupants(v);

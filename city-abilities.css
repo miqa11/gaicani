@@ -1,0 +1,23 @@
+.city-stamina { position:absolute; left:16px; bottom:65px; z-index:4; width:155px; padding:8px 10px; background:#11192be8; border:1px solid #82d9bf80; border-radius:7px; color:#d6ffed; pointer-events:none; font:11px "Noto Sans Georgian",sans-serif; }
+.city-stamina[hidden] { display:none; }
+.city-stamina label { display:flex; justify-content:space-between; gap:8px; }
+.city-stamina progress { display:block; width:100%; height:7px; margin:5px 0; accent-color:#85edba; }
+.city-stamina small { display:block; color:#c1bdd3; font-size:9px; }
+.touch-abilities { display:flex; flex-direction:column; gap:8px; pointer-events:auto; }
+.touch-abilities button { min-width:54px; min-height:44px; padding:7px 8px; border:1px solid #8ce7ce; border-radius:10px; background:#18332feb; color:#d9fff2; font:700 12px "Noto Sans Georgian",sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
+.touch-abilities button[aria-pressed="true"] { background:#317754; border-color:#b9ffd2; }
+.touch-abilities button:disabled { opacity:.4; }
+@media(max-width:700px),(any-pointer:coarse) {
+ .city-stamina { left:12px; bottom:calc(var(--touch-size) + 24px); width:128px; padding:6px 8px; font-size:10px; }
+ .city-stamina small { display:none; }
+ .touch-actions { gap:8px; }
+ .garden-controls { bottom:calc(var(--touch-size,116px) + 80px); }
+ .city-world:has(.activity-hud:not([hidden])) .garden-controls { display:none; }
+ .city-world .activity-hud { max-height:calc(100% - 164px - var(--touch-size,116px) - 92px); }
+}
+@media(orientation:landscape) and (max-height:560px) {
+ .city-world .activity-hud { max-height:calc(100% - 135px); }
+ .city-stamina { bottom:calc(var(--touch-size) + 17px); left:10px; width:100px; }
+ .touch-abilities button { min-width:48px; }
+ .touch-abilities { gap:5px; }
+}
