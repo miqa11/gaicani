@@ -1,0 +1,33 @@
+/* Compact city controls share horizontal rows on desktop and phones. */
+.city-app button { min-height:34px; min-width:34px; padding:5px 9px; border-radius:6px; font-size:11px; box-shadow:none; }
+.city-quick-actions { position:absolute; top:108px; left:12px; z-index:9; display:flex; align-items:center; gap:6px; }
+.city-quick-actions button { color:#d6fff0; background:#122431ed; border:1px solid #81cdbd; cursor:pointer; white-space:nowrap; }
+.city-quick-actions .activities-launcher { position:static; padding:5px 9px; font-size:11px; }
+.city-app .city-icon-button { width:34px; height:34px; }
+.city-app .garden-controls,.city-app .city-vehicle-hud { padding:7px 9px; }
+.city-app .garden-actions,.city-app .car-actions,.city-app .activity-card-actions,.city-app #dialogActions { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+.city-app .garden-actions button { flex:0 1 auto; }
+.city-app .touch-abilities { flex-direction:row; gap:5px; }
+.city-app .touch-abilities button { min-width:40px; min-height:36px; padding:5px 7px; }
+.city-app .touch-actions { align-items:center; gap:6px; }
+.city-app .touch-interact { width:44px; height:44px; min-width:44px; min-height:44px; border-radius:9px; }
+.city-app .activity-hud { top:151px; padding:7px 9px; }
+.city-app .activities-tabs { gap:4px; padding:6px; }
+.city-app .activities-tabs button { flex:0 1 auto; padding:5px 8px; }
+.city-app .activities-header { padding:9px 12px; }
+.city-app .activity-card { padding:9px; }
+.city-app .city-message-composer { padding:14px; width:min(360px,calc(100% - 24px)); }
+.city-app .city-message-composer textarea { font-size:16px; min-height:48px; }
+@media(max-width:700px),(any-pointer:coarse) {
+ .city-app { --touch-size:88px; --touch-action-size:44px; }
+ .city-app .garden-controls button,.city-app #vehicleHud button { min-height:34px; min-width:34px; padding:5px 8px; }
+ .city-app .garden-controls select,.city-app #vehicleHud select { min-height:34px; padding:4px; }
+ .city-app .garden-actions { flex-wrap:nowrap; }
+ .city-app .activities-tabs { flex-wrap:wrap; }
+ .city-app .city-stamina { width:102px; padding:4px 6px; }
+ .city-app .touch-interact span { display:none; }
+}
+@media(orientation:landscape) and (max-height:560px) {
+ .city-quick-actions { top:70px; }
+ .city-app .activity-hud { top:110px; }
+}
