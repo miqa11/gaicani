@@ -253,14 +253,13 @@ const io     = new Server(server, {
 const bypassLogAt = new Map(); // ip → when its last direct-connection attempt was logged
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const GIPHY_KEY           = process.env.GIPHY_KEY || "UFauF9jrzjxyDsxqXi7rVnfRdvmuMmsL";
+const {GIPHY_KEY,YOUTUBE_API_KEY,OWNER_IPS}=require('./server-runtime-config').readServiceConfig();
 // Powers /api/music-search (in-site song search for "Listen Together").
 // Get a free key at https://console.cloud.google.com/ → enable "YouTube Data
 // API v3" → Credentials → API key. Free quota is 10,000 units/day; each
 // search costs 100 units (~100 searches/day), which is why results are
 // cached below. Without this set, the search box returns a friendly error
 // and the feature is simply unavailable — nothing else on the site breaks.
-const YOUTUBE_API_KEY     = process.env.YOUTUBE_API_KEY || "";
 const NAME_MIN           = 2;
 const NAME_MAX           = 20;
 const MSG_MAX            = 2000;
@@ -270,8 +269,7 @@ const MSG_RATE_MAX       = 20;
 const MSG_RATE_WINDOW_MS = 5000;
 
 // ── Admin / Owner ─────────────────────────────────────────────────────────────
-// All sensitive routes are locked to OWNER_IP only — no password needed.
-const OWNER_IPS = new Set(["109.172.136.114"]);
+// Owner IP privileges are configured explicitly; sensitive routes still require admin authentication.
 
 // Resolve the real client IP the same way everywhere in the file.
 // (This was previously called in 3 places but never defined, which threw
@@ -1717,6 +1715,7 @@ app.use(express.static(path.join(__dirname), {
 const gifHttpLimiter = rateLimit({ windowMs: 60_000, max: 40, standardHeaders: true, legacyHeaders: false });
 
 app.get("/api/gifs", gifHttpLimiter, async (req, res) => {
+  if (!GIPHY_KEY) return res.status(503).json({error:"GIF search is not configured.",results:[]});
   const q = (req.query.q || "").trim().slice(0, 100);
   const endpoint = q
     ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=24&rating=pg-13`
@@ -14011,6 +14010,7 @@ const cityGarage = cityVehicles.createGarage(cityWorld, {players:cityPlayers, re
     friends:!!(left?.friends?.includes(b.userKey)&&right?.friends?.includes(a.userKey))};
 }});
 const cityMotionController = createCityMotionController(cityWorld, cityGarage);
+const cityActivities = require('./server-city-activities').createCityActivities({world:cityWorld,players:cityPlayers,garage:cityGarage,registeredUsers,saveAuthUsers,spendableCoins,ensureCoins,changeCoins,io,cleanText:text=>cleanShortText(text,120),blockedText:findBannedWord});
 const cityGarden = createCityGarden({ world:cityWorld, players:cityPlayers, cleanText:text=>cleanShortText(text,120), blockedText:findBannedWord });
 const cityGameEngine = createCityGameEngine({ io, players:cityPlayers, registeredUsers, roomName:CITY_ROOM, saveAuthUsers });
 const cityCasinoEngine = createCityCasinoEngine({ io, registeredUsers, spendableCoins, ensureCoins, settlePendingCoins,
@@ -14022,6 +14022,7 @@ const CITY_PALETTE = ["#bf75ef", "#58d8f2", "#f27ba9", "#e9a550", "#66d7a7", "#8
 function cityPublicPlayer(p) {
   const motion = cityMotionController.view(p);
   return { motion:motion, id: p.id, name: p.name, color: p.color, x: p.x, y: p.y, dir: p.dir,
+    stamina:motion.stamina,sprintLocked:motion.sprintLocked,sprinting:motion.sprinting,jumpRemaining:motion.jumpRemaining,jumpCooldown:motion.jumpCooldown,jumpHeld:motion.jumpHeld,jumpSerial:motion.jumpSerial,activityAnimation:p.activityAnimation||null,
     action: p.action, gardenDance:p.gardenDance||null, gardenSeatId:p.gardenSeatId||null, gardenSeatKind:p.gardenSeatKind||null, interiorId: p.interiorId || null, rideId: p.rideId || null, vehicleId:p.vehicleId||null, vehicleSeat:p.vehicleSeat??null, vehicleAngle:p.vehicleAngle, vehicleSpeed:p.vehicleSpeed||0, gameId:p.gameId||null, gameStartedAt:p.gameStartedAt||0 };
 }
 function cityList() { return Array.from(cityPlayers.values(), cityPublicPlayer); }
@@ -14058,6 +14059,7 @@ function cityBeginRide(ride) {
 function cityRemove(socketId) {
   const p = cityPlayers.get(socketId); if (!p) return;
   cityGarden.remove(p);
+  cityActivities.remove(p);
   if (p.vehicleId) { cityGarage.release(p, false); cityPushVehicles(); }
   cityGameEngine.remove(socketId);
   if (p.interiorId === "neon-casino") io.to(CITY_CASINO_ROOM).emit("city:casino:playerLeft", { id:socketId });
@@ -14070,6 +14072,7 @@ setInterval(() => {
   const now = Date.now(), dt = Math.min(0.08, Math.max(0, (now - cityLastTick) / 1000));
   cityLastTick = now;
   cityGarage.maintain();
+  cityActivities.tick();
   for (const p of cityPlayers.values()) {
     cityGarden.maintain(p);
     // A game or other session can start through its own engine. Never leave its vehicle reserved or moving.
@@ -14082,6 +14085,7 @@ setInterval(() => {
     if(p.vehicleId && p.vehicleSeat > 0){cityGarage.sync(p);continue;}
     if (p.gardenSeatId || p.gardenDance) { cityMotionController.maintain(p, now); if (!(p.actionUntil > now)) p.action=p.gardenSeatId?"sit":"dance"; continue; }
     if (cityMotionController.maintain(p, now)) continue;
+    if (p.activityLocked) { p.inputX=p.inputY=p.casinoInputX=p.casinoInputY=0; continue; }
     if (p.interiorId === "neon-casino" && !p.rideId && !p.gameId) {
       let dx=p.casinoInputX||0,dy=p.casinoInputY||0;
       const length=Math.hypot(dx,dy);if(length>1){dx/=length;dy/=length;}
@@ -14173,6 +14177,7 @@ io.on("connection", (socket) => {
   });
 
   require('./server-city-vehicles.js').attachVehicleEvents({socket,io,players:cityPlayers,garage:cityGarage,publicPlayer:cityPublicPlayer,push:cityPushVehicles,cleanText:cleanShortText,blockedText:findBannedWord});
+  cityActivities.attach(socket);
   socket.on("city:vehicle:enter", (data, ack) => {
     const p = cityFind(socket), reply = typeof ack === "function" ? ack : () => {};
     const result = cityGarage.enter(p, data && data.vehicleId, data && data.seatId);
@@ -14220,7 +14225,7 @@ io.on("connection", (socket) => {
 
   socket.on("city:input", (data, ack) => {
     const p = cityFind(socket), now = Date.now();
-    if (!p || p.interiorId || p.rideId || p.gameId || cityMotionController.active(p)) return;
+    if (!p || p.activityLocked || p.interiorId || p.rideId || p.gameId || cityMotionController.active(p)) return;
     cityGarden.beforeMove(p, data);
     const x = Number(data && data.x), y = Number(data && data.y), nx=Number.isFinite(x)?Math.max(-1,Math.min(1,x)):0, ny=Number.isFinite(y)?Math.max(-1,Math.min(1,y)):0;
     if(Math.abs(nx)+Math.abs(ny)<0.01){const wasMoving=Math.abs(p.inputX)+Math.abs(p.inputY)>.01;p.inputX=p.inputY=0;p.action="idle";p.actionUntil=0;p.lastInputAt=now;if(typeof ack==="function")ack({x:p.x,y:p.y});if(wasMoving||typeof ack==="function")socket.emit("city:stopped",{x:p.x,y:p.y});return}

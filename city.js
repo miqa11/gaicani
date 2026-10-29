@@ -9,6 +9,9 @@ const V=window.GaicaniCityVehicles, fleet=new Map(),Garden=window.GaicaniCityGar
 let vehiclePending=false,cityMessageSending=false,cityMessageRequest=0;
 const predictor=window.GaicaniCityPrediction.create(W,()=>Array.from(fleet.values()),()=>[...remote.values(),...W.npcs,...W.garden.npcs].filter(p=>!p.vehicleId&&!p.interiorId&&!p.rideId));
 let motionInput={x:0,y:0},lastMotionSendAt=0;
+let touchSprint=false,jumpRequested=false;
+const abilityFields=["stamina","sprintLocked","sprinting","jumpRemaining","jumpCooldown","jumpHeld","jumpSerial"];
+function copyAbilities(target,source){for(const key of abilityFields)if(source[key]!==undefined)target[key]=source[key];}
 let phoneMode=false,renderDpr=1,viewWidth=1,viewHeight=1;
 function inView(x,y,pad=72){return x>=camera.x-pad&&y>=camera.y-pad&&x<=camera.x+viewWidth+pad&&y<=camera.y+viewHeight+pad}
 let socket=null, joined=false, self=null, selfName="ღამის მგზავრი", camera={x:0,y:0}, nearby=null, interior=null, signals=[], notes=[], noteFlights=[], activeDuels=[], ride=null, composerMode="city", messageTargetId=null;
@@ -159,10 +162,11 @@ function drawStreetVehicles(now,dt,chars){
  });
 }
 for(const id of ["neon-casino","arcade-palace"]){const b=W.buildings.find(b=>b.id===id),marker=document.querySelector(id==="neon-casino"?".city-map-marker.casino":".city-map-marker.arcade");if(marker){marker.style.left=(b.x+b.w/2)/W.width*100+"%";marker.style.top=(b.y+b.h/2)/W.height*100+"%";}}
-function drawMini(){const w=mini.width,h=mini.height,sx=w/W.width,sy=h/W.height;mctx.clearRect(0,0,w,h);mctx.fillStyle="#11152a";mctx.fillRect(0,0,w,h);mctx.fillStyle="#102a48";mctx.fillRect(2510*sx,0,135*sx,h);mctx.fillStyle="#36334b";mctx.fillRect(2645*sx,0,(W.width-2645)*sx,h);mctx.fillStyle="#34364d";W.roads.forEach(r=>mctx.fillRect(r.x*sx,r.y*sy,r.w*sx,r.h*sy));mctx.fillStyle="#214e47";mctx.fillRect(W.garden.bounds.x*sx,W.garden.bounds.y*sy,W.garden.bounds.w*sx,W.garden.bounds.h*sy);mctx.fillStyle="#b45999";mctx.fillRect(W.garden.danceFloor.x*sx,W.garden.danceFloor.y*sy,W.garden.danceFloor.w*sx,W.garden.danceFloor.h*sy);mctx.fillStyle="#746879";W.buildings.forEach(b=>mctx.fillRect(b.x*sx,b.y*sy,b.w*sx,b.h*sy));fleet.forEach(v=>{mctx.fillStyle=v.driverId?"#6fffe0":"#ffd58b";mctx.fillRect(v.x*sx-1.5,v.y*sy-1.5,3,3)});remote.forEach(p=>{if(!p.interiorId&&!p.rideId){mctx.fillStyle="#63f4d1";mctx.fillRect(p.x*sx-1,p.y*sy-1,3,3)}});if(self&&!interior&&!ride){mctx.fillStyle="#ff65d0";mctx.fillRect(self.x*sx-2,self.y*sy-2,5,5);mctx.strokeStyle="#ffeaff";mctx.strokeRect(self.x*sx-3,self.y*sy-3,7,7)}}
-function drawAvatar(x,y,name,color,dir,action,isSelf,now,message,messageUntil){
- const moving=action==="walk",gait=moving?Math.sin(isSelf?(self?.walkPhase||0):now/130):0,step=moving&&gait>0?1:0,bob=moving?-Math.abs(gait):0;
+function drawMini(){const w=mini.width,h=mini.height,sx=w/W.width,sy=h/W.height;mctx.clearRect(0,0,w,h);mctx.fillStyle="#11152a";mctx.fillRect(0,0,w,h);mctx.fillStyle="#102a48";mctx.fillRect(2510*sx,0,135*sx,h);mctx.fillStyle="#36334b";mctx.fillRect(2645*sx,0,(W.width-2645)*sx,h);mctx.fillStyle="#34364d";W.roads.forEach(r=>mctx.fillRect(r.x*sx,r.y*sy,r.w*sx,r.h*sy));mctx.fillStyle="#214e47";mctx.fillRect(W.garden.bounds.x*sx,W.garden.bounds.y*sy,W.garden.bounds.w*sx,W.garden.bounds.h*sy);mctx.fillStyle="#b45999";mctx.fillRect(W.garden.danceFloor.x*sx,W.garden.danceFloor.y*sy,W.garden.danceFloor.w*sx,W.garden.danceFloor.h*sy);mctx.fillStyle="#746879";W.buildings.forEach(b=>mctx.fillRect(b.x*sx,b.y*sy,b.w*sx,b.h*sy));fleet.forEach(v=>{mctx.fillStyle=v.driverId?"#6fffe0":"#ffd58b";mctx.fillRect(v.x*sx-1.5,v.y*sy-1.5,3,3)});remote.forEach(p=>{if(!p.interiorId&&!p.rideId){mctx.fillStyle="#63f4d1";mctx.fillRect(p.x*sx-1,p.y*sy-1,3,3)}});if(self&&!interior&&!ride){mctx.fillStyle="#ff65d0";mctx.fillRect(self.x*sx-2,self.y*sy-2,5,5);mctx.strokeStyle="#ffeaff";mctx.strokeRect(self.x*sx-3,self.y*sy-3,7,7)}window.GaicaniCityActivitiesUI?.drawMini(mctx,w,h);}
+function drawAvatar(x,y,name,color,dir,action,isSelf,now,message,messageUntil,jumpRemaining=0){
+ const moving=action==="walk"||action==="run",gait=moving?Math.sin(isSelf?(self?.walkPhase||0):now/(action==="run"?90:130)):0,step=moving&&gait>0?1:0,bob=moving?-Math.abs(gait):0;
  ctx.fillStyle="rgba(0,0,0,.52)";ctx.beginPath();ctx.ellipse(x,y+8,14,5,0,0,Math.PI*2);ctx.fill();
+ if(jumpRemaining>0)y-=22*Math.sin(Math.PI*(1-Math.min(600,jumpRemaining)/600));
  if(moving){ctx.globalAlpha=.24;ctx.fillStyle="#ff62d0";ctx.fillRect(x-12,y+9,24,2);ctx.globalAlpha=1}
  ctx.fillStyle="#13131f";ctx.fillRect(x-8,y-21+bob,16,14);
  ctx.fillStyle="#f0bd99";ctx.fillRect(x-6,y-20+bob,12,10);
@@ -175,7 +179,7 @@ function drawAvatar(x,y,name,color,dir,action,isSelf,now,message,messageUntil){
  ctx.fillStyle="#28223a";ctx.fillRect(x-7,y+10+bob+armSwing,5,4);ctx.fillRect(x+2,y+10+bob-armSwing,5,4);
  const lw=Math.max(42,Math.min(112,name.length*7+15));ctx.fillStyle="rgba(9,8,24,.9)";ctx.fillRect(x-lw/2,y-45+bob,lw,15);ctx.strokeStyle=isSelf?"#ff71d5":"rgba(126,240,255,.55)";ctx.strokeRect(x-lw/2,y-45+bob,lw,15);label(ctx,name,x,y-37+bob,8,"#f8f4ff","center");
  if(action==="phone"){ctx.fillStyle="#eeb994";ctx.fillRect(x+7,y-6+bob,4,8);ctx.fillStyle="#141528";ctx.fillRect(x+8,y-2+bob,9,12);ctx.fillStyle="#6beaff";ctx.fillRect(x+10,y+1+bob,5,6);ctx.fillStyle="#ff62d0";ctx.fillRect(x+10,y+7+bob,5,2)}
- if(action&&action!=="idle"&&action!=="walk")label(ctx,action==="wave"?"👋":action==="dance"?"♫":action==="wine"?"🍷":action==="phone"?"📱":action==="sad"?"😿":"✋",x,y-60+bob,13,"#fff","center");
+ if(action&&action!=="idle"&&action!=="walk"&&action!=="run")label(ctx,action==="wave"?"👋":action==="dance"?"♫":action==="wine"?"🍷":action==="phone"?"📱":action==="sad"?"😿":"✋",x,y-60+bob,13,"#fff","center");
  if(message&&messageUntil>Date.now())drawMessageBubble(x,y,message)
 }
 function drawAnimalSprite(kind,x,y,color,now,phase,dir){
@@ -233,7 +237,7 @@ function drawCasino(now,dt){
  ctx.fillStyle="#54294c";ctx.fillRect(778,322,154,48);ctx.fillStyle="#1a1125";ctx.fillRect(786,327,138,35);ctx.fillStyle="#fb77d2";ctx.fillRect(797,334,116,3);label(ctx,"BAR · 99",855,348,12,"#fff","center");ctx.fillStyle="#e9ad62";ctx.fillRect(800,376,110,5);ctx.fillStyle="#432b42";ctx.fillRect(815,382,7,34);ctx.fillRect(885,382,7,34);
  drawAvatar(845,475,"Dato · დილერი","#e4a15a","down","idle",false,now);label(ctx,"«კარგი ხელი მოთმინებას უყვარს»",845,449,8,"#ffe7bd","center");
  for(let i=0;i<6;i++){const x=86+i*158;ctx.fillStyle="#17111f";ctx.fillRect(x,322,12,44);ctx.fillStyle=i%2?"#6cecff":"#ff71d1";ctx.globalAlpha=.45+.4*Math.sin(now/240+i);ctx.fillRect(x+3,328,6,27);ctx.globalAlpha=1}
- const chars=[];if(self)chars.push({x:self.casinoX||c.spawn.x,y:self.casinoY||c.spawn.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true,message:self.message,messageUntil:self.messageUntil,gardenDance:self.gardenDance,gardenSeatId:self.gardenSeatId});
+ const chars=[];if(self)chars.push({x:self.casinoX||c.spawn.x,y:self.casinoY||c.spawn.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true,message:self.message,messageUntil:self.messageUntil,gardenDance:self.gardenDance,gardenSeatId:self.gardenSeatId,jumpRemaining:self.jumpRemaining});
  remote.forEach(p=>{if(p.interiorId!=="neon-casino"||!Number.isFinite(p.casinoX)||!Number.isFinite(p.casinoY))return;const f=1-Math.exp(-Math.min(.05,dt||.016)*20);p.casinoX+=(p.targetCasinoX-p.casinoX)*f;p.casinoY+=(p.targetCasinoY-p.casinoY)*f;chars.push({x:p.casinoX,y:p.casinoY,name:p.name,color:p.color,dir:p.dir,action:p.action==="idle"&&Math.hypot(p.targetCasinoX-p.casinoX,p.targetCasinoY-p.casinoY)>.7?"walk":p.action,self:false,message:p.message,messageUntil:p.messageUntil})});
  chars.sort((a,b)=>a.y-b.y);chars.forEach(p=>drawAvatar(Math.round(p.x),Math.round(p.y),p.name,p.color,p.dir,p.action,p.self,now,p.message,p.messageUntil));
  if(nearby&&nearby.type==="casinoStation"){ctx.strokeStyle="#fff4a1";ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.strokeRect(nearby.object.x-42,nearby.object.y-58,84,22);ctx.setLineDash([])}
@@ -244,7 +248,7 @@ let lastFrameAt=0;
 function applyPredictedState(){
  const state=predictor.getState();if(!state||!self)return;
  const casino=state.mode==="casino",xKey=casino?"casinoX":"x",yKey=casino?"casinoY":"y";
- self[xKey]=state.x;self[yKey]=state.y;self.dir=state.dir;
+ self[xKey]=state.x;self[yKey]=state.y;self.dir=state.dir;copyAbilities(self,state);
  self.vehicleId=state.vehicleId;self.vehicleSeat=state.vehicleSeat;self.vehicleAngle=state.vehicleAngle;self.vehicleSpeed=state.vehicleSpeed;
  if(!(self.actionUntil>Date.now()))self.action=state.action;
 }
@@ -260,13 +264,16 @@ function acceptMotion(view){
 }
 function movementAllowed(){
  return self&&joined&&!ride&&!(self.vehicleId&&self.vehicleSeat>0)&&(!interior||interior.id==="neon-casino")&&cityDialog.hidden&&playerCard.hidden&&cityMessageComposer.hidden&&
-  !window.GaicaniCityGames?.active&&!window.GaicaniCityGames?.blocksMovement&&!window.GaicaniCasinoUI?.blocksMovement&&!window.GaicaniArcadeUI?.blocksMovement;
+  !window.GaicaniCityGames?.active&&!window.GaicaniCityGames?.blocksMovement&&!window.GaicaniCasinoUI?.blocksMovement&&!window.GaicaniArcadeUI?.blocksMovement&&!window.GaicaniCityActivitiesUI?.blocksMovement;
 }
 function queueMotion(x,y,dt){
  const before=predictor.getState();if(!before)return;
- const oldX=before.x,oldY=before.y,state=predictor.predict({x,y},dt);
+ const abilitiesAllowed=movementAllowed()&&!self.vehicleId&&!interior;
+ const jumping=abilitiesAllowed&&jumpRequested;
+ const oldX=before.x,oldY=before.y,state=predictor.predict({x,y,sprint:abilitiesAllowed&&(touchSprint||held.has("ShiftLeft")||held.has("ShiftRight")),jump:jumping},dt);
+ jumpRequested=false;
  if(!state)return;
- motionInput={x,y};if(Math.hypot(x,y)>.001){self.gardenDance=null;self.gardenSeatId=null;self.gardenSeatKind=null}self.walkPhase=(self.walkPhase||0)+Math.hypot(state.x-oldX,state.y-oldY)*.2;
+ motionInput={x,y};if(Math.hypot(x,y)>.001||jumping){self.gardenDance=null;self.gardenSeatId=null;self.gardenSeatKind=null}self.walkPhase=(self.walkPhase||0)+Math.hypot(state.x-oldX,state.y-oldY)*.2;
  applyPredictedState();
 }
 function flushMotion(immediate){
@@ -281,11 +288,13 @@ function stepLocalPlayer(dt){
  const allowed=movementAllowed(),x=allowed?keys.x:0,y=allowed?keys.y:0;
  if(Math.hypot(x,y)>.001)queueMotion(x,y,Math.min(50,dt*1000));
  else if(self.vehicleId&&self.vehicleSeat===0&&Math.abs(predictor.getState().vehicleSpeed)>.01){queueMotion(0,0,Math.min(50,dt*1000));flushMotion(false)}
+ else if(jumpRequested||predictor.getState().stamina<100||predictor.getState().jumpRemaining>0||predictor.getState().jumpCooldown>0||predictor.getState().jumpHeld){queueMotion(0,0,Math.min(50,dt*1000));flushMotion(false)}
  else if(Math.hypot(motionInput.x,motionInput.y)>.001){queueMotion(0,0,1);flushMotion(true)}
  else if(!(self.actionUntil>Date.now())&&!predictor.getState().blocked)self.action="idle";
 }
 function draw(now){
  if(document.hidden){lastFrameAt=0;requestAnimationFrame(draw);return}
+ refreshAbilities();
  const w=viewWidth,h=viewHeight,d=renderDpr,dt=lastFrameAt?Math.min(.05,Math.max(0,(now-lastFrameAt)/1000)):.016;lastFrameAt=now;
  ctx.setTransform(d,0,0,d,0,0);ctx.imageSmoothingEnabled=false;
  Audio.update({x:self?.x||0,y:self?.y||0,inGarden:!!(self&&!interior&&!ride&&W.gardenContains(self.x,self.y)),interior:!!interior||!!ride,gardenEpoch:Garden.getEpoch(),garden:W.garden,carRadio:self?.vehicleId?{vehicleId:self.vehicleId,station:fleet.get(self.vehicleId)?.radio||"off",epoch:fleet.get(self.vehicleId)?.radioEpoch}:null});
@@ -296,16 +305,18 @@ function draw(now){
  else{camera.x=Math.max(0,W.width/2-w/2);camera.y=Math.max(0,W.height/2-h/2)}
  ctx.fillStyle="#101020";ctx.fillRect(0,0,w,h);ctx.drawImage(staticMap,camera.x,camera.y,Math.min(w,W.width-camera.x),Math.min(h,W.height-camera.y),0,0,Math.min(w,W.width-camera.x),Math.min(h,W.height-camera.y));ctx.save();ctx.translate(-camera.x,-camera.y);drawPuddles(now);drawNeonLife(now);Garden.drawDynamic(ctx,W,now,{inView,phone:phoneMode});
  rain.forEach((r,i)=>{if(phoneMode&&i>=18)return;r.y+=r.speed*dt;r.x-=18*dt;if(r.y>W.height){r.y=0;r.x=Math.random()*W.width}if(r.x<0)r.x=W.width;if(!inView(r.x,r.y,24))return;ctx.globalAlpha=r.alpha;ctx.fillStyle="#a9d8ff";ctx.fillRect(r.x,r.y,1,r.len)});ctx.globalAlpha=1;
- W.npcs.forEach(n=>{if(inView(n.x,n.y))drawNpc(n,now)});drawCitySignals(now);const chars=[];if(self&&!self.vehicleId)chars.push({x:self.x,y:self.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true,message:self.message,messageUntil:self.messageUntil,gardenDance:self.gardenDance,gardenSeatId:self.gardenSeatId});
- remote.forEach(p=>{if(!p.interiorId&&!p.rideId){const follow=1-Math.exp(-dt*20);p.x+=(p.targetX-p.x)*follow;p.y+=(p.targetY-p.y)*follow;p.drawAction=p.action==="idle"&&Math.hypot(p.targetX-p.x,p.targetY-p.y)>.7?"walk":p.action;if(!p.vehicleId&&inView(p.x,p.y))chars.push(p)}});
+ W.npcs.forEach(n=>{if(inView(n.x,n.y))drawNpc(n,now)});drawCitySignals(now);const chars=[];if(self&&!self.vehicleId)chars.push({x:self.x,y:self.y,name:selfName,color:"#bd75ef",dir:self.dir,action:self.action,self:true,message:self.message,messageUntil:self.messageUntil,gardenDance:self.gardenDance,gardenSeatId:self.gardenSeatId,jumpRemaining:self.jumpRemaining});
+ remote.forEach(p=>{if(!p.interiorId&&!p.rideId){p.jumpRemaining=Math.max(0,(p.jumpRemaining||0)-dt*1000);const follow=1-Math.exp(-dt*20);p.x+=(p.targetX-p.x)*follow;p.y+=(p.targetY-p.y)*follow;p.drawAction=p.action==="idle"&&Math.hypot(p.targetX-p.x,p.targetY-p.y)>.7?"walk":p.action;if(!p.vehicleId&&inView(p.x,p.y))chars.push(p)}});
  (W.animals||[]).forEach(a=>{if(!inView(a.x,a.y))return;const phase=a.phase||0,x=a.x+Math.sin(now/1650+phase)*(a.roamX||0),y=a.y+Math.cos(now/1380+phase)*(a.roamY||0);chars.push({kind:"animal",animalKind:a.kind,x:x,y:y,color:a.color,phase:phase,dir:Math.cos(now/1650+phase)<0?-1:1})});
  W.garden.npcs.forEach((n,i)=>{if(!inView(n.x,n.y))return;const active=!!n.dance&&Math.floor(now/12000+i)%5!==0;chars.push({x:n.x,y:n.y,name:n.name,color:n.color,dir:"down",action:"idle",npc:true,gardenDance:active?{move:n.dance,startedAt:Garden.getEpoch(),sync:true}:null})});
  buildingSprites.forEach(item=>{const b=item.b;if(inView(b.x+b.w/2,b.y+b.h/2,Math.max(b.w,b.h)+100))chars.push({kind:'building',x:b.x,y:b.y+b.h,item});});
  W.furniture.forEach(o=>{if(inView(o.x,o.y,90))chars.push({kind:'furniture',x:o.x,y:o.y,object:o});});
  W.garden.trees.forEach(o=>{if(inView(o.x,o.y,90))chars.push({kind:'gardenTree',x:o.x,y:o.y});});
  drawStreetVehicles(now,dt,chars);
- chars.sort((a,b)=>a.y-b.y);chars.forEach(p=>{if(p.kind==="building"){ctx.drawImage(p.item.image,p.item.b.x-60,p.item.b.y-100);return}if(p.kind==="furniture"){window.GaicaniCityRoads.furniture(ctx,p.object);return}if(p.kind==="gardenTree"){Garden.drawTree(ctx,p.x,p.y);return}if(!p.kind&&Array.from(fleet.values()).some(v=>v.transition?.kind==="exit"&&v.transition.playerId===(p.self?self?.id:p.id)&&Date.now()-v.transition.at<v.transition.duration))return;if(p.kind==="vehicle"){window.GaicaniCityVehicleArt.draw(ctx,p.vehicle,now,{x:p.x,y:p.y,self:p.self,driverName:p.driverName,available:p.available});return}if(p.kind==="animal"){drawAnimalSprite(p.animalKind,Math.round(p.x),Math.round(p.y),p.color,now,p.phase,p.dir);return}if(Garden.drawPerson(ctx,p,now)){if(p.message&&p.messageUntil>Date.now())drawMessageBubble(p.x,p.y,p.message);return}drawAvatar(Math.round(p.x),Math.round(p.y),p.name,p.color,p.dir,p.drawAction||p.action,p.self,now,p.message,p.messageUntil);if(p.actionUntil&&p.actionUntil<Date.now())p.action="idle"});
+ chars.sort((a,b)=>a.y-b.y);chars.forEach(p=>{if(p.kind==="building"){ctx.drawImage(p.item.image,p.item.b.x-60,p.item.b.y-100);return}if(p.kind==="furniture"){window.GaicaniCityRoads.furniture(ctx,p.object);return}if(p.kind==="gardenTree"){Garden.drawTree(ctx,p.x,p.y);return}if(!p.kind&&Array.from(fleet.values()).some(v=>v.transition?.kind==="exit"&&v.transition.playerId===(p.self?self?.id:p.id)&&Date.now()-v.transition.at<v.transition.duration))return;if(p.kind==="vehicle"){window.GaicaniCityVehicleArt.draw(ctx,p.vehicle,now,{x:p.x,y:p.y,self:p.self,driverName:p.driverName,available:p.available});return}if(p.kind==="animal"){drawAnimalSprite(p.animalKind,Math.round(p.x),Math.round(p.y),p.color,now,p.phase,p.dir);return}if(Garden.drawPerson(ctx,p,now)){if(p.message&&p.messageUntil>Date.now())drawMessageBubble(p.x,p.y,p.message);return}drawAvatar(Math.round(p.x),Math.round(p.y),p.name,p.color,p.dir,p.drawAction||p.action,p.self,now,p.message,p.messageUntil,p.jumpRemaining);if(p.actionUntil&&p.actionUntil<Date.now())p.action="idle"});
  if(nearby&&nearby.type==="player"){ctx.strokeStyle="#ff6bd4";ctx.lineWidth=2;ctx.strokeRect(nearby.object.x-16,nearby.object.y-27,32,42)}
+ window.GaicaniCityActivitiesWorld?.draw(ctx,now,{world:W,self,players:[...remote.values()],state:window.GaicaniCityActivitiesUI?.getState(),inView});
+ window.GaicaniCityActivitiesUI?.draw(ctx,now);
  ctx.restore();if(now-lastMiniAt>(phoneMode?500:250)){drawMini();lastMiniAt=now}requestAnimationFrame(draw)
 }
 function target(){if(!self||ride||self.vehicleId)return null;let best=null,dist=102;function offer(type,o,x,y){const sx=interior?.id==="neon-casino"?self.casinoX:self.x,sy=interior?.id==="neon-casino"?self.casinoY:self.y,d=Math.hypot(x-sx,y-sy);if(d<dist){dist=d;best={type:type,object:o,distance:d}}}if(interior){if(interior.id!=="neon-casino")return null;W.casino.stations.forEach(s=>offer("casinoStation",s,s.x,s.y));remote.forEach(p=>{if(p.interiorId==="neon-casino"&&p.id!==self.id)offer("player",p,p.casinoX,p.casinoY)});return best}W.npcs.forEach(n=>offer("npc",n,n.x,n.y));W.garden.npcs.forEach(n=>offer("npc",n,n.x,n.y));W.garden.secrets.forEach(o=>offer("prop",o,o.x,o.y));W.garden.seats.forEach(o=>offer("gardenSeat",Object.assign({label:"დაჯდომა · "+o.kind},o),o.x,o.y));W.props.forEach(p=>offer("prop",p,p.x,p.y));W.buildings.filter(b=>b.enterable).forEach(b=>offer("building",b,b.x+b.w*.72+9,b.y+b.h+15));(W.landmarks||[]).forEach(l=>offer("landmark",l,l.interactX,l.interactY));notes.forEach(n=>offer("note",n,n.x,n.y));remote.forEach(p=>{if(!p.interiorId&&!p.rideId&&!p.vehicleId&&p.id!==self.id)offer("player",p,p.x,p.y)});return best}
@@ -401,10 +412,21 @@ function interact(){if(window.GaicaniCasinoUI?.blocksMovement)return;if(interior
 const held=new Set(),codeDir={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
 const touchPad=document.getElementById("touchPad"),touchStickKnob=document.getElementById("touchStickKnob");
 let touchPointerId=null,touchMetrics=null;
+const runButton=document.getElementById("touchRun"),jumpButton=document.getElementById("touchJump"),staminaHud=document.getElementById("cityStamina"),staminaMeter=document.getElementById("staminaMeter"),staminaValue=document.getElementById("staminaValue");
+function refreshAbilities(){
+ const visible=!!(joined&&self&&!self.vehicleId&&!interior&&!ride),allowed=visible&&movementAllowed();
+ staminaHud.hidden=!visible;runButton.disabled=!allowed;jumpButton.disabled=!allowed||(self?.jumpCooldown||0)>0||(self?.stamina??100)<12;
+ runButton.setAttribute("aria-pressed",String(touchSprint||held.has("ShiftLeft")||held.has("ShiftRight")));
+ if(visible){staminaMeter.value=self.stamina??100;staminaValue.textContent=Math.ceil(self.stamina??100)+"%"+(self.sprintLocked?" · rest":"");}
+}
+function requestJump(){if(!movementAllowed()||self?.vehicleId||interior)return;jumpRequested=true;queueMotion(keys.x,keys.y,1);flushMotion(true);}
+runButton.addEventListener("pointerdown",e=>{e.preventDefault();if(runButton.disabled)return;touchSprint=true;try{runButton.setPointerCapture(e.pointerId)}catch(_){}refreshAbilities();});
+for(const event of ["pointerup","pointercancel","lostpointercapture"])runButton.addEventListener(event,()=>{touchSprint=false;refreshAbilities();});
+jumpButton.addEventListener("click",requestJump);
 function resetTouchStick(){touchStickKnob.style.transform="translate(-50%, -50%)";touchMetrics=null}
 function updateTouchStick(clientX,clientY){const metrics=touchMetrics||(touchMetrics={rect:touchPad.getBoundingClientRect(),knob:touchStickKnob.offsetWidth}),rect=metrics.rect,travel=Math.max(1,rect.width/2-metrics.knob/2-5);let dx=clientX-(rect.left+rect.width/2),dy=clientY-(rect.top+rect.height/2),length=Math.hypot(dx,dy);if(length>travel){dx=dx/length*travel;dy=dy/length*travel;length=travel}touchStickKnob.style.transform=`translate(-50%, -50%) translate(${dx}px, ${dy}px)`;const deadZone=.13;if(length<=travel*deadZone){keys.x=keys.y=0}else{const strength=Math.min(1,(length/travel-deadZone)/(1-deadZone));keys.x=dx/length*strength;keys.y=dy/length*strength}sendCityInputNow()}
 function stopTouchStick(){if(touchPointerId!==null){const pointerId=touchPointerId;touchPointerId=null;try{if(touchPad.hasPointerCapture(pointerId))touchPad.releasePointerCapture(pointerId)}catch(_){}}touchHeld=false;resetTouchStick()}
-function stopMovementInput(){if(!held)return;held.clear();stopTouchStick();keys.x=keys.y=0;sendCityInputNow()}
+function stopMovementInput(){if(!held)return;held.clear();touchSprint=false;jumpRequested=false;stopTouchStick();keys.x=keys.y=0;sendCityInputNow()}
 touchPad.addEventListener("pointerdown",e=>{e.preventDefault();if(touchPointerId!==null)return;touchPointerId=e.pointerId;touchHeld=true;try{touchPad.setPointerCapture(e.pointerId)}catch(_){}updateTouchStick(e.clientX,e.clientY)});
 touchPad.addEventListener("pointermove",e=>{if(e.pointerId===touchPointerId){e.preventDefault();updateTouchStick(e.clientX,e.clientY)}});
 function finishTouchStick(e){if(touchPointerId===null||e.pointerId!==touchPointerId)return;e.preventDefault();stopTouchStick();keys.x=keys.y=0;sendCityInputNow()}
@@ -420,7 +442,7 @@ function sendCityInputNow(){
   flushMotion(true);
  }else flushMotion(false);
 }
-document.addEventListener("keydown",e=>{if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(codeDir[e.code]){e.preventDefault();held.add(e.code);updateKeys()}else if(e.code==="KeyF"){e.preventDefault();if(!e.repeat)toggleVehicle()}else if(e.code==="KeyE"||e.code==="Space"){e.preventDefault();interact()}else if(e.code==="Escape"){closeDialog();playerCard.hidden=true;closeCityMessageComposer();if(interior)leaveInterior()}});
+document.addEventListener("keydown",e=>{if(e.defaultPrevented||e.target?.isContentEditable||e.target?.closest("input,textarea,select")||(["Space","Enter"].includes(e.code)&&e.target?.closest("button,a[href]")))return;if(codeDir[e.code]){e.preventDefault();held.add(e.code);updateKeys()}else if(e.code==="ShiftLeft"||e.code==="ShiftRight"){e.preventDefault();held.add(e.code);updateKeys()}else if(e.code==="Space"&&!interior){e.preventDefault();if(!e.repeat)requestJump()}else if(e.code==="KeyF"){e.preventDefault();if(!e.repeat)toggleVehicle()}else if(e.code==="KeyE"||e.code==="Space"){e.preventDefault();interact()}else if(e.code==="Escape"){closeDialog();playerCard.hidden=true;closeCityMessageComposer();if(interior)leaveInterior()}});
 document.addEventListener("keyup",e=>{held.delete(e.code);updateKeys()});addEventListener("blur",()=>stopMovementInput());document.addEventListener("visibilitychange",()=>{if(document.hidden)stopMovementInput()});
 function connect(){
  let token=safe(()=>localStorage.getItem("gaicani_auth_token"),null);const preferred=safe(()=>sessionStorage.getItem("gaicani_guest_username"),null);
@@ -438,7 +460,7 @@ function connect(){
  socket.on("friend:error",d=>{const n=String(d&&d.targetUsername||selectedPlayerName).toLowerCase();outgoingFriendRequests.delete(n);updatePlayerActions();toast(d&&(d.message||d.msg)||"მოთხოვნა ვერ გაიგზავნა.")});
  socket.on("guest:registerRequired",()=>toast("მეგობრობისთვის საჭიროა რეგისტრაცია."));
  socket.on("connect_error",()=>presence("is-off","კავშირი ვერ მოხერხდა"));
- socket.on("disconnect",()=>{joined=false;cityMessageRequest++;cityMessageSending=false;updateCityMessageCount();predictor.clear();motionInput={x:0,y:0};held.clear();stopTouchStick();keys.x=keys.y=0;fleet.clear();vehiclePending=false;if(self)self.vehicleId=null;refreshVehicle();ride=null;document.getElementById("cityRideOverlay").hidden=true;signals=[];notes=[];renderSignalList();presence("is-off","კავშირი გაწყდა");remote.clear();onlineCount.textContent="1"});
+ socket.on("disconnect",()=>{joined=false;cityMessageRequest++;cityMessageSending=false;updateCityMessageCount();predictor.clear();motionInput={x:0,y:0};held.clear();touchSprint=false;jumpRequested=false;stopTouchStick();keys.x=keys.y=0;fleet.clear();vehiclePending=false;if(self)self.vehicleId=null;refreshVehicle();ride=null;document.getElementById("cityRideOverlay").hidden=true;signals=[];notes=[];renderSignalList();presence("is-off","კავშირი გაწყდა");remote.clear();onlineCount.textContent="1"});
  socket.on("city:vehicles",d=>{syncVehicles(d?.vehicles);refreshVehicle()});
  socket.on("city:joined",d=>{Garden.setState(d.garden);joined=true;self=d.self;predictor.clear();syncVehicles(d.vehicles);acceptMotion(self.motion);signals=d.signals||[];notes=d.notes||[];renderSignalList();remote.clear();(d.players||[]).forEach(p=>{if(p.id!==self.id)remote.set(p.id,Object.assign({},p,{targetX:p.x,targetY:p.y}))});presence("is-on","ქალაქში ხარ");refresh();drawMini();cue(760)});
  socket.on("city:casino:joined",d=>{if(!d||!self)return;self.casinoX=d.self.x;self.casinoY=d.self.y;acceptMotion(d.self.motion);self.interiorId="neon-casino";interior=W.buildings.find(b=>b.id==="neon-casino")||interior;document.getElementById("interiorExit").hidden=false;remote.forEach(p=>{if(p.interiorId==="neon-casino")p.interiorId=null});(d.players||[]).forEach(p=>{if(p.id===self.id)return;const old=remote.get(p.id)||{};old.id=p.id;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.interiorId="neon-casino";old.casinoX=p.x;old.casinoY=p.y;old.targetCasinoX=p.x;old.targetCasinoY=p.y;old.message=p.message||"";old.messageUntil=p.messageUntil||0;remote.set(p.id,old)});refresh()});
@@ -446,7 +468,7 @@ function connect(){
  socket.on("city:casino:playerJoined",p=>{if(!p||p.id===self?.id)return;const old=remote.get(p.id)||{};old.id=p.id;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";old.interiorId="neon-casino";old.casinoX=p.x;old.casinoY=p.y;old.targetCasinoX=p.x;old.targetCasinoY=p.y;old.message=p.message||"";old.messageUntil=p.messageUntil||0;remote.set(p.id,old)});
  socket.on("city:casino:playerLeft",d=>{const p=d&&remote.get(d.id);if(p)p.interiorId=null});
  socket.on("city:error",d=>toast(d&&d.message||"ქალაქთან დაკავშირება ვერ მოხერხდა"));
- socket.on("city:snapshot",d=>{if(!self||!d||!Array.isArray(d.players))return;syncVehicles(d.vehicles);Garden.setState(d.garden);const seen=new Set();d.players.forEach(p=>{if(p.id===self.id){if(p.motion&&p.motion.epoch>=(predictor.getEpoch()||0)){self.vehicleId=p.vehicleId||null;self.vehicleSeat=p.vehicleSeat;self.vehicleAngle=p.vehicleAngle;self.vehicleSpeed=p.vehicleSpeed;self.gameId=p.gameId||null;self.gardenDance=p.gardenDance||null;self.gardenSeatId=p.gardenSeatId||null;self.gardenSeatKind=p.gardenSeatKind||null;acceptMotion(p.motion)}return}seen.add(p.id);let old=remote.get(p.id);if(!old)old=Object.assign({},p,{targetX:p.x,targetY:p.y});old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";if((old.gardenSeatId||null)!==(p.gardenSeatId||null)){old.x=p.x;old.y=p.y}old.gardenDance=p.gardenDance||null;old.gardenSeatId=p.gardenSeatId||null;old.gardenSeatKind=p.gardenSeatKind||null;old.vehicleId=p.vehicleId||null;old.vehicleSeat=p.vehicleSeat;old.vehicleAngle=p.vehicleAngle;old.vehicleSpeed=p.vehicleSpeed;old.gameId=p.gameId||null;old.gameStartedAt=p.gameStartedAt||0;old.targetX=p.x;old.targetY=p.y;old.interiorId=p.interiorId||null;old.rideId=p.rideId||null;remote.set(p.id,old)});Array.from(remote.keys()).forEach(id=>{if(!seen.has(id))remote.delete(id)});onlineCount.textContent=String(remote.size+1)});
+ socket.on("city:snapshot",d=>{if(!self||!d||!Array.isArray(d.players))return;syncVehicles(d.vehicles);Garden.setState(d.garden);const seen=new Set();d.players.forEach(p=>{if(p.id===self.id){if(p.motion&&p.motion.epoch>=(predictor.getEpoch()||0)){self.vehicleId=p.vehicleId||null;self.vehicleSeat=p.vehicleSeat;self.vehicleAngle=p.vehicleAngle;self.vehicleSpeed=p.vehicleSpeed;self.activityAnimation=p.activityAnimation||null;self.gameId=p.gameId||null;self.gardenDance=p.gardenDance||null;self.gardenSeatId=p.gardenSeatId||null;self.gardenSeatKind=p.gardenSeatKind||null;acceptMotion(p.motion)}return}seen.add(p.id);let old=remote.get(p.id);if(!old)old=Object.assign({},p,{targetX:p.x,targetY:p.y});copyAbilities(old,p);old.activityAnimation=p.activityAnimation||null;old.name=p.name;old.color=p.color;old.dir=p.dir;old.action=p.action||"idle";if((old.gardenSeatId||null)!==(p.gardenSeatId||null)){old.x=p.x;old.y=p.y}old.gardenDance=p.gardenDance||null;old.gardenSeatId=p.gardenSeatId||null;old.gardenSeatKind=p.gardenSeatKind||null;old.vehicleId=p.vehicleId||null;old.vehicleSeat=p.vehicleSeat;old.vehicleAngle=p.vehicleAngle;old.vehicleSpeed=p.vehicleSpeed;old.gameId=p.gameId||null;old.gameStartedAt=p.gameStartedAt||0;old.targetX=p.x;old.targetY=p.y;old.interiorId=p.interiorId||null;old.rideId=p.rideId||null;remote.set(p.id,old)});Array.from(remote.keys()).forEach(id=>{if(!seen.has(id))remote.delete(id)});onlineCount.textContent=String(remote.size+1)});
  socket.on("city:stopped",d=>{if(d?.motion)acceptMotion(d.motion)});
  socket.on("city:casino:stopped",d=>{if(d?.motion)acceptMotion(d.motion)});
  socket.on("city:signals",d=>{signals=Array.isArray(d)?d:[];renderSignalList()});
@@ -476,6 +498,7 @@ document.getElementById("fullscreenButton").addEventListener("click",()=>{const 
 Audio.mountControls({button:document.getElementById("soundButton")});
 addEventListener("pagehide",()=>{if(socket&&joined)socket.emit("city:leave")});
 window.GaicaniCityGameBridge={getSocket:()=>socket,getSelf:()=>self,getVehicles:()=>Array.from(fleet.values()),getPlayer:id=>remote.get(id),getPlayers:()=>Array.from(remote.values()),getTargetId:()=>playerCard.dataset.targetId||null,toast:toast,cue:cue,stop:stopMovementInput,getMotionStats:()=>({epoch:predictor.getEpoch(),pending:predictor.pendingCount(),queued:predictor.queuedCount(),phone:phoneMode,pixelRatio:renderDpr})};
+window.GaicaniCityGameBridge.capturePhoto=window.GaicaniCityPhoto.create({map:staticMap,buildings:buildingSprites,world:W,getPlayers:()=>self?[self,...remote.values()]:[...remote.values()],getVehicles:()=>[...fleet.values()]});
 drawMini();requestAnimationFrame(draw);connect();
 function acceptGardenSelf(data){
  if(!self||!data)return;if(data.motion&&data.motion.epoch<(predictor.getEpoch()||0))return;
@@ -491,6 +514,7 @@ function showGardenWhisper(message){
  privatePanel.querySelector("[data-private-reply]").onclick=()=>{privatePanel.hidden=true;openCityMessageComposer("garden-whisper",other)};
 }
 window.GaicaniCityCarUI.mount({socket:()=>socket,self:()=>self,players:()=>Array.from(remote.values()),fleet:()=>Array.from(fleet.values()),nearest:nearestVehicle,stop:stopMovementInput,toast,sync:syncVehicles,accept:acceptGardenSelf,compose:openCityMessageComposer});
+window.GaicaniCityActivitiesUI.mount({bridge:window.GaicaniCityGameBridge,world:W});
 Garden.mount({socket:()=>socket,joined:()=>joined,self:()=>self,players:()=>Array.from(remote.values()),stop:stopMovementInput,toast,acceptSelf:acceptGardenSelf,compose:openCityMessageComposer,whisper:showGardenWhisper});
 const casinoMarker=document.querySelector(".city-map-marker.casino"),arcadeMarker=document.querySelector(".city-map-marker.arcade");
 if(casinoMarker)casinoMarker.style.top=(535/W.height*100)+"%";if(arcadeMarker)arcadeMarker.style.top=(970/W.height*100)+"%";

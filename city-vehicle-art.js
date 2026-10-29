@@ -12,10 +12,12 @@
     g.rotate(angle);
     const l = length / 2, w = width / 2;
     // Headlight cones and their broken reflections on wet asphalt.
+    g.globalAlpha=Math.max(.6,(vehicle.condition?.lights??100)/100);
     g.fillStyle = vehicle.driverId ? "#fff1b61c" : "#ffe4a009";
     [-w + 6, w - 6].forEach(yy => {
       g.beginPath(); g.moveTo(l - 1, yy - 2); g.lineTo(l + 75, yy - 21); g.lineTo(l + 75, yy + 21); g.lineTo(l - 1, yy + 2); g.fill();
     });
+    g.globalAlpha=1;
     rect(g, "#030610", -l - 3, -w - 2, length + 6, width + 5);
     [-l + 9, l - 15].forEach(xx => { rect(g, "#080c17", xx, -w - 4, 11, 5); rect(g, "#080c17", xx, w - 1, 11, 5); rect(g, "#78788b", xx + 3, -w - 3, 5, 1); });
     rect(g, vehicle.color, -l, -w, length, width);

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/city-garden.css?v=1">
   <link rel="stylesheet" href="/city-audio.css?v=1">
   <link rel="stylesheet" href="/city-car.css?v=1">
+  <link rel="stylesheet" href="/city-abilities.css?v=1">
 </head>
 <body class="city-shell">
   <main class="city-app" id="cityApp">
@@ -44,6 +45,7 @@
         <button type="button" id="vehicleButton" hidden>F · მართვა</button>
       </section>
       <div class="city-online-pill">● <span id="onlineCount">1</span> მოთამაშე</div>
+      <div class="city-stamina" id="cityStamina" hidden><label for="staminaMeter">Stamina <span id="staminaValue">100%</span></label><progress id="staminaMeter" max="100" value="100"></progress><small>Shift · Run &nbsp; Space · Jump</small></div>
       <section class="city-signal-list" id="citySignalList" aria-label="ანძის სიგნალები" hidden></section>
 
       <div class="city-toast" id="cityToast" role="status" aria-live="polite" hidden></div>
@@ -184,6 +186,7 @@
           <span class="touch-stick-label" id="touchMoveHint">გაასრიალე · აუშვი გასაჩერებლად</span>
         </div>
         <div class="touch-actions">
+          <div class="touch-abilities"><button type="button" id="touchRun" aria-label="Hold to run" aria-pressed="false">Run</button><button type="button" id="touchJump" aria-label="Jump">Jump</button></div>
           <button type="button" class="touch-interact" id="touchInteract" aria-label="ახლომდებარე ობიექტთან ან პერსონაჟთან ინტერაქცია">✦<span>ქმედება</span></button>
         </div>
       </div>
@@ -207,7 +210,13 @@
   <script src="/city-garden.js?v=2"></script>
   <script src="/city-roads.js?v=1"></script>
   <script src="/city-car-ui.js?v=1"></script>
-  <script src="/city.js?v=16"></script>
+  <link rel="stylesheet" href="/city-activities.css?v=1">
+  <script src="/city-activities-data.js?v=1"></script>
+  <script src="/city-activities-ui.js?v=1"></script>
+  <script src="/city-activities-jobs-ui.js?v=1"></script>
+  <script src="/city-photo.js?v=1"></script>
+  <script src="/city-activities-world.js?v=1"></script>
+  <script src="/city.js?v=18"></script>
   <script src="/city-arcade-games.js?v=2"></script>
   <script src="/city-game-ui.js?v=3"></script>
   <script src="/city-arcade-ui.js?v=1"></script>

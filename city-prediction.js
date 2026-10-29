@@ -19,20 +19,20 @@
       epoch = view.epoch; confirmed = view.seq; sequence = Math.max(sequence, confirmed);
       pending = pending.filter(input => input.seq > confirmed);
       unsent = unsent.filter(input => input.seq > confirmed);
-      state = { x: view.x, y: view.y, dir: view.dir || "down", mode: view.mode || "world",
+      state = { ...motion.abilities(view), x: view.x, y: view.y, dir: view.dir || "down", mode: view.mode || "world",
         vehicleId: view.vehicleId || null, vehicleSeat:view.vehicleSeat, vehicleAngle:view.vehicleAngle, vehicleSpeed:view.vehicleSpeed||0, blocked: !!view.blocked, moving: false, action: view.action || "idle" };
       const fleet = getFleet();
       for (const input of pending) {
         Object.assign(state, motion.step(world, state, input, input.dt, fleet, getPeople()));
-        state.action = state.moving ? (state.vehicleId ? "drive" : "walk") : "idle";
+        state.action = state.moving ? (state.vehicleId ? "drive" : state.sprinting ? "run" : "walk") : "idle";
       }
       return true;
     }
     function predict(input, elapsed) {
       if (!state || pending.length >= 240) return null;
-      const command = { seq: ++sequence, x: input.x, y: input.y, dt: Math.max(1, Math.min(50, elapsed)) };
+      const command = { seq: ++sequence, x: input.x, y: input.y, sprint:input.sprint === true, jump:input.jump === true, dt: Math.max(1, Math.min(50, elapsed)) };
       Object.assign(state, motion.step(world, state, command, command.dt, getFleet(), getPeople()));
-      state.action = state.moving ? (state.vehicleId ? "drive" : "walk") : "idle";
+      state.action = state.moving ? (state.vehicleId ? "drive" : state.sprinting ? "run" : "walk") : "idle";
       pending.push(command); unsent.push(command);
       return state;
     }
