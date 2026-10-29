@@ -29,6 +29,7 @@
 
     <section class="city-world" aria-label="სათამაშო ქალაქი">
       <canvas id="cityCanvas" aria-label="თბილისის ღამის ქალაქი. გადაადგილდი ისრებით ან WASD-ით. F — მანქანაში ჩაჯდომა ან გადმოსვლა."></canvas>
+      <nav class="city-quick-actions" id="cityQuickActions" aria-label="ქალაქის მოქმედებები"><button type="button" id="cityTalkButton" aria-controls="cityMessageComposer">საუბარი</button></nav>
       <div class="city-location" id="locationPill"><b>რუსთაველის გამზირი</b><span>2:17 AM · ყოველთვის ღამე</span></div>
       <div class="city-minimap-wrap">
         <canvas id="miniMap" width="168" height="116" aria-label="ქალაქის რუკა — კაზინო, არკადა და Neon Garden მონიშნულია"></canvas>
@@ -211,6 +212,7 @@
   <script src="/city-roads.js?v=1"></script>
   <script src="/city-car-ui.js?v=1"></script>
   <link rel="stylesheet" href="/city-activities.css?v=1">
+  <link rel="stylesheet" href="/city-compact.css?v=1">
   <script src="/city-activities-data.js?v=1"></script>
   <script src="/city-activities-ui.js?v=1"></script>
   <script src="/city-activities-jobs-ui.js?v=1"></script>
