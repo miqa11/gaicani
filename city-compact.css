@@ -49,3 +49,35 @@
  .city-quick-actions { top:70px; }
  .city-app .activity-hud { top:110px; }
 }
+
+/* Unboxed contextual controls; only the individual buttons have a background. */
+.city-app .city-hud-stack { position:absolute; top:112px; left:12px; right:12px; z-index:9; display:flex; flex-direction:column; align-items:flex-start; gap:7px; pointer-events:none; }
+.city-app .city-hud-stack > * { position:static; transform:none; margin:0; max-width:100%; flex-shrink:0; pointer-events:auto; }
+.city-app .city-hud-stack > [hidden] { display:none; }
+.city-app .city-hud-stack .city-toast { width:fit-content; text-align:left; }
+.city-app .city-hud-stack .city-quick-actions { padding-top:3px; }
+.city-app .city-hud-stack .activity-hud { width:min(360px,100%); max-height:35vh; overflow:auto; }
+.city-app .city-context-actions { position:absolute; left:12px; right:12px; bottom:125px; z-index:4; display:flex; flex-direction:column; align-items:flex-start; gap:6px; pointer-events:none; }
+.city-app .city-context-actions #vehicleHud,.city-app .city-context-actions #gardenControls { position:static; width:auto; min-width:0; max-width:100%; max-height:30vh; padding:0; margin:0; border:0; border-radius:0; background:none; box-shadow:none; overflow:auto; pointer-events:auto; }
+.city-app .city-context-actions #vehicleModel,.city-app .city-context-actions .garden-heading,.city-app .city-context-actions #gardenSay { display:none; }
+.city-app .city-context-actions #vehicleHud button,.city-app .city-context-actions #vehicleHud select,.city-app .city-context-actions button,.city-app .city-context-actions select { min-height:26px; min-width:26px; height:auto; padding:3px 6px; font-size:10px; border-radius:4px; line-height:18px; white-space:nowrap; }
+.city-app .city-context-actions .garden-actions { flex-wrap:nowrap; overflow-x:auto; max-width:100%; gap:4px; margin:0; padding:2px 0; }
+.city-app .city-context-actions .garden-actions button { flex:0 0 auto; }
+.city-app .city-context-actions .garden-dance-choices { display:contents; }
+.city-app .city-context-actions #carOptions { border:0; padding:2px 0; }
+.city-app .city-context-actions #carSeats { max-width:100%; }
+.city-app .city-context-actions #carSeats>div { min-height:26px; }
+.city-app .city-context-actions #gardenOptions { margin-top:4px; }
+.city-app .city-context-actions #gardenOptions>small { display:none; }
+.city-app .city-context-actions #carSettings label { margin:2px 0; }
+.city-app .city-context-actions #carOptions .car-actions { margin:3px 0; }
+.city-app .city-context-actions button:focus-visible { outline:2px solid #fff; outline-offset:-2px; }
+@media(max-width:700px),(any-pointer:coarse) {
+ .city-app .city-context-actions { bottom:calc(var(--touch-size,88px) + 76px); }
+ .city-app .city-hud-stack .city-quick-actions button { min-height:28px; padding:3px 7px; font-size:10px; }
+}
+@media(orientation:landscape) and (max-height:560px) {
+ .city-app .city-hud-stack { top:72px; left:10px; right:10px; gap:4px; }
+ .city-app .city-context-actions { left:calc(var(--touch-size,88px) + 20px); right:calc(var(--touch-action-size,44px) + 20px); bottom:8px; }
+ .city-app .city-hud-stack .garden-wayfinder { display:none; }
+}
