@@ -221,7 +221,7 @@
     box(g, "#48404c", doorX - 8, b.y + b.h, 40, 3);
     if (b.enterable) {
       glowBox(g, "#8cffd2", doorX + 7, y + 3, 9, 3, 8);
-      text(g, "OPEN", doorX + 12, y + 23, 5, cream, 17);
+      text(g, "ღიაა", doorX + 12, y + 23, 5, cream, 17);
     }
     box(g, p.trim, b.x + 6, b.y + b.h - 6, b.w - 12, 3);
   }
@@ -348,7 +348,7 @@
       glowBox(g, pink, b.x + b.w - 10, b.y + 20, 3, b.h - 28, 14);
       const sign = neonSign(g, b, b.y + b.h - (arcade ? 111 : 91), arcade);
       if (arcade) {
-        text(g, "INSERT COIN · 1999", b.x + b.w / 2, sign.y + sign.height + 12, 8, cyan, b.w - 35);
+        text(g, "ჩააგდე მონეტა · 1999", b.x + b.w / 2, sign.y + sign.height + 12, 8, cyan, b.w - 35);
         box(g, "#151930", b.x + b.w / 2 - 17, b.y + 24, 34, 31);
         // Space invader on the roofline, drawn in square CRT pixels.
         ["00100100", "00011000", "01111110", "11011011", "11111111", "10100101", "00100100"].forEach((row, ry) => {
@@ -358,7 +358,7 @@
     }
     shopFront(g, b, p, i, { awning: false });
     domesticDetails(g, b, p, i);
-    if (b.type === "internet") text(g, "56K · WWW · 24H", b.x + b.w / 2, b.y + 29, 8, cream, b.w - 60);
+    if (b.type === "internet") text(g, "ინტერნეტი · 24 საათი", b.x + b.w / 2, b.y + 29, 8, cream, b.w - 60);
     if (casino) {
       text(g, "♠  ♥  ♦  ♣", b.x + b.w / 2, b.y + 43, 17, "#ffb7da", b.w - 35);
       text(g, "1999", b.x + b.w / 2, b.y + 69, 11, cream, b.w - 40);

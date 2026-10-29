@@ -66,12 +66,12 @@ function createCityMotionController(world, garage) {
     const at = Number.isFinite(now) ? now : Date.now(), state = ensure(player, at);
     const reply = extra => Object.assign(view(player, at), extra);
     if (!payload || payload.epoch !== state.epoch) return reply({ reset: true });
-    if (!Array.isArray(payload.commands) || payload.commands.length < 1 || payload.commands.length > 32) return reply({ error: "Invalid movement batch" });
+    if (!Array.isArray(payload.commands) || payload.commands.length < 1 || payload.commands.length > 32) return reply({ error: "გადაადგილების არასწორი მონაცემები" });
     for (const command of payload.commands) {
       if (!command || !Number.isSafeInteger(command.seq) || command.seq < 1 ||
           !Number.isFinite(command.x) || !Number.isFinite(command.y) || !Number.isFinite(command.dt) || command.dt <= 0 || command.dt > 50 ||
           (command.sprint !== undefined && typeof command.sprint !== "boolean") || (command.jump !== undefined && typeof command.jump !== "boolean")) {
-        return reply({ error: "Invalid movement command" });
+        return reply({ error: "გადაადგილების არასწორი ბრძანება" });
       }
     }
     state.active = true;

@@ -1,4 +1,22 @@
 /* Compact city controls share horizontal rows on desktop and phones. */
+.city-app #vehicleHud { display:flex; flex-wrap:wrap; align-items:center; gap:5px; width:max-content; max-width:calc(100% - 24px); }
+.city-app #vehicleHud[hidden] { display:none; }
+.city-app #vehicleHud .vehicle-kicker,.city-app #vehicleStatus { display:none; }
+.city-app #vehicleModel { font-size:10px; }
+.city-app #carOptions { flex-basis:100%; max-height:170px; padding-top:5px; }
+.city-app #carSeats { display:flex; gap:5px; overflow-x:auto; }
+.city-app #carSeats>div { flex:0 0 auto; gap:4px; font-size:10px; }
+.city-app #carSettings { display:flex; flex-wrap:wrap; gap:6px; }
+.city-app #carSettings[hidden],.city-app #gardenOptions>label:has(#gardenDanceMove) { display:none; }
+.city-app #carSettings label { flex:1; min-width:120px; font-size:10px; margin:2px 0; }
+.city-app #carOptions>small { display:none; }
+.city-app .garden-controls { width:max-content; max-width:calc(100% - 24px); }
+.city-app #gardenStatus { display:none; }
+.city-app .garden-heading { gap:5px; }
+.city-app .garden-dance-choices { display:flex; gap:4px; overflow-x:auto; margin-top:5px; }
+.city-app .garden-dance-choices button { flex:0 0 auto; font-size:10px; padding:4px 7px; min-height:30px; }
+.city-app .garden-dance-choices button[aria-pressed=true] { border-color:#ff93d8; background:#593957; }
+.city-app .garden-controls { right:auto; }
 .city-app button { min-height:34px; min-width:34px; padding:5px 9px; border-radius:6px; font-size:11px; box-shadow:none; }
 .city-quick-actions { position:absolute; top:108px; left:12px; z-index:9; display:flex; align-items:center; gap:6px; }
 .city-quick-actions button { color:#d6fff0; background:#122431ed; border:1px solid #81cdbd; cursor:pointer; white-space:nowrap; }

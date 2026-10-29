@@ -1,10 +1,11 @@
 /* Activity discovery and shared in-world controls. Gameplay results come from the server. */
 (function (root) {
   'use strict';
-  const categories = ['Explore', 'Jobs', 'Multiplayer', 'Gaicanians', 'Games', 'Collections'];
-  const colors = { Explore: '#72e9de', Jobs: '#ffd68c', Multiplayer: '#ff8ed5', Gaicanians: '#ffe96c', Games: '#bba0ff', Collections: '#9acaff' };
+  const ka = root.GaicaniCityLanguage.label;
+  const categories = ['აღმოჩენა', 'სამუშაოები', 'მეგობრებთან', 'გაიკანელები', 'თამაშები', 'კოლექციები'];
+  const colors = { 'აღმოჩენა': '#72e9de', 'სამუშაოები': '#ffd68c', 'მეგობრებთან': '#ff8ed5', 'გაიკანელები': '#ffe96c', 'თამაშები': '#bba0ff', 'კოლექციები': '#9acaff' };
   let bridge, world, socket, overlay, panel, content, hud, launcher, message, tabs;
-  let snapshot = null, category = 'Explore', opened = false, connected = false, pending = false, lastFocus = null, clockOffset = 0;
+  let snapshot = null, category = 'აღმოჩენა', opened = false, connected = false, pending = false, lastFocus = null, clockOffset = 0;
   let lastActiveKey = '', menuKey = '', sequence = 0, renderers = new Map(), liveRenderer = null, photos = [];
   const node = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text !== undefined) e.textContent = text; return e; };
   const button = (text, action, className = '') => { const e = node('button', className, text); e.type = 'button'; e.addEventListener('click', action); return e; };
@@ -31,12 +32,12 @@
     });
   }
   function command(action, data = {}) {
-    if (pending || !socket?.connected) { if (!socket?.connected) status('Reconnect to the city to continue.', true); return Promise.resolve(null); }
+    if (pending || !socket?.connected) { if (!socket?.connected) status("გასაგრძელებლად ხელახლა დაუკავშირდი ქალაქს.", true); return Promise.resolve(null); }
     pending = true;
     const payload = { ...data, action, requestId: 'activity-' + Date.now().toString(36) + '-' + (++sequence).toString(36) };
     if (action === 'act' || action === 'cancel') payload.token = snapshot?.active?.token;
     return new Promise(resolve => {
-      const timer = setTimeout(() => { pending = false; status('The city did not reply. Your progress has not been claimed twice.', true); requestState(); resolve(null); }, 5000);
+      const timer = setTimeout(() => { pending = false; status("ქალაქმა არ უპასუხა. ჯილდო განმეორებით არ მიღებულა.", true); requestState(); resolve(null); }, 5000);
       socket.emit('city:activity:command', payload, result => {
         clearTimeout(timer); pending = false;
         if (result?.state) accept(result.state);
@@ -58,7 +59,7 @@
     if (lastFocus?.isConnected) lastFocus.focus();
   }
   function track(activity) {
-    command('track', { activityId: activity.id }).then(result => { if (result?.ok) { close(); bridge?.toast?.('Follow the ' + activity.name + ' marker.'); } });
+    command('track', { activityId: activity.id }).then(result => { if (result?.ok) { close(); bridge?.toast?.("მიჰყევი აქტივობის ნიშნულს: " + activity.name + "."); } });
   }
   function start(activity, options = {}) {
     bridge?.stop?.();
@@ -66,11 +67,11 @@
   }
   function renderInventory() {
     const profile = snapshot?.profile || {}, inventory = profile.inventory || {}, collection = profile.collection || {};
-    const intro = node('p', 'activities-note', profile.registered ? 'Your inventory and discoveries are saved with your account.' : 'Guest discoveries last for this visit. Register to keep collections and earn account coins.');
+    const intro = node('p', 'activities-note', profile.registered ? "ინვენტარი და აღმოჩენები შენს ანგარიშზე ინახება." : "სტუმრის აღმოჩენები მხოლოდ ამ ვიზიტის განმავლობაში რჩება. კოლექციების შესანახად და მონეტების მისაღებად დარეგისტრირდი.");
     content.append(intro);
     const consent = node('label', 'activity-consent'), checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.checked = profile.privacy?.photos === true;
     checkbox.addEventListener('change', () => command('privacy', { value: { photos: checkbox.checked } }));
-    consent.append(checkbox, node('span', '', 'Allow nearby players to include my avatar in in-game photos. Off by default.'));
+    consent.append(checkbox, node('span', '', "ახლომდებარე მოთამაშეებს ჩემი პერსონაჟის ფოტოზე გამოჩენის ნება მივცე. თავდაპირველად გამორთულია."));
     content.append(consent);
     if (photos.length) {
       const album = node('div', 'activity-photo-album');
@@ -79,28 +80,28 @@
     }
     const memories = profile.records?.photos || [];
     if (memories.length) {
-      const journal = node('div', 'activity-photo-journal'); journal.append(node('h3', '', 'Photo challenge album'));
-      for (const photo of memories.slice(0, 12)) journal.append(node('p', '', (photo.title || photo.subjectId) + ' · ' + (photo.type || 'city')));
-      journal.append(node('small', 'activities-note', 'The journal remembers discoveries. Image files stay on your device.'));
+      const journal = node('div', 'activity-photo-journal'); journal.append(node('h3', '', 'ფოტოაღმოჩენების ალბომი'));
+      for (const photo of memories.slice(0, 12)) journal.append(node('p', '', (photo.title || photo.subjectId) + ' · ' + ka(photo.type || 'city')));
+      journal.append(node('small', 'activities-note', "ალბომში აღმოჩენები ინახება. ფოტოს ფაილები შენს მოწყობილობაზე რჩება."));
       content.append(journal);
     }
     const items = root.GaicaniCityActivitiesData?.items || [];
     const itemList = Array.isArray(items) ? items : Object.values(items);
     const ids = [...new Set([...Object.keys(inventory), ...Object.keys(collection)])];
-    if (!ids.length) content.append(node('p', 'activities-empty', 'Your collection starts with your first discovery.'));
+    if (!ids.length) content.append(node('p', 'activities-empty', "კოლექცია პირველი აღმოჩენით იწყება."));
     const grid = node('div', 'activity-collection-grid');
     for (const id of ids) {
       const item = itemList.find(item => item.id === id), entry = node('article', 'activity-collection-item');
-      entry.append(node('strong', '', item?.name || id), node('span', '', 'Owned: ' + (inventory[id] || 0)), node('small', '', 'Found: ' + (collection[id]?.count || inventory[id] || 0)));
-      if (item?.rarity) entry.append(node('small', 'rarity-' + item.rarity, item.rarity));
+      entry.append(node('strong', '', item?.name || id), node('span', '', "გაქვს: " + (inventory[id] || 0)), node('small', '', "ნაპოვნია: " + (collection[id]?.count || inventory[id] || 0)));
+      if (item?.rarity) entry.append(node('small', 'rarity-' + item.rarity, ka(item.rarity)));
       grid.append(entry);
     }
     content.append(grid);
-    for (const [label, prefix] of [['Fishing book', 'fish-'], ['Insect book', 'bug-']]) {
+    for (const [label, prefix] of [['თევზების ალბომი', 'fish-'], ['მწერების ალბომი', 'bug-']]) {
       const book = node('section', 'activity-collection-book'); book.append(node('h3', '', label));
       for (const item of itemList.filter(item => item.id.startsWith(prefix))) {
         const found = collection[item.id]?.count || 0;
-        book.append(node('p', found ? 'is-found' : '', (found ? '✓ ' : '◇ ') + item.name + ' · ' + (found ? found + ' discovered' : 'Undiscovered')));
+        book.append(node('p', found ? 'is-found' : '', (found ? '✓ ' : '◇ ') + item.name + ' · ' + (found ? found + " აღმოჩენილი" : "აღმოუჩენელი")));
       }
       content.append(book);
     }
@@ -113,35 +114,35 @@
     tabs.querySelectorAll('button').forEach(b => { const active = b.dataset.category === category; b.setAttribute('aria-selected', String(active)); b.tabIndex = active ? 0 : -1; });
     content.replaceChildren();
     const profile = snapshot?.profile;
-    panel.querySelector('.activities-wallet').textContent = profile?.registered ? (profile.coins || 0) + ' virtual coins' : 'Guest visit';
-    if (category === 'Collections') renderInventory();
+    panel.querySelector('.activities-wallet').textContent = profile?.registered ? (profile.coins || 0) + " ვირტუალური მონეტა" : 'სტუმარი';
+    if (category === 'კოლექციები') renderInventory();
     const activities = catalog().filter(a => a.category === category);
-    if (!activities.length && category !== 'Collections') content.append(node('p', 'activities-empty', snapshot ? 'No activities are available in this category right now.' : 'Connecting to the city activity board…'));
+    if (!activities.length && category !== 'კოლექციები') content.append(node('p', 'activities-empty', snapshot ? "ამ კატეგორიაში ახლა აქტივობები არ არის." : "აქტივობების დაფასთან დაკავშირება…"));
     for (const activity of activities) {
       const card = node('article', 'activity-card'); card.dataset.activityId = activity.id; card.style.setProperty('--activity-accent', colors[category]);
       card.append(node('h3', '', activity.name), node('p', '', activity.description));
       const location = locationOf(activity), info = node('div', 'activity-meta');
-      info.append(node('span', '', activity.mode || (activity.multiplayer ? 'Multiplayer' : 'Solo')), node('span', '', location?.label || 'City'), node('span', '', activity.reward ? 'Up to ' + activity.reward + ' virtual coins' : 'Free activity'));
+      info.append(node('span', '', ka(activity.mode || (activity.multiplayer ? 'multiplayer' : 'solo'))), node('span', '', location?.label || 'ქალაქი'), node('span', '', activity.reward ? "მაქსიმუმ " + activity.reward + " ვირტუალური მონეტა" : 'უფასო აქტივობა'));
       card.append(info);
       const controls = node('div', 'activity-card-actions');
-      controls.append(button(snapshot?.tracked === activity.id ? 'Tracking' : 'Track location', () => track(activity)));
+      controls.append(button(snapshot?.tracked === activity.id ? 'მონიშნულია' : 'ადგილის მონიშვნა', () => track(activity)));
       const cooldown = Math.max(0, (profile?.cooldowns?.[activity.id] || 0) - now());
       const options = {};
       if (activity.id === 'treasure') {
-        const select = node('select'); select.setAttribute('aria-label', 'Treasure trail'); select.dataset.trail = activity.id;
-        ['The lost mixtape', 'The silent pager', 'Two hands, one treasure'].forEach((label, value) => { const o = node('option', '', label); o.value = String(value); select.append(o); });
+        const select = node('select'); select.setAttribute('aria-label', 'განძის მარშრუტი'); select.dataset.trail = activity.id;
+        ['დაკარგული კასეტა', 'ჩუმი პეიჯერი', 'ორი მეგობარი, ერთი განძი'].forEach((label, value) => { const o = node('option', '', label); o.value = String(value); select.append(o); });
         if (selectedTrails.has(activity.id)) select.value = selectedTrails.get(activity.id);
         options.trail = Number(select.value);
         select.addEventListener('change', () => { options.trail = Number(select.value); }); card.append(select);
       }
-      const begin = button(cooldown > 0 ? 'Ready in ' + Math.ceil(cooldown / 1000) + 's' : 'Start here', () => start(activity, options), 'activity-primary activity-start');
+      const begin = button(cooldown > 0 ? "მზად იქნება: " + Math.ceil(cooldown / 1000) + ' წმ' : 'დაწყება', () => start(activity, options), 'activity-primary activity-start');
       begin.disabled = !connected || cooldown > 0;
       controls.append(begin); card.append(controls); content.append(card);
       if (activity.id === 'parkour') {
         const rows = snapshot?.leaderboards?.parkour || [];
         if (rows.length) {
-          const scores = node('ol', 'activity-leaderboard'); scores.setAttribute('aria-label', 'Parkour fastest times');
-          for (const row of rows.slice(0, 5)) scores.append(node('li', '', row.name + ' · ' + (row.time / 1000).toFixed(2) + 's'));
+          const scores = node('ol', 'activity-leaderboard'); scores.setAttribute('aria-label', 'პარკურის საუკეთესო დროები');
+          for (const row of rows.slice(0, 5)) scores.append(node('li', '', row.name + ' · ' + (row.time / 1000).toFixed(2) + ' წმ'));
           card.append(scores);
         }
       }
@@ -155,7 +156,7 @@
       const begin = card.querySelector('.activity-start'); if (!begin) return;
       const remaining = Math.max(0, (snapshot?.profile?.cooldowns?.[card.dataset.activityId] || 0) - now());
       begin.disabled = !connected || remaining > 0;
-      begin.textContent = remaining ? 'Ready in ' + Math.ceil(remaining / 1000) + 's' : 'Start here';
+      begin.textContent = remaining ? "მზად იქნება: " + Math.ceil(remaining / 1000) + ' წმ' : 'დაწყება';
     });
   }
   function trackedLocation() {
@@ -172,24 +173,24 @@
     const signature = JSON.stringify([active?.id, active?.token, active?.status, active?.step, active?.challenge?.id, active?.challenge?.type, !!active?.choices, tracked?.id, connected]);
     if (signature !== lastActiveKey) {
       lastActiveKey = signature; liveRenderer?.destroy?.(); liveRenderer = null; hud.replaceChildren();
-      const head = node('div', 'activity-hud-head'); head.append(node('strong', '', activity?.name || 'City activity'), button('×', () => active ? command('cancel') : command('track', { activityId: null }), 'activity-dismiss'));
-      head.lastChild.setAttribute('aria-label', active ? 'End activity' : 'Stop tracking'); hud.append(head);
-      hud.append(node('p', 'activity-instruction', active?.instruction || 'Follow the marker to ' + (target?.label || activity?.location?.label || 'the activity') + '.'));
+      const head = node('div', 'activity-hud-head'); head.append(node('strong', '', activity?.name || "ქალაქის აქტივობა"), button('×', () => active ? command('cancel') : command('track', { activityId: null }), 'activity-dismiss'));
+      head.lastChild.setAttribute('aria-label', active ? 'აქტივობის დასრულება' : 'მონიშვნის გაუქმება'); hud.append(head);
+      hud.append(node('p', 'activity-instruction', active?.instruction || "მიჰყევი ნიშნულს: " + (target?.label || activity?.location?.label || "აქტივობა") + '.'));
       hud.append(node('p', 'activity-distance'));
       const mount = node('div', 'activity-play'); hud.append(mount);
       if (active?.status === 'active') {
         const renderer = renderers.get(active.id) || renderers.get(activity?.kind);
         if (renderer) liveRenderer = renderer({ mount, active, activity, state: snapshot, getState: () => snapshot, command, now, node, button, bridge, world });
-        else if (Number.isFinite(active.progress)) { const progress = node('progress'); progress.max = 1; progress.value = active.progress; progress.setAttribute('aria-label', 'Activity progress'); mount.append(progress); }
+        else if (Number.isFinite(active.progress)) { const progress = node('progress'); progress.max = 1; progress.value = active.progress; progress.setAttribute('aria-label', 'აქტივობის მიმდინარეობა'); mount.append(progress); }
       } else if (active) {
-        mount.append(node('strong', 'activity-result', active.status === 'success' ? 'Completed!' : active.status === 'failed' ? 'Try again next time' : 'Activity ended'));
-        if (Number.isFinite(active.time)) mount.append(node('span', 'activity-clock', (active.time / 1000).toFixed(2) + 's'));
-      } else if (activity) mount.append(button('Start here', () => start(activity), 'activity-primary'));
+        mount.append(node('strong', 'activity-result', active.status === 'success' ? 'შესრულებულია!' : active.status === 'failed' ? 'სცადე ხელახლა' : 'აქტივობა დასრულდა'));
+        if (Number.isFinite(active.time)) mount.append(node('span', 'activity-clock', (active.time / 1000).toFixed(2) + ' წმ'));
+      } else if (activity) mount.append(button('დაწყება', () => start(activity), 'activity-primary'));
     }
-    hud.querySelector('.activity-instruction').textContent = active?.instruction || 'Follow the marker to ' + (target?.label || activity?.location?.label || 'the activity') + '.';
+    hud.querySelector('.activity-instruction').textContent = active?.instruction || "მიჰყევი ნიშნულს: " + (target?.label || activity?.location?.label || "აქტივობა") + '.';
     liveRenderer?.update?.(snapshot);
     const label = hud.querySelector('.activity-distance'), distance = distanceTo(target);
-    label.textContent = Number.isFinite(distance) ? Math.round(distance) + ' steps · ' + (target?.label || 'destination') : '';
+    label.textContent = Number.isFinite(distance) ? Math.round(distance) + " ნაბიჯი · " + (target?.label || "დანიშნულება") : '';
   }
   function draw(g, time) {
     if (!snapshot || !bridge?.getSelf() || bridge.getSelf().interiorId) return;
@@ -211,25 +212,25 @@
     g.restore();
   }
   function download(photo) {
-    const link = node('a', 'activity-download', 'Save PNG'); link.href = photo.url; link.download = 'gaicani-' + photo.id + '.png'; return link;
+    const link = node('a', 'activity-download', 'ფოტოს შენახვა'); link.href = photo.url; link.download = 'gaicani-' + photo.id + '.png'; return link;
   }
   async function keepPhoto(metadata, mount) {
-    if (!metadata || !bridge.capturePhoto) { bridge.toast('Camera rendering is unavailable. Try again after reconnecting.'); return; }
+    if (!metadata || !bridge.capturePhoto) { bridge.toast("კამერა მიუწვდომელია. ხელახლა დაკავშირების შემდეგ სცადე."); return; }
     try {
       const canvas = await bridge.capturePhoto(metadata);
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error('No image');
-      const photo = { id: Date.now().toString(36), title: metadata.title || 'City snapshot', url: URL.createObjectURL(blob) };
+      const photo = { id: Date.now().toString(36), title: metadata.title || 'ქალაქის ფოტო', url: URL.createObjectURL(blob) };
       photos.unshift(photo); if (photos.length > 12) URL.revokeObjectURL(photos.pop().url);
       if (mount?.isConnected) { const preview = node('img', 'activity-photo-preview'); preview.src = photo.url; preview.alt = photo.title; mount.append(preview, download(photo)); }
-      bridge.toast('Photo added to Collections. Save the PNG to keep it on this device.');
-    } catch (_) { bridge.toast('The photo could not be saved. Please try again.'); }
+      bridge.toast("ფოტო კოლექციებში დაემატა. მოწყობილობაზე შესანახად ჩამოტვირთე სურათი.");
+    } catch (_) { bridge.toast("ფოტო ვერ შეინახა. სცადე ხელახლა."); }
   }
   function timingRenderer({ mount, getState, command, now, bridge }) {
-    const canvas = node('canvas', 'activity-timing-canvas'); canvas.width = 480; canvas.height = 130; canvas.setAttribute('aria-label', 'Timing meter: press when the marker reaches the highlighted bite window');
-    const label = node('p', 'activity-timing-status'), hit = button('Ready…', () => { const c = getState()?.active?.challenge; if (c) command('act', { verb: c.verb }); }, 'activity-primary activity-hit');
+    const canvas = node('canvas', 'activity-timing-canvas'); canvas.width = 480; canvas.height = 130; canvas.setAttribute('aria-label', "დროის მაჩვენებელი: დააჭირე, როცა ნიშნული განათებულ მონაკვეთში მოხვდება");
+    const label = node('p', 'activity-timing-status'), hit = button('მოემზადე…', () => { const c = getState()?.active?.challenge; if (c) command('act', { verb: c.verb }); }, 'activity-primary activity-hit');
     label.setAttribute('role', 'status');
-    mount.append(canvas, label, hit, node('small', 'activities-note', 'Tap the button or press Enter at the cue.')); let frame, sounded = false, announced = '';
+    mount.append(canvas, label, hit, node('small', 'activities-note', "ნიშნის გამოჩენისას შეეხე ღილაკს ან დააჭირე შეყვანის ღილაკს.")); let frame, sounded = false, announced = '';
     function key(event) {
       if (event.key !== 'Enter' || event.repeat || opened || /INPUT|SELECT|TEXTAREA|BUTTON|A/.test(event.target?.tagName || '') || event.ctrlKey || event.metaKey || event.altKey) return;
       event.preventDefault(); event.stopImmediatePropagation(); hit.click();
@@ -258,9 +259,9 @@
       g.fillStyle = '#30344e'; g.fillRect(15, 90, 450, 23);
       g.fillStyle = '#69c491'; g.fillRect(15 + Math.max(0, (c.at - c.windowMs - start) / span) * 450, 90, Math.max(4, c.windowMs * 2 / span * 450), 23);
       g.fillStyle = '#fff2b1'; g.fillRect(15 + x * 446, 85, 4, 33);
-      const text = inWindow ? 'NOW! ' + (c.label || c.verb) : t < c.at ? (a.id === 'bugs' ? 'Watch the insect approach…' : 'Watch the water for a bite…') : 'The moment passed';
+      const text = inWindow ? "ახლა! " + (c.label || c.verb) : t < c.at ? (a.id === 'bugs' ? "დაელოდე მწერის მოახლოებას…" : "დააკვირდი წყალს და დაელოდე ჩაკბეჩას…") : "დრო გავიდა";
       if (text !== announced) { label.textContent = text; announced = text; }
-      hit.textContent = c.verb === 'catch' ? 'Swing net' : c.verb === 'reel' ? 'Reel in' : (c.label || 'Hit');
+      hit.textContent = c.verb === 'catch' ? 'ბადის მოქნევა' : c.verb === 'reel' ? 'ამოქაჩვა' : (c.label || "დააჭირე");
       if (inWindow && !sounded) { sounded = true; bridge.cue?.(900); }
       frame = requestAnimationFrame(paint);
     }
@@ -269,30 +270,30 @@
   function treasureRenderer({ mount, active, command }) {
     if (active.choices?.length) {
       const form = node('form', 'activity-answer-form'), answer = node('input'), list = node('datalist'); list.id = 'treasureAnswers';
-      answer.setAttribute('aria-label', 'Treasure lock answer'); answer.setAttribute('list', list.id); answer.enterKeyHint = 'go'; answer.autocomplete = 'off'; answer.maxLength = 30; answer.placeholder = 'Type the lock answer';
-      for (const choice of active.choices) { const option = node('option'); option.value = choice.id; option.label = choice.label; list.append(option); }
-      const submit = node('button', 'activity-primary', 'Unlock'); submit.type = 'submit';
-      form.append(node('small', 'activities-note', 'Clue words: ' + active.choices.map(c => c.label).join(' · ')), answer, list, submit); form.addEventListener('submit', e => { e.preventDefault(); if (answer.value.trim()) command('act', { verb: 'solve', value: answer.value.trim().toLowerCase() }); }); mount.append(form);
-    } else mount.append(button('Search this spot', () => command('act', { verb: 'search' }), 'activity-primary'));
+      answer.setAttribute('aria-label', 'განძის საკეტის პასუხი'); answer.setAttribute('list', list.id); answer.enterKeyHint = 'go'; answer.autocomplete = 'off'; answer.maxLength = 30; answer.placeholder = 'ჩაწერე საკეტის პასუხი';
+      for (const choice of active.choices) { const option = node('option'); option.value = choice.label; option.label = choice.label; list.append(option); }
+      const submit = node('button', 'activity-primary', 'გახსნა'); submit.type = 'submit';
+      form.append(node('small', 'activities-note', "მინიშნების სიტყვები: " + active.choices.map(c => c.label).join(' · ')), answer, list, submit); form.addEventListener('submit', e => { e.preventDefault(); if (answer.value.trim()) command('act', { verb: 'solve', value: root.GaicaniCityLanguage.answer(answer.value.trim().toLowerCase()) }); }); mount.append(form);
+    } else mount.append(button('ადგილის დათვალიერება', () => command('act', { verb: 'search' }), 'activity-primary'));
   }
   function parkourRenderer({ mount, getState, now }) {
-    const progress = node('progress'), score = node('span', 'activity-clock'); progress.max = 1; progress.setAttribute('aria-label', 'Parkour checkpoint progress');
-    mount.append(progress, score, node('p', 'activities-note', 'Run to the ring and jump through it. Checkpoints are checked in order.'));
-    return { update() { const a = getState().active; progress.value = a.progress || 0; score.textContent = ((now() - a.startedAt) / 1000).toFixed(1) + 's · ' + (a.step || 0) + '/' + (a.checkpoints?.length || 5); } };
+    const progress = node('progress'), score = node('span', 'activity-clock'); progress.max = 1; progress.setAttribute('aria-label', "პარკურის საკონტროლო წერტილების გავლა");
+    mount.append(progress, score, node('p', 'activities-note', "მირბინე რგოლთან და ახტი მასში. წერტილები რიგით უნდა გაიარო."));
+    return { update() { const a = getState().active; progress.value = a.progress || 0; score.textContent = ((now() - a.startedAt) / 1000).toFixed(1) + "წმ · " + (a.step || 0) + '/' + (a.checkpoints?.length || 5); } };
   }
   function photographyRenderer({ mount, active, getState, command }) {
     const form = node('form', 'activity-camera-form'), subjects = node('select'), frames = node('select'), poses = node('select');
-    subjects.setAttribute('aria-label', 'Photo subject'); frames.setAttribute('aria-label', 'Photo frame'); poses.setAttribute('aria-label', 'Photo pose');
+    subjects.setAttribute('aria-label', 'ფოტოს ობიექტი'); frames.setAttribute('aria-label', 'ფოტოს ჩარჩო'); poses.setAttribute('aria-label', 'ფოტოს პოზა');
     function fillSubjects() {
       const before = subjects.value; subjects.replaceChildren();
       for (const subject of getState().active?.subjects || []) { const option = node('option', '', subject.name || subject.label || subject.id); option.value = JSON.stringify({ targetType: subject.type || subject.targetType, targetId: subject.id || subject.targetId }); subjects.append(option); }
       if ([...subjects.options].some(o => o.value === before)) subjects.value = before;
     }
     fillSubjects();
-    for (const value of ['neon', 'gold', 'mint']) { const o = node('option', '', value + ' frame'); o.value = value; frames.append(o); }
-    for (const value of ['wave', 'dance']) { const o = node('option', '', value + ' pose'); o.value = value; poses.append(o); }
-    const shutter = node('button', 'activity-primary', 'Take photo'); shutter.type = 'submit';
-    form.append(subjects, frames, poses, shutter); mount.append(form, node('small', 'activities-note', 'Only consenting nearby players appear. Save locally; no automatic sharing.'));
+    for (const value of ['neon', 'gold', 'mint']) { const o = node('option', '', (value === 'mint' ? 'პიტნისფერი' : ka(value)) + " ჩარჩო"); o.value = value; frames.append(o); }
+    for (const value of ['wave', 'dance']) { const o = node('option', '', ka(value) + " პოზა"); o.value = value; poses.append(o); }
+    const shutter = node('button', 'activity-primary', 'ფოტოს გადაღება'); shutter.type = 'submit';
+    form.append(subjects, frames, poses, shutter); mount.append(form, node('small', 'activities-note', "ჩანან მხოლოდ თანახმა ახლომდებარე მოთამაშეები. ფოტო შენს მოწყობილობაზე ინახება და ავტომატურად არ ზიარდება."));
     form.addEventListener('submit', async event => {
       event.preventDefault(); if (!subjects.value) return;
       const choice = JSON.parse(subjects.value), result = await command('act', { verb: 'capture', value: { ...choice, frame: frames.value, pose: poses.value } });
@@ -306,18 +307,18 @@
   function mount(options) {
     if (bridge) return;
     bridge = options.bridge; world = options.world; socket = bridge.getSocket(); connected = !!socket?.connected;
-    launcher = button('✦ Activities', () => open(), 'activities-launcher'); launcher.id = 'activitiesButton'; launcher.setAttribute('aria-expanded', 'false'); launcher.setAttribute('aria-controls', 'cityActivities');
+    launcher = button('✦ აქტივობები', () => open(), 'activities-launcher'); launcher.id = 'activitiesButton'; launcher.setAttribute('aria-expanded', 'false'); launcher.setAttribute('aria-controls', 'cityActivities');
     overlay = node('section', 'activities-overlay'); overlay.id = 'cityActivities'; overlay.hidden = true;
     panel = node('div', 'activities-window'); panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-labelledby', 'activitiesTitle');
-    const heading = node('header', 'activities-header'), title = node('div'); title.append(node('small', '', 'TBILISI 1999 · CITY LIFE'));
-    const h = node('h2', '', 'What will you do tonight?'); h.id = 'activitiesTitle'; title.append(h, node('span', 'activities-wallet', 'Guest visit'));
-    const dismiss = button('×', close, 'activities-close'); dismiss.setAttribute('aria-label', 'Close activities'); heading.append(title, dismiss); panel.append(heading);
-    tabs = node('nav', 'activities-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Activity categories');
+    const heading = node('header', 'activities-header'), title = node('div'); title.append(node('small', '', 'თბილისი 1999 · ქალაქის ცხოვრება'));
+    const h = node('h2', '', 'რას გააკეთებ ამაღამ?'); h.id = 'activitiesTitle'; title.append(h, node('span', 'activities-wallet', 'სტუმარი'));
+    const dismiss = button('×', close, 'activities-close'); dismiss.setAttribute('aria-label', 'აქტივობების დახურვა'); heading.append(title, dismiss); panel.append(heading);
+    tabs = node('nav', 'activities-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'აქტივობების კატეგორიები');
     categories.forEach(name => { const b = button(name, () => { category = name; render(); }); b.dataset.category = name; b.setAttribute('role', 'tab'); tabs.append(b); });
     tabs.addEventListener('keydown', event => { if (!['ArrowRight', 'ArrowLeft'].includes(event.key)) return; event.preventDefault(); const index = categories.indexOf(category); category = categories[(index + (event.key === 'ArrowRight' ? 1 : -1) + categories.length) % categories.length]; render(); tabs.querySelector('[aria-selected="true"]').focus(); });
     panel.append(tabs); message = node('p', 'activities-status'); message.setAttribute('role', 'status'); panel.append(message);
-    content = node('div', 'activities-content'); content.setAttribute('role', 'tabpanel'); panel.append(content, node('footer', 'activities-footer', 'Virtual coins are play points only. Activity rewards are checked by the city server.'));
-    overlay.append(panel); hud = node('section', 'activity-hud'); hud.id = 'cityActivityHud'; hud.setAttribute('aria-label', 'Current city activity'); hud.hidden = true;
+    content = node('div', 'activities-content'); content.setAttribute('role', 'tabpanel'); panel.append(content, node('footer', 'activities-footer', "ვირტუალური მონეტები მხოლოდ სათამაშო ქულებია. აქტივობის ჯილდოებს ქალაქის სერვერი ამოწმებს."));
+    overlay.append(panel); hud = node('section', 'activity-hud'); hud.id = 'cityActivityHud'; hud.setAttribute('aria-label', 'მიმდინარე აქტივობა'); hud.hidden = true;
     document.querySelector('.city-world').append(launcher, overlay, hud);
     overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
     document.addEventListener('keydown', event => {
@@ -330,7 +331,7 @@
     socket.on('city:activity:state', result => accept(result?.state || result));
     socket.on('connect', () => { connected = true; requestState(); });
     socket.on('city:joined', () => { connected = true; requestState(); });
-    socket.on('disconnect', () => { connected = false; pending = false; updateHud(); if (opened) { render(); status('Disconnected. Rejoin to restore saved collections.', true); } });
+    socket.on('disconnect', () => { connected = false; pending = false; updateHud(); if (opened) { render(); status("კავშირი გაწყდა. შენახული კოლექციების აღსადგენად ხელახლა შემოდი.", true); } });
     setInterval(() => { updateHud(); updateMenuTimers(); }, 250); requestState();
   }
   root.GaicaniCityActivitiesUI = { mount, open, close, draw, drawMini, command, accept, requestState, start, getState: () => snapshot, get blocksMovement() { return opened; }, registerRenderer(id, renderer) { renderers.set(id, renderer); lastActiveKey = ''; updateHud(); } };

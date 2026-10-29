@@ -1,30 +1,30 @@
 "use strict";
 
 const CITY_GAME_DEFINITIONS = {
-  ttt: { name: "Tic-Tac-Toe", icon: "✕○", description: "Take turns on a neon 3×3 board." },
-  math: { name: "Math Duel", icon: "∑", description: "Race through five quick arithmetic rounds." },
-  rps: { name: "Rock · Paper · Scissors", icon: "✊", description: "Secret picks. First to two round wins." },
-  quiz: { name: "Quiz Duel", icon: "A?", description: "Five questions from Tbilisi to general trivia." },
-  pacman: { name: "Pac-Man", icon: "ᗧ", description: "Two players race for the highest maze score." },
-  snake: { name: "Snake", icon: "🐍", description: "Same 60-second cabinet score challenge." },
-  tetris: { name: "Tetris", icon: "🟦", description: "Clear lines and beat your rival's score." },
-  pong: { name: "Pong", icon: "🏓", description: "Outscore the arcade opponent, then compare records." }
+  ttt: { name: "ჯვარი-ნული", icon: "✕○", description: "ითამაშეთ რიგრიგობით ნეონის 3×3 დაფაზე." },
+  math: { name: "მათემატიკური დუელი", icon: "∑", description: "შეეჯიბრეთ ერთმანეთს ხუთ სწრაფ არითმეტიკულ რაუნდში." },
+  rps: { name: "ქვა · ქაღალდი · მაკრატელი", icon: "✊", description: "აირჩიეთ ფარულად. იმარჯვებს ორი რაუნდის მომგები." },
+  quiz: { name: "ვიქტორინის დუელი", icon: "A?", description: "ხუთი კითხვა თბილისსა და ზოგად ცოდნაზე." },
+  pacman: { name: "პაკმენი", icon: "ᗧ", description: "ორი მოთამაშე ლაბირინთში საუკეთესო ქულისთვის იბრძვის." },
+  snake: { name: "გველი", icon: "🐍", description: "ერთი და იგივე 60-წამიანი შეჯიბრი ქულებზე." },
+  tetris: { name: "ტეტრისი", icon: "🟦", description: "გაასუფთავე ხაზები და აჯობე მეტოქის ქულას." },
+  pong: { name: "პონგი", icon: "🏓", description: "დაამარცხე არკადის მეტოქე და შეადარე რეკორდები." }
 };
 const CITY_ARCADE_GAMES = new Set(["pacman", "snake", "tetris", "pong"]);
 
 const CITY_QUIZ_BANK = [
-  { id:"general-1", category:"General", question:"Which planet is known as the Red Planet?", options:["Venus","Mars","Mercury","Jupiter"], answer:1 },
-  { id:"general-2", category:"General", question:"Which is the largest ocean on Earth?", options:["Atlantic","Indian","Pacific","Arctic"], answer:2 },
-  { id:"gaming-1", category:"Gaming", question:"What is Mario’s brother called?", options:["Wario","Luigi","Toad","Yoshi"], answer:1 },
-  { id:"gaming-2", category:"Gaming", question:"Which game is famous for creepers?", options:["Minecraft","Tetris","Pac-Man","Sonic"], answer:0 },
-  { id:"tech-1", category:"Technology", question:"What does CPU stand for?", options:["Central Processing Unit","Computer Power Utility","Core Program User","Central Pixel Unit"], answer:0 },
-  { id:"tech-2", category:"Technology", question:"What does HTML mainly describe?", options:["Web page structure","Wi-Fi speed","Battery health","Photo color"], answer:0 },
-  { id:"geo-1", category:"Geography", question:"What is the capital of Georgia?", options:["Batumi","Kutaisi","Tbilisi","Telavi"], answer:2 },
-  { id:"geo-2", category:"Geography", question:"Which river flows through Tbilisi?", options:["Rioni","Mtkvari","Alazani","Enguri"], answer:1 },
-  { id:"fun-1", category:"Funny riddle", question:"What gets wetter while it dries?", options:["A towel","A candle","A shadow","A clock"], answer:0 },
-  { id:"fun-2", category:"Funny riddle", question:"What has keys but opens no locks?", options:["A map","A piano","A mailbox","A suitcase"], answer:1 },
-  { id:"georgian-1", category:"Georgian culture", question:"What is the classic filling in Adjarian khachapuri?", options:["Cheese and egg","Beans and mint","Walnuts and honey","Potato and dill"], answer:0 },
-  { id:"georgian-2", category:"Georgian culture", question:"Khinkali are best known for their…", options:["Juicy filling","Sweet icing","Crispy shell","Rice paper"], answer:0 }
+  { id:"general-1", category:"ზოგადი ცოდნა", question:"რომელ პლანეტას ეძახიან წითელ პლანეტას?", options:["ვენერა","მარსი","მერკური","იუპიტერი"], answer:1 },
+  { id:"general-2", category:"ზოგადი ცოდნა", question:"რომელია დედამიწის ყველაზე დიდი ოკეანე?", options:["ატლანტის","ინდოეთის","წყნარი","ჩრდილოეთის ყინულოვანი"], answer:2 },
+  { id:"gaming-1", category:"ვიდეოთამაშები", question:"რა ჰქვია მარიოს ძმას?", options:["ვარიო","ლუიჯი","ტოუდი","იოში"], answer:1 },
+  { id:"gaming-2", category:"ვიდეოთამაშები", question:"რომელი თამაშია ცნობილი კრიპერებით?", options:["მაინკრაფტი","ტეტრისი","პაკმენი","სონიკი"], answer:0 },
+  { id:"tech-1", category:"ტექნოლოგია", question:"რას ნიშნავს პროცესორის აბრევიატურა?", options:["ცენტრალური დამუშავების მოწყობილობა","კომპიუტერის კვების ხელსაწყო","ძირითადი პროგრამის მომხმარებელი","ცენტრალური პიქსელის მოწყობილობა"], answer:0 },
+  { id:"tech-2", category:"ტექნოლოგია", question:"რას აღწერს ვებგვერდის მონიშვნის ენა?", options:["ვებგვერდის სტრუქტურას","უსადენო ქსელის სიჩქარეს","ბატარეის მდგომარეობას","ფოტოს ფერს"], answer:0 },
+  { id:"geo-1", category:"გეოგრაფია", question:"რომელია საქართველოს დედაქალაქი?", options:["ბათუმი","ქუთაისი","თბილისი","თელავი"], answer:2 },
+  { id:"geo-2", category:"გეოგრაფია", question:"რომელი მდინარე მიედინება თბილისში?", options:["რიონი","მტკვარი","ალაზანი","ენგური"], answer:1 },
+  { id:"fun-1", category:"სახალისო გამოცანა", question:"რა სველდება, როცა აშრობს?", options:["პირსახოცი","სანთელი","ჩრდილი","საათი"], answer:0 },
+  { id:"fun-2", category:"სახალისო გამოცანა", question:"რას აქვს კლავიშები, მაგრამ არცერთ საკეტს არ ხსნის?", options:["რუკა","ფორტეპიანო","საფოსტო ყუთი","ჩემოდანი"], answer:1 },
+  { id:"georgian-1", category:"ქართული კულტურა", question:"რა არის აჭარული ხაჭაპურის ტრადიციული შიგთავსი?", options:["ყველი და კვერცხი","ლობიო და პიტნა","ნიგოზი და თაფლი","კარტოფილი და კამა"], answer:0 },
+  { id:"georgian-2", category:"ქართული კულტურა", question:"რით გამოირჩევა ხინკალი?", options:["წვნიანი შიგთავსით","ტკბილი მინანქრით","ხრაშუნა ქერქით","ბრინჯის ქაღალდით"], answer:0 }
 ];
 
 function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuthUsers = () => {} }) {
@@ -127,11 +127,11 @@ function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuth
     clearTimeout(invite.timer);
     invites.delete(invite.id);
     if (!notify) return;
-    socketById(invite.fromId)?.emit("city:game:inviteCancelled", { inviteId:invite.id, message:message || "Invitation ended." });
-    if (invite.toId !== invite.fromId) socketById(invite.toId)?.emit("city:game:inviteCancelled", { inviteId:invite.id, message:message || "Invitation ended." });
+    socketById(invite.fromId)?.emit("city:game:inviteCancelled", { inviteId:invite.id, message:message || "მოწვევა დასრულდა." });
+    if (invite.toId !== invite.fromId) socketById(invite.toId)?.emit("city:game:inviteCancelled", { inviteId:invite.id, message:message || "მოწვევა დასრულდა." });
   }
   function clearInvitesFor(id) {
-    for (const invite of invites.values()) if (invite.fromId === id || invite.toId === id) clearInvite(invite, true, "The other player left the city.");
+    for (const invite of invites.values()) if (invite.fromId === id || invite.toId === id) clearInvite(invite, true, "მეორე მოთამაშემ ქალაქი დატოვა.");
   }
   function stateFor(match, viewerId) {
     const s = match.state;
@@ -175,7 +175,7 @@ function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuth
   function publicMatch(match, viewerId) {
     return {
       id:match.id,
-      players:match.players.map(id => { const p=playerById(id); return { id, name:p?p.name:"Player", color:p?p.color:"#8d99ff",
+      players:match.players.map(id => { const p=playerById(id); return { id, name:p?p.name:"მოთამაშე", color:p?p.color:"#8d99ff",
         arcadeRecord:match.arcadeMode&&p?arcadeRecordFor(p,match.game)?.score??null:null }; }),
       hostId:match.hostId, game:match.game, status:match.status, arcadeMode:!!match.arcadeMode,
       rematchVotes:Array.from(match.rematchVotes), result:match.result || null,
@@ -186,7 +186,7 @@ function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuth
     if (!match || !matches.has(match.id)) return;
     for (const id of match.players) socketById(id)?.emit("city:game:update", publicMatch(match, id));
   }
-  function nameOf(id) { const p=playerById(id); return p ? p.name : "Player"; }
+  function nameOf(id) { const p=playerById(id); return p ? p.name : "მოთამაშე"; }
   function setPhonePose(match) {
     const startedAt = Date.now();
     for (const id of match.players) { const p=playerById(id); if(p){p.action="phone";p.actionUntil=0;p.gameStartedAt=startedAt;} }
@@ -212,13 +212,13 @@ function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuth
     for (const id of match.players) {
       const p=playerById(id), sock=socketById(id);
       if (p && p.gameId===match.id) { p.gameId=null;p.gameStartedAt=0;p.action="idle";p.actionUntil=0; }
-      if (sock) { sock.leave("citygame:"+match.id);sock.emit("city:game:ended",{matchId:match.id,message:message||"Game closed."}); }
+      if (sock) { sock.leave("citygame:"+match.id);sock.emit("city:game:ended",{matchId:match.id,message:message||"თამაში დაიხურა."}); }
     }
   }
   function onDisconnect(id) {
     clearInvitesFor(id);
     const p=playerById(id);
-    if (p && p.gameId) endMatch(matches.get(p.gameId), "Your opponent left the city.");
+    if (p && p.gameId) endMatch(matches.get(p.gameId), "მეტოქემ ქალაქი დატოვა.");
   }
   function makeMatch(from, to, arcadeMode) {
     const id="cg:"+Date.now().toString(36)+":"+(++sequence).toString(36)+":"+Math.random().toString(36).slice(2,8);
@@ -266,7 +266,7 @@ function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuth
   function scoreResult(match) {
     const [a,b]=match.players,sa=match.state.scores[a]||0,sb=match.state.scores[b]||0;
     const winnerId=sa===sb?null:sa>sb?a:b;
-    return {winnerId,draw:!winnerId,scores:Object.assign({},match.state.scores),text:winnerId?nameOf(winnerId)+" wins!":"It’s a draw!"};
+    return {winnerId,draw:!winnerId,scores:Object.assign({},match.state.scores),text:winnerId?nameOf(winnerId)+" იმარჯვებს!":"ფრეა!"};
   }
   function advanceTimedRound(match, resolve, totalRounds) {
     if (match.state.round >= totalRounds) { finishPlaying(match,scoreResult(match));return; }
@@ -327,27 +327,27 @@ function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuth
     const [a,b]=match.players,sa=scores[a]||0,sb=scores[b]||0;
     const winnerId=sa===sb?null:sa>sb?a:b;
     finishPlaying(match,{winnerId,draw:!winnerId,scores:Object.assign({},scores),
-      text:winnerId?nameOf(winnerId)+" wins the "+CITY_GAME_DEFINITIONS[match.game].name+" score race!":"Score race tied!"});
+      text:winnerId?nameOf(winnerId)+" იმარჯვებს თამაშში: "+CITY_GAME_DEFINITIONS[match.game].name+" ქულების შეჯიბრი!":"ქულები თანაბარია!"});
   }
   function doTicTacToe(match, player, index) {
     const s=match.state;
-    if(!Number.isInteger(index)||index<0||index>8||s.board[index]!==null)return {error:"That square is already taken."};
-    if(s.turnId!==player.id)return {error:"Wait for your turn."};
+    if(!Number.isInteger(index)||index<0||index>8||s.board[index]!==null)return {error:"ეს უჯრა უკვე დაკავებულია."};
+    if(s.turnId!==player.id)return {error:"დაელოდე შენს სვლას."};
     s.board[index]=s.marks[player.id];
     const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
     const line=lines.find(row=>row.every(i=>s.board[i]===s.marks[player.id]));
-    if(line){s.winnerId=player.id;finishPlaying(match,{winnerId:player.id,draw:false,text:nameOf(player.id)+" wins Tic-Tac-Toe!"});return {ok:true};}
-    if(s.board.every(Boolean)){s.draw=true;finishPlaying(match,{winnerId:null,draw:true,text:"Tic-Tac-Toe ended in a draw."});return {ok:true};}
+    if(line){s.winnerId=player.id;finishPlaying(match,{winnerId:player.id,draw:false,text:nameOf(player.id)+" იგებს ჯვარი-ნულს!"});return {ok:true};}
+    if(s.board.every(Boolean)){s.draw=true;finishPlaying(match,{winnerId:null,draw:true,text:"ჯვარი-ნული ფრედ დასრულდა."});return {ok:true};}
     s.turnId=match.players.find(id=>id!==player.id);pushMatch(match);return {ok:true};
   }
   function gameAction(match, player, data) {
-    if(match.status!=="playing"||!match.state)return {error:"This game is not accepting moves."};
+    if(match.status!=="playing"||!match.state)return {error:"ამ თამაშში სვლები აღარ მიიღება."};
     if(match.game==="ttt")return doTicTacToe(match,player,Number(data.index));
     const s=match.state,now=Date.now();
     if (CITY_ARCADE_GAMES.has(match.game)) {
-      if (!match.arcadeMode || data.type!=="submitScore" || now>s.submitUntil || s.submissions[player.id]) return {error:"That arcade run has ended or was already submitted."};
+      if (!match.arcadeMode || data.type!=="submitScore" || now>s.submitUntil || s.submissions[player.id]) return {error:"ეს ცდა დასრულდა ან შედეგი უკვე გაგზავნილია."};
       const score=Number(data.score);
-      if (!Number.isSafeInteger(score) || score<0 || score>5000000) return {error:"That score is not valid."};
+      if (!Number.isSafeInteger(score) || score<0 || score>5000000) return {error:"ქულა არასწორია."};
       s.scores[player.id]=score;
       s.submissions[player.id]=true;
       saveArcadeRecord(player,match.game,score);
@@ -356,71 +356,71 @@ function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuth
       return {ok:true};
     }
     if(match.game==="math") {
-      if(data.type!=="answer"||s.stage!=="answering"||now>s.deadlineAt)return {error:"That round has ended."};
-      if(s.submissions[player.id])return {error:"Your answer is already locked."};
-      const value=Number(data.answer);if(!Number.isFinite(value)||!Number.isInteger(value)||Math.abs(value)>100000)return {error:"Enter a whole-number answer."};
+      if(data.type!=="answer"||s.stage!=="answering"||now>s.deadlineAt)return {error:"რაუნდი დასრულდა."};
+      if(s.submissions[player.id])return {error:"შენი პასუხი უკვე დაფიქსირებულია."};
+      const value=Number(data.answer);if(!Number.isFinite(value)||!Number.isInteger(value)||Math.abs(value)>100000)return {error:"შეიყვანე მთელი რიცხვი."};
       s.submissions[player.id]={value,at:now};pushMatch(match);
       if(match.players.every(id=>s.submissions[id]))resolveMathRound(match);
       return {ok:true};
     }
     if(match.game==="quiz") {
-      if(data.type!=="answer"||s.stage!=="answering"||now>s.deadlineAt)return {error:"That question has ended."};
-      if(s.answers[player.id]!==undefined)return {error:"Your answer is already locked."};
-      const index=Number(data.answer);if(!Number.isInteger(index)||index<0||index>=s.question.options.length)return {error:"Choose one of the answers."};
+      if(data.type!=="answer"||s.stage!=="answering"||now>s.deadlineAt)return {error:"ამ კითხვის დრო დასრულდა."};
+      if(s.answers[player.id]!==undefined)return {error:"შენი პასუხი უკვე დაფიქსირებულია."};
+      const index=Number(data.answer);if(!Number.isInteger(index)||index<0||index>=s.question.options.length)return {error:"აირჩიე ერთ-ერთი პასუხი."};
       s.answers[player.id]={index,at:now};pushMatch(match);
       if(match.players.every(id=>s.answers[id]!==undefined))resolveQuizRound(match);
       return {ok:true};
     }
     if(match.game==="rps") {
-      if(data.type!=="choose"||s.stage!=="choosing"||now>s.deadlineAt)return {error:"That round has ended."};
-      if(s.choices[player.id])return {error:"Your choice is already locked."};
-      if(!["rock","paper","scissors"].includes(data.choice))return {error:"Choose rock, paper, or scissors."};
+      if(data.type!=="choose"||s.stage!=="choosing"||now>s.deadlineAt)return {error:"რაუნდი დასრულდა."};
+      if(s.choices[player.id])return {error:"შენი არჩევანი უკვე დაფიქსირებულია."};
+      if(!["rock","paper","scissors"].includes(data.choice))return {error:"აირჩიე ქვა, ქაღალდი ან მაკრატელი."};
       s.choices[player.id]=data.choice;pushMatch(match);
       if(match.players.every(id=>s.choices[id]))resolveRpsRound(match);
       return {ok:true};
     }
-    return {error:"Unknown game."};
+    return {error:"უცნობი თამაში."};
   }
   function sendInvite(socket, data, ack) {
     const from=players.get(socket.id),to=players.get(data&&data.targetId);
     const arcadeMode=!!(from&&to&&from.interiorId==="arcade-palace"&&to.interiorId==="arcade-palace");
     if(!from||!to||from===to||((from.interiorId||to.interiorId)&&!arcadeMode)||from.rideId||to.rideId||from.gameId||to.gameId)
-      return reply(ack,{error:"That player is not available for a game."});
-    if(!arcadeMode&&Math.hypot(from.x-to.x,from.y-to.y)>135)return reply(ack,{error:"Walk closer before inviting them."});
-    const now=Date.now();if(now-(from.lastGameInviteAt||0)<10000)return reply(ack,{error:"Give the other player a moment before another invite."});
+      return reply(ack,{error:"ეს მოთამაშე სათამაშოდ მიუწვდომელია."});
+    if(!arcadeMode&&Math.hypot(from.x-to.x,from.y-to.y)>135)return reply(ack,{error:"მოწვევამდე უფრო ახლოს მიდი."});
+    const now=Date.now();if(now-(from.lastGameInviteAt||0)<10000)return reply(ack,{error:"შემდეგ მოწვევამდე ცოტა დაელოდე."});
     from.lastGameInviteAt=now;
-    if(gameBlocked(from,to))return reply(ack,{error:"Game invitations are unavailable for this player."});
-    if(findInviteByPlayer(to.id))return reply(ack,{error:"That player already has a pending game invitation."});
+    if(gameBlocked(from,to))return reply(ack,{error:"ამ მოთამაშისთვის თამაშის მოწვევები მიუწვდომელია."});
+    if(findInviteByPlayer(to.id))return reply(ack,{error:"ამ მოთამაშეს უკვე აქვს უპასუხო მოწვევა."});
     const id="cgi:"+Date.now().toString(36)+":"+(++sequence).toString(36)+":"+Math.random().toString(36).slice(2,7);
     const invite={id,fromId:from.id,toId:to.id,createdAt:now,arcadeMode};invites.set(id,invite);
     socketById(to.id)?.emit("city:game:inviteRequest",{inviteId:id,fromId:from.id,fromName:from.name,arcadeMode,expiresAt:now+25000});
     socket.emit("city:game:invitePending",{inviteId:id,toName:to.name,arcadeMode,expiresAt:now+25000});
-    invite.timer=setTimeout(()=>clearInvite(invite,true,"The invitation expired."),25000);
+    invite.timer=setTimeout(()=>clearInvite(invite,true,"მოწვევის ვადა გავიდა."),25000);
     reply(ack,{ok:true});
   }
   function respondInvite(socket, data, ack) {
     const invite=invites.get(data&&data.inviteId),to=players.get(socket.id),from=invite&&players.get(invite.fromId);
-    if(!invite||!to||invite.toId!==to.id||!from)return reply(ack,{error:"That invitation is no longer available."});
-    if(!data.accept){clearInvite(invite,false);socket.emit("city:game:inviteCancelled",{inviteId:invite.id,message:"Invitation declined."});socketById(from.id)?.emit("city:game:inviteDeclined",{inviteId:invite.id,playerName:to.name});reply(ack,{ok:true});return;}
+    if(!invite||!to||invite.toId!==to.id||!from)return reply(ack,{error:"ეს მოწვევა აღარ არის ხელმისაწვდომი."});
+    if(!data.accept){clearInvite(invite,false);socket.emit("city:game:inviteCancelled",{inviteId:invite.id,message:"მოწვევა უარყოფილია."});socketById(from.id)?.emit("city:game:inviteDeclined",{inviteId:invite.id,playerName:to.name});reply(ack,{ok:true});return;}
     clearTimeout(invite.timer);invites.delete(invite.id);
     const sameArcade=from.interiorId==="arcade-palace"&&to.interiorId==="arcade-palace";
     if(from.gameId||to.gameId||gameBlocked(from,to)||(invite.arcadeMode?!sameArcade:(from.interiorId||to.interiorId||Math.hypot(from.x-to.x,from.y-to.y)>175))){
       socket.emit("city:game:inviteCancelled",{inviteId:invite.id,message:"The game could not start; check that both players are still nearby."});
       socketById(from.id)?.emit("city:game:inviteCancelled",{inviteId:invite.id,message:"The game could not start; both players must stay nearby."});
-      return reply(ack,{error:"Both players need to stay nearby and available."});
+      return reply(ack,{error:"ორივე მოთამაშე ახლოს და თავისუფალი უნდა დარჩეს."});
     }
     makeMatch(from,to,invite.arcadeMode);reply(ack,{ok:true});
   }
   function bind(socket) {
     socket.on("city:arcade:records",(data,ack)=>{
       const p=players.get(socket.id);
-      if(!p||p.interiorId!=="arcade-palace")return reply(ack,{error:"Enter the Pixel Palace to view its records."});
+      if(!p||p.interiorId!=="arcade-palace")return reply(ack,{error:"რეკორდების სანახავად შედი პიქსელების სასახლეში."});
       reply(ack,arcadeRecordsView(p));
     });
     socket.on("city:arcade:record",(data,ack)=>{
       const p=players.get(socket.id),game=data&&data.game,score=Number(data&&data.score);
-      if(!p||p.interiorId!=="arcade-palace"||!CITY_ARCADE_GAMES.has(game))return reply(ack,{error:"That arcade cabinet is unavailable."});
-      if(!Number.isSafeInteger(score)||score<0||score>5000000)return reply(ack,{error:"That score is not valid."});
+      if(!p||p.interiorId!=="arcade-palace"||!CITY_ARCADE_GAMES.has(game))return reply(ack,{error:"ეს არკადის აპარატი მიუწვდომელია."});
+      if(!Number.isSafeInteger(score)||score<0||score>5000000)return reply(ack,{error:"ქულა არასწორია."});
       const record=saveArcadeRecord(p,game,score);
       reply(ack,{ok:true,record,records:arcadeRecordsView(p)});
     });
@@ -428,50 +428,50 @@ function createCityGameEngine({ io, players, registeredUsers, roomName, saveAuth
     socket.on("reg:sessionUnblock",data=>{const owner=socket._regUser&&socket._regUser.usernameLower,target=normalized(data&&data.targetUsername);if(owner&&target)setSessionBlock(owner,target,false);});
     socket.on("city:game:invite",(data,ack)=>sendInvite(socket,data,ack));
     socket.on("city:game:inviteRespond",(data,ack)=>respondInvite(socket,data,ack));
-    socket.on("city:game:inviteCancel",data=>{const invite=invites.get(data&&data.inviteId);if(invite&&invite.fromId===socket.id)clearInvite(invite,true,"The invitation was cancelled.");});
+    socket.on("city:game:inviteCancel",data=>{const invite=invites.get(data&&data.inviteId);if(invite&&invite.fromId===socket.id)clearInvite(invite,true,"მოწვევა გაუქმდა.");});
     socket.on("city:game:block",(data,ack)=>{
       const p=players.get(socket.id),target=players.get(data&&data.targetId);
-      if(!p||!target||p===target)return reply(ack,{error:"That player is unavailable."});
+      if(!p||!target||p===target)return reply(ack,{error:"მოთამაშე მიუწვდომელია."});
       const blocked=!!data.blocked;setSessionBlock(userKey(p),userKey(target),blocked);
-      const invite=findInviteByPlayer(target.id);if(blocked&&invite&&((invite.fromId===p.id&&invite.toId===target.id)||(invite.fromId===target.id&&invite.toId===p.id)))clearInvite(invite,true,"Game invitations were blocked.");
-      if(blocked&&p.gameId&&p.gameId===target.gameId)endMatch(matches.get(p.gameId),"Game ended because one player blocked game invitations.");
+      const invite=findInviteByPlayer(target.id);if(blocked&&invite&&((invite.fromId===p.id&&invite.toId===target.id)||(invite.fromId===target.id&&invite.toId===p.id)))clearInvite(invite,true,"თამაშის მოწვევები დაიბლოკა.");
+      if(blocked&&p.gameId&&p.gameId===target.gameId)endMatch(matches.get(p.gameId),"თამაში დასრულდა, რადგან მოთამაშემ მოწვევები დაბლოკა.");
       reply(ack,{ok:true,blockedPlayers:blockedNames(p)});
     });
     socket.on("city:game:choose",(data,ack)=>{
       const p=players.get(socket.id),match=matches.get(data&&data.matchId),game=data&&data.game;
-      if(!p||!match||!isMember(match,p.id)||match.hostId!==p.id||match.status!=="lobby"||!Object.prototype.hasOwnProperty.call(CITY_GAME_DEFINITIONS,game)||(match.arcadeMode?!CITY_ARCADE_GAMES.has(game):CITY_ARCADE_GAMES.has(game)))return reply(ack,{error:"The game selection is unavailable."});
+      if(!p||!match||!isMember(match,p.id)||match.hostId!==p.id||match.status!=="lobby"||!Object.prototype.hasOwnProperty.call(CITY_GAME_DEFINITIONS,game)||(match.arcadeMode?!CITY_ARCADE_GAMES.has(game):CITY_ARCADE_GAMES.has(game)))return reply(ack,{error:"თამაშის არჩევა მიუწვდომელია."});
       match.game=game;pushMatch(match);reply(ack,{ok:true});
     });
     socket.on("city:game:start",(data,ack)=>{
       const p=players.get(socket.id),match=matches.get(data&&data.matchId);
-      if(!p||!match||!isMember(match,p.id)||match.hostId!==p.id||match.status!=="lobby"||!match.game)return reply(ack,{error:"Choose a game first."});
+      if(!p||!match||!isMember(match,p.id)||match.hostId!==p.id||match.status!=="lobby"||!match.game)return reply(ack,{error:"ჯერ აირჩიე თამაში."});
       startGame(match);reply(ack,{ok:true});
     });
     socket.on("city:game:action",(data,ack)=>{
       const p=players.get(socket.id),match=matches.get(data&&data.matchId);
-      if(!p||!match||!isMember(match,p.id)||p.gameId!==match.id)return reply(ack,{error:"This match is no longer active."});
+      if(!p||!match||!isMember(match,p.id)||p.gameId!==match.id)return reply(ack,{error:"ეს მატჩი აღარ მიმდინარეობს."});
       const result=gameAction(match,p,data||{});reply(ack,result);
     });
     socket.on("city:game:rematch",(data,ack)=>{
       const p=players.get(socket.id),match=matches.get(data&&data.matchId);
-      if(!p||!match||!isMember(match,p.id)||match.status!=="finished")return reply(ack,{error:"This match is not ready for a rematch."});
+      if(!p||!match||!isMember(match,p.id)||match.status!=="finished")return reply(ack,{error:"ეს მატჩი განმეორებისთვის მზად არ არის."});
       match.rematchVotes.add(p.id);pushMatch(match);
       if(match.players.every(id=>match.rematchVotes.has(id)))startGame(match);
       reply(ack,{ok:true});
     });
     socket.on("city:game:switch",(data,ack)=>{
       const p=players.get(socket.id),match=matches.get(data&&data.matchId);
-      if(!p||!match||!isMember(match,p.id)||match.hostId!==p.id||match.status!=="finished")return reply(ack,{error:"Only the game host can choose another game."});
+      if(!p||!match||!isMember(match,p.id)||match.hostId!==p.id||match.status!=="finished")return reply(ack,{error:"სხვა თამაშის არჩევა მხოლოდ მასპინძელს შეუძლია."});
       clearTimeout(match.timer);clearTimeout(match.poseTimer);match.timer=null;match.poseTimer=null;match.status="lobby";match.game=null;match.state=null;match.result=null;match.rematchVotes.clear();setPhonePose(match);pushMatch(match);reply(ack,{ok:true});
     });
     socket.on("city:game:reaction",(data,ack)=>{
       const p=players.get(socket.id),match=matches.get(data&&data.matchId),text=String(data&&data.text||"");
-      if(!p||!match||!isMember(match,p.id)||!GAME_REACTIONS.has(text))return reply(ack,{error:"That reaction is unavailable."});
+      if(!p||!match||!isMember(match,p.id)||!GAME_REACTIONS.has(text))return reply(ack,{error:"ეს რეაქცია მიუწვდომელია."});
       for(const id of match.players)socketById(id)?.emit("city:game:reaction",{matchId:match.id,fromId:p.id,name:p.name,text});reply(ack,{ok:true});
     });
     socket.on("city:game:leave",(data)=>{
       const p=players.get(socket.id),match=p&&p.gameId&&matches.get(p.gameId);
-      if(match&&(!data||!data.matchId||data.matchId===match.id))endMatch(match,p.name+" returned to the city.");
+      if(match&&(!data||!data.matchId||data.matchId===match.id))endMatch(match,p.name+" დაბრუნდა ქალაქში.");
     });
   }
 

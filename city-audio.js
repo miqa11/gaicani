@@ -10,16 +10,16 @@
   const defaults = { music: true, effects: true, musicVolume: .45, effectsVolume: .5, muted: false };
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
   const originalTracks = [
-    { id: "rustaveli-afterhours", title: "Rustaveli Afterhours", style: "Original · 1990s boom bap", kind: "original", bpm: 92, bars: 32, swing: .022,
+    { id: "rustaveli-afterhours", title: "რუსთაველის გვიანი ღამე", style: "ორიგინალური · ოთხმოცდაათიანების ჰიპ-ჰოპი", kind: "original", bpm: 92, bars: 32, swing: .022,
       bass: [45, 41, 38, 40], chords: [[57,60,64,71],[53,57,60,67],[50,53,57,64],[52,56,59,62]],
       melody: [76,null,72,74,null,79,76,null,72,71,null,69,72,null,74,71,69,null,65,67,null,72,69,null,64,67,null,71,68,null,64,null] },
-    { id: "peach-soda-96", title: "Peach Soda '96", style: "Original · velvet R&B", kind: "original", bpm: 104, bars: 32, swing: .016,
+    { id: "peach-soda-96", title: "ატმის შუშხუნა ’96", style: "ორიგინალური · რბილი რიტმ-ენდ-ბლუზი", kind: "original", bpm: 104, bars: 32, swing: .016,
       bass: [38, 43, 36, 41], chords: [[62,65,69,72],[58,62,65,69],[60,64,67,71],[57,60,64,67]],
       melody: [77,null,76,72,null,69,72,null,74,77,null,81,77,null,74,null,76,null,79,76,72,null,71,null,72,76,null,74,69,null,67,null] },
-    { id: "neon-express-99", title: "Neon Express '99", style: "Original · midnight club", kind: "original", bpm: 124, bars: 32, swing: 0,
+    { id: "neon-express-99", title: "ნეონის ექსპრესი ’99", style: "ორიგინალური · შუაღამის კლუბი", kind: "original", bpm: 124, bars: 32, swing: 0,
       bass: [40, 36, 43, 38], chords: [[64,67,71,74],[60,64,67,71],[62,67,71,74],[62,65,69,72]],
       melody: [76,79,null,83,79,76,null,74,72,76,null,79,76,72,null,71,74,79,null,83,81,79,null,76,77,74,null,81,77,74,null,72] }
-  ].map(track => Object.assign(track, { duration: track.bars * 4 * 60 / track.bpm, credit: "Original Gaicani composition · synthesized in the browser" }));
+  ].map(track => Object.assign(track, { duration: track.bars * 4 * 60 / track.bpm, credit: "გაიკანის ორიგინალური კომპოზიცია · ბრაუზერში აწყობილი" }));
 
   function normalizePreferences(value) {
     const raw = value && typeof value === "object" ? value : {};
@@ -63,8 +63,8 @@
           !Number.isFinite(track.duration) || track.duration < 10 || !Number.isFinite(track.bpm) || track.bpm < 40 || track.bpm > 200) {
         throw Error("Audio tracks require an authorized HTTPS/local audio URL, credit, license, duration and BPM");
       }
-      return { id: track.id || "authorized-" + index, title: String(track.title || "Authorized track"), kind: "audio", url: track.url,
-        credit: String(track.credit), license: String(track.license), duration: track.duration, bpm: track.bpm, style: track.style || "Licensed selection" };
+      return { id: track.id || "authorized-" + index, title: String(track.title || "ნებადართული ჩანაწერი"), kind: "audio", url: track.url,
+        credit: String(track.credit), license: String(track.license), duration: track.duration, bpm: track.bpm, style: track.style || "ლიცენზირებული მუსიკა" };
     });
   }
   function createScheduleLedger() {
@@ -300,7 +300,7 @@
     settingsButton.setAttribute("aria-controls", "cityAudioPanel"); muteButton.insertAdjacentElement("afterend", settingsButton);
     settingsPanel = root.document.createElement("section"); settingsPanel.id = "cityAudioPanel"; settingsPanel.className = "city-audio-panel"; settingsPanel.hidden = true;
     settingsPanel.setAttribute("role", "dialog"); settingsPanel.setAttribute("aria-label", "ხმისა და მუსიკის პარამეტრები");
-    settingsPanel.innerHTML = '<header><strong>♫ NIGHT RADIO</strong><button type="button" class="city-audio-close" aria-label="დახურვა">×</button></header>' +
+    settingsPanel.innerHTML = "<header><strong>♫ ღამის რადიო</strong><button type=\"button\" class=\"city-audio-close\" aria-label=\"დახურვა\">×</button></header>" +
       '<p class="city-audio-status" role="status"></p><label class="city-audio-toggle"><input type="checkbox" data-audio-toggle="music"> მუსიკა</label>' +
       '<label class="city-audio-volume">მუსიკის ხმა <output data-audio-output="musicVolume"></output><input aria-label="მუსიკის ხმა" type="range" min="0" max="100" step="1" data-audio-volume="musicVolume"></label>' +
       '<label class="city-audio-toggle"><input type="checkbox" data-audio-toggle="effects"> ხმოვანი ეფექტები</label>' +

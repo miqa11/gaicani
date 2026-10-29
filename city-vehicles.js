@@ -6,12 +6,12 @@
 })(typeof window !== "undefined" ? window : globalThis, function () {
   "use strict";
   const definitions = [
-    { id: "lada-2106", name: "ჟიგული 2106", model: "LADA 2106", kind: "sedan", color: "#da7650", x: 610, y: 780, dir: "right", speed: 300, radius: 26 },
-    { id: "night-taxi", name: "ღამის ტაქსი", model: "TBILISI TAXI", kind: "taxi", color: "#f3ce60", x: 980, y: 780, dir: "right", speed: 330, radius: 26 },
-    { id: "marshrutka-7", name: "მარშრუტკა №7", model: "MARSHRUTKA 07", kind: "minibus", color: "#56b6b0", x: 1180, y: 1200, dir: "left", speed: 245, radius: 31 },
-    { id: "neon-coupe", name: "ნეონის კუპე", model: "NEON COUPE '92", kind: "coupe", color: "#c970dc", x: 1840, y: 780, dir: "left", speed: 365, radius: 26 },
-    { id: "blue-volga", name: "ლურჯი ვოლგა", model: "VOLGA 24", kind: "sedan", color: "#5d9fd2", x: 2075, y: 1200, dir: "right", speed: 315, radius: 27 },
-    { id: "courtyard-lada", name: "ეზოს ჟიგული", model: "LADA 2101", kind: "sedan", color: "#a5be7a", x: 780, y: 1620, dir: "left", speed: 285, radius: 26 }
+    { id: "lada-2106", name: "ჟიგული 2106", model: "ლადა 2106", kind: "sedan", color: "#da7650", x: 610, y: 780, dir: "right", speed: 300, radius: 26 },
+    { id: "night-taxi", name: "ღამის ტაქსი", model: "თბილისის ტაქსი", kind: "taxi", color: "#f3ce60", x: 980, y: 780, dir: "right", speed: 330, radius: 26 },
+    { id: "marshrutka-7", name: "მარშრუტკა №7", model: "სამარშრუტო 07", kind: "minibus", color: "#56b6b0", x: 1180, y: 1200, dir: "left", speed: 245, radius: 31 },
+    { id: "neon-coupe", name: "ნეონის კუპე", model: "ნეონის კუპე ’92", kind: "coupe", color: "#c970dc", x: 1840, y: 780, dir: "left", speed: 365, radius: 26 },
+    { id: "blue-volga", name: "ლურჯი ვოლგა", model: "ვოლგა 24", kind: "sedan", color: "#5d9fd2", x: 2075, y: 1200, dir: "right", speed: 315, radius: 27 },
+    { id: "courtyard-lada", name: "ეზოს ჟიგული", model: "ლადა 2101", kind: "sedan", color: "#a5be7a", x: 780, y: 1620, dir: "left", speed: 285, radius: 26 }
   ];
   const angles = { right:0, down:Math.PI/2, left:Math.PI, up:-Math.PI/2 };
   const angleOf = v => Number.isFinite(v.angle) ? v.angle : angles[v.dir] || 0;

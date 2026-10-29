@@ -66,9 +66,9 @@ function createCityActivities(options) {
     const a=sessions.get(p.id),def=a&&definitions.get(a.id);if(!a||a.status!=="active")return false;
     const coins=reward(p,extra.reward===undefined?def.reward:extra.reward,extra.onceKey||(def.once?def.id:null));
     profile(p).cooldowns[def.id]=now()+Math.max(5000,def.cooldownMs||30000);
-    persist(p);return terminal(p,"success",extra.message||"Activity completed.",{coins,...extra,reward:undefined});
+    persist(p);return terminal(p,"success",extra.message||"აქტივობა შესრულებულია.",{coins,...extra,reward:undefined});
   }
-  function fail(p,message="Activity ended.") {return terminal(p,"failed",message);}
+  function fail(p,message="აქტივობა დასრულდა.") {return terminal(p,"failed",message);}
   function context(p) {
     const active=sessions.get(p.id),definition=active&&definitions.get(active.id);
     return {player:p,active,definition,world,garage,players,data,rooms,boards,now:now(),randomInt,
@@ -90,20 +90,20 @@ function createCityActivities(options) {
       world:{},tracked:tracked.get(p.id)||null,result:results.get(p.id)||null};
   }
   function push(p) {if(p)io?.to(p.id).emit("city:activity:state",state(p));}
-  function cancel(p,message="Activity cancelled.") {
+  function cancel(p,message="აქტივობა გაუქმდა.") {
     const a=sessions.get(p.id);if(a?.status==="active")handlers.get(definitions.get(a.id)?.kind)?.cancel?.(context(p));
     if(a?.status==="active")terminal(p,"cancelled",message);release(p);return {ok:true};
   }
   function start(p,id,settings={}) {
     const def=definitions.get(id),handler=def&&handlers.get(def.kind);
-    if(!def||!handler)return {error:"That activity is unavailable."};
-    if(sessions.get(p.id)?.status==="active")return {error:"Finish or leave your current activity first."};
-    if(p.rideId||p.gameId||p.gardenSeatId)return {error:"Leave your current seat or game first."};
-    if(def.location?.interiorId?(p.interiorId!==def.location.interiorId):!!p.interiorId)return {error:"Go to the activity location first."};
-    if(!def.anywhere&&!near(p,def.location,def.radius||100))return {error:"Walk to the marked activity location."};
-    if(p.vehicleId&&!def.vehicle)return {error:"Park and leave the car first."};
-    if((profile(p).cooldowns[id]||0)>now())return {error:"This activity is cooling down."};
-    if(def.once&&profile(p).claims[id])return {error:"You have already discovered this reward."};
+    if(!def||!handler)return {error:"ეს აქტივობა მიუწვდომელია."};
+    if(sessions.get(p.id)?.status==="active")return {error:"ჯერ დაასრულე ან დატოვე მიმდინარე აქტივობა."};
+    if(p.rideId||p.gameId||p.gardenSeatId)return {error:"ჯერ დატოვე ადგილი ან თამაში."};
+    if(def.location?.interiorId?(p.interiorId!==def.location.interiorId):!!p.interiorId)return {error:"ჯერ მიდი აქტივობის ადგილზე."};
+    if(!def.anywhere&&!near(p,def.location,def.radius||100))return {error:"მიდი მონიშნულ ადგილზე."};
+    if(p.vehicleId&&!def.vehicle)return {error:"ჯერ გააჩერე მანქანა და გადმოდი."};
+    if((profile(p).cooldowns[id]||0)>now())return {error:"აქტივობის ხელახლა დაწყებამდე ცოტა მოიცადე."};
+    if(def.once&&profile(p).claims[id])return {error:"ეს ჯილდო უკვე მიღებული გაქვს."};
     const a={id,token:crypto.randomBytes(12).toString("hex"),status:"active",startedAt:now(),expiresAt:now()+(def.durationMs||180000),step:0,progress:0,instruction:def.description};
     sessions.set(p.id,a);p.activityLocked=def.lock===true;p.activityLockId=p.activityLocked?a.token:null;
     const result=handler.start?.(context(p),settings)||{};
@@ -113,47 +113,47 @@ function createCityActivities(options) {
   }
   function invalidAttempt(p,a,at) {
     const def=definitions.get(a.id),old=observed.get(p.id),elapsed=old?Math.max(1,at-old.at):1;
-    if(p.rideId||p.gameId||(!def.vehicle&&p.vehicleId)||((p.interiorId||null)!==(def.location?.interiorId||null)))return "Activity interrupted by changing location or transport.";
-    if(old&&Math.hypot(p.x-old.x,p.y-old.y)>500*elapsed/1000+80)return "Activity interrupted by an invalid movement jump.";
-    if(at>a.expiresAt)return "Time is up. Try again.";
+    if(p.rideId||p.gameId||(!def.vehicle&&p.vehicleId)||((p.interiorId||null)!==(def.location?.interiorId||null)))return "აქტივობა ადგილის ან ტრანსპორტის შეცვლის გამო შეწყდა.";
+    if(old&&Math.hypot(p.x-old.x,p.y-old.y)>500*elapsed/1000+80)return "აქტივობა არასწორი გადაადგილების გამო შეწყდა.";
+    if(at>a.expiresAt)return "დრო ამოიწურა. სცადე ხელახლა.";
     return null;
   }
   function dispatch(p,packet) {
-    if(!p||!players.has(p.id))return {error:"Join the city first.",state:state(null)};
-    if(!packet||typeof packet!=="object"||Array.isArray(packet)||!cleanId(packet.requestId))return {error:"Invalid activity request.",state:state(p)};
-    const signature=JSON.stringify(packet);if(signature.length>6000)return {error:"Activity request is too large.",state:state(p)};
+    if(!p||!players.has(p.id))return {error:"ჯერ შემოდი ქალაქში.",state:state(null)};
+    if(!packet||typeof packet!=="object"||Array.isArray(packet)||!cleanId(packet.requestId))return {error:"აქტივობის მოთხოვნა არასწორია.",state:state(p)};
+    const signature=JSON.stringify(packet);if(signature.length>6000)return {error:"აქტივობის მოთხოვნა მეტისმეტად დიდია.",state:state(p)};
     let cache=requests.get(p.id);if(!cache){cache=new Map();requests.set(p.id,cache);}
     const previous=cache.get(packet.requestId);
-    if(previous)return previous.signature===signature?{...previous.result,duplicate:true,state:state(p)}:{error:"Request ID was already used.",state:state(p)};
+    if(previous)return previous.signature===signature?{...previous.result,duplicate:true,state:state(p)}:{error:"ეს მოთხოვნა უკვე გამოყენებულია.",state:state(p)};
     const limit=rate.get(p.id)||{at:now(),count:0};if(now()-limit.at>=1000){limit.at=now();limit.count=0;}rate.set(p.id,limit);
-    if(++limit.count>12)return {error:"Please slow down.",state:state(p)};
-    let result={error:"Unknown activity action."};
+    if(++limit.count>12)return {error:"ცოტა მოიცადე.",state:state(p)};
+    let result={error:"აქტივობის უცნობი მოქმედება."};
     if(packet.action==="track") {if(packet.activityId===null){tracked.delete(p.id);result={ok:true};}else if(definitions.has(packet.activityId)&&handlers.has(definitions.get(packet.activityId).kind)){tracked.set(p.id,packet.activityId);result={ok:true};}}
     else if(packet.action==="start")result=start(p,packet.activityId,packet.options||{});
     else if(packet.action==="privacy"){profile(p).privacy.photos=packet.value===true||packet.value?.photos===true;persist(p);result={ok:true};}
     else {
       const a=sessions.get(p.id);
-      if(!a||packet.token!==a.token)result={error:"This activity has ended. Start again."};
+      if(!a||packet.token!==a.token)result={error:"აქტივობა დასრულდა. დაიწყე ხელახლა."};
       else if(packet.action==="cancel"){result=cancel(p);sessions.delete(p.id);results.delete(p.id);tracked.delete(p.id);}
-      else if(a.status!=="active")result={error:"This activity has ended. Start again."};
+      else if(a.status!=="active")result={error:"აქტივობა დასრულდა. დაიწყე ხელახლა."};
       else if(packet.action==="act"){
         const invalid=invalidAttempt(p,a,now());
         if(invalid){fail(p,invalid);result={error:invalid};}
-        else result=handlers.get(definitions.get(a.id).kind)?.act?.(context(p),packet)||{error:"That action is unavailable."};
+        else result=handlers.get(definitions.get(a.id).kind)?.act?.(context(p),packet)||{error:"ეს მოქმედება მიუწვდომელია."};
       }
     }
     cache.set(packet.requestId,{signature,result});while(cache.size>64)cache.delete(cache.keys().next().value);
     return {...result,state:state(p)};
   }
   function command(p,packet) {
-    try{return dispatch(p,packet);}catch(error){if(p){fail(p,"Invalid activity action; this attempt was stopped.");release(p);}return {error:"Invalid activity action.",state:state(p)};}
+    try{return dispatch(p,packet);}catch(error){if(p){fail(p,"აქტივობის არასწორი მოქმედება; ეს ცდა შეწყდა.");release(p);}return {error:"აქტივობის არასწორი მოქმედება.",state:state(p)};}
   }
   function tick() {
     const at=now();for(const [id,a]of sessions){const p=players.get(id);if(!p){sessions.delete(id);continue;}
       if(a.status!=="active"){if(at-a.endedAt>10000)sessions.delete(id);continue;}
       const def=definitions.get(a.id),invalid=invalidAttempt(p,a,at);
       if(invalid)fail(p,invalid);
-      else try{handlers.get(def.kind)?.tick?.(context(p));}catch(error){fail(p,"This activity was interrupted. Please try again.");}
+      else try{handlers.get(def.kind)?.tick?.(context(p));}catch(error){fail(p,"აქტივობა შეწყდა. სცადე ხელახლა.");}
       observed.set(id,{x:p.x,y:p.y,at,interiorId:p.interiorId||null});
       if(at-(lastPush.get(id)||0)>=500){lastPush.set(id,at);push(p);}
     }

@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const TITLES = { pacman:"PAC-MAN", snake:"SNAKE", tetris:"TETRIS", pong:"PONG" };
+  const TITLES = { pacman:"პაკმენი", snake:"გველი", tetris:"ტეტრისი", pong:"პონგი" };
   const PIECES = [
     { cells:[[0,0],[1,0],[-1,0],[-2,0]], color:"#54ddff" },
     { cells:[[0,0],[1,0],[0,1],[1,1]], color:"#ffe06b" },
@@ -26,7 +26,7 @@
     canvas.className = "arcade-run-canvas";
     canvas.width = 560;
     canvas.height = 360;
-    canvas.setAttribute("aria-label", TITLES[game] + " arcade game");
+    canvas.setAttribute("aria-label", TITLES[game] + " არკადის თამაში");
     const controls = document.createElement("div");
     controls.className = "arcade-run-controls";
     root.append(hud, canvas, controls);
@@ -102,7 +102,7 @@
       control("↑",{x:0,y:-1});
       if (game === "tetris") control("↻",null,rotatePiece);
       control("↓",{x:0,y:1});
-      if (game === "tetris") control("DROP",null,hardDrop);
+      if (game === "tetris") control("ჩამოშვება",null,hardDrop);
       control("→",{x:1,y:0});
     }
 
@@ -112,7 +112,7 @@
       state.playerY = Math.max(38,Math.min(canvas.height-38,(event.clientY-rect.top)*canvas.height/rect.height));
     });
 
-    function setScore(value) { score = value; scoreLabel.textContent = "SCORE  " + score; }
+    function setScore(value) { score = value; scoreLabel.textContent = "ქულა  " + score; }
     function drawBase(title) {
       ctx.fillStyle="#070b18";ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.strokeStyle="#2c3655";ctx.lineWidth=2;ctx.strokeRect(8,8,canvas.width-16,canvas.height-16);
@@ -130,7 +130,7 @@
     }
     function drawPacman() {
       const s=state,cell=24,ox=(canvas.width-19*cell)/2,oy=39;
-      drawBase("PAC-MAN · ARCADE");
+      drawBase("პაკმენი · არკადა");
       for(let y=0;y<13;y++)for(let x=0;x<19;x++){const px=ox+x*cell,py=oy+y*cell;if(s.walls[y][x]){ctx.fillStyle="#171f58";ctx.fillRect(px,py,cell,cell);ctx.strokeStyle="#374dc3";ctx.strokeRect(px+2,py+2,cell-4,cell-4)}else if(s.dots.has(y+":"+x)){ctx.fillStyle="#ffdb92";ctx.beginPath();ctx.arc(px+12,py+12,2.2,0,Math.PI*2);ctx.fill()}}
       ctx.fillStyle="#ffe154";ctx.beginPath();ctx.arc(ox+s.player.x*cell+12,oy+s.player.y*cell+12,9,.25,Math.PI*1.75);ctx.lineTo(ox+s.player.x*cell+12,oy+s.player.y*cell+12);ctx.fill();
       s.ghosts.forEach((g,i)=>{ctx.fillStyle=["#ff5b83","#5ceaff","#f49bff"][i%3];ctx.beginPath();ctx.arc(ox+g.x*cell+12,oy+g.y*cell+12,9,Math.PI,0);ctx.lineTo(ox+g.x*cell+21,oy+g.y*cell+22);ctx.lineTo(ox+g.x*cell+16,oy+g.y*cell+18);ctx.lineTo(ox+g.x*cell+12,oy+g.y*cell+22);ctx.lineTo(ox+g.x*cell+7,oy+g.y*cell+18);ctx.lineTo(ox+g.x*cell+3,oy+g.y*cell+22);ctx.closePath();ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(ox+g.x*cell+7,oy+g.y*cell+10,4,4);ctx.fillRect(ox+g.x*cell+14,oy+g.y*cell+10,4,4)});
@@ -159,7 +159,7 @@
       if(head.x===s.food.x&&head.y===s.food.y){setScore(score+10);placeFood(s)}else s.snake.pop();
     }
     function drawSnake() {
-      const s=state,cell=21,ox=(canvas.width-s.cols*cell)/2,oy=48;drawBase("SNAKE · PIXEL FEAST");
+      const s=state,cell=21,ox=(canvas.width-s.cols*cell)/2,oy=48;drawBase("გველი · პიქსელების ნადიმი");
       ctx.strokeStyle="#24374a";for(let x=0;x<=s.cols;x++){ctx.beginPath();ctx.moveTo(ox+x*cell,oy);ctx.lineTo(ox+x*cell,oy+s.rows*cell);ctx.stroke()}for(let y=0;y<=s.rows;y++){ctx.beginPath();ctx.moveTo(ox,oy+y*cell);ctx.lineTo(ox+s.cols*cell,oy+y*cell);ctx.stroke()}
       s.snake.forEach((p,i)=>{ctx.fillStyle=i?"#35d987":"#9aff9e";ctx.fillRect(ox+p.x*cell+2,oy+p.y*cell+2,cell-4,cell-4)});
       ctx.fillStyle="#ff6d9b";ctx.fillRect(ox+s.food.x*cell+4,oy+s.food.y*cell+4,cell-8,cell-8);
@@ -198,10 +198,10 @@
       if(now-s.lastDrop>speed){s.lastDrop=now;if(validPiece(s,p,p.x,p.y+1))p.y++;else lockPiece(s)}
     }
     function drawTetris() {
-      const s=state,cell=15,ox=(canvas.width-10*cell)/2,oy=35;drawBase("TETRIS · LINE CLEAR");
+      const s=state,cell=15,ox=(canvas.width-10*cell)/2,oy=35;drawBase("ტეტრისი · ხაზების გასუფთავება");
       for(let y=0;y<20;y++)for(let x=0;x<10;x++){ctx.fillStyle=s.board[y][x]||"#10182a";ctx.fillRect(ox+x*cell+1,oy+y*cell+1,cell-2,cell-2);if(s.board[y][x]){ctx.fillStyle="#ffffff55";ctx.fillRect(ox+x*cell+2,oy+y*cell+2,cell-4,2)}}
       if(s.piece)s.piece.cells.forEach(([x,y])=>{const px=s.piece.x+x,py=s.piece.y+y;if(py>=0){ctx.fillStyle=s.piece.color;ctx.fillRect(ox+px*cell+1,oy+py*cell+1,cell-2,cell-2)}});
-      ctx.fillStyle="#bdc7e4";ctx.font="bold 13px monospace";ctx.textAlign="left";ctx.fillText("LINES "+s.lines,canvas.width-118,58);ctx.fillText("LEVEL "+s.level,canvas.width-118,78);
+      ctx.fillStyle="#bdc7e4";ctx.font="bold 13px monospace";ctx.textAlign="left";ctx.fillText("ხაზები "+s.lines,canvas.width-118,58);ctx.fillText("დონე "+s.level,canvas.width-118,78);
     }
     function createPong() {
       return {ball:{x:280,y:180,vx:190,vy:140},playerY:180,cpuY:180,input:0,hits:0,playerScore:0,cpuScore:0};
@@ -220,13 +220,13 @@
     }
     function resetBall(s,direction) {s.ball={x:canvas.width/2,y:canvas.height/2,vx:direction*190,vy:(Math.random()-.5)*210}}
     function drawPong() {
-      const s=state;drawBase("PONG · NEON COURT");
+      const s=state;drawBase("პონგი · ნეონის მოედანი");
       ctx.setLineDash([8,8]);ctx.strokeStyle="#56728c";ctx.beginPath();ctx.moveTo(canvas.width/2,38);ctx.lineTo(canvas.width/2,canvas.height-18);ctx.stroke();ctx.setLineDash([]);
       ctx.fillStyle="#ff68d5";ctx.shadowColor="#ff68d5";ctx.shadowBlur=12;ctx.fillRect(29,s.playerY-33,9,66);
       ctx.fillStyle="#63eaff";ctx.shadowColor="#63eaff";ctx.fillRect(canvas.width-38,s.cpuY-33,9,66);ctx.shadowBlur=0;
       ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(s.ball.x,s.ball.y,7,0,Math.PI*2);ctx.fill();
       ctx.font="bold 25px monospace";ctx.textAlign="center";ctx.fillStyle="#ffc8f2";ctx.fillText(String(s.playerScore),canvas.width*.35,54);ctx.fillStyle="#b9f8ff";ctx.fillText(String(s.cpuScore),canvas.width*.65,54);
-      ctx.font="11px monospace";ctx.fillStyle="#9aa6c9";ctx.fillText("PADDLE HITS  "+s.hits,canvas.width/2,canvas.height-13);
+      ctx.font="11px monospace";ctx.fillStyle="#9aa6c9";ctx.fillText("დარტყმები  "+s.hits,canvas.width/2,canvas.height-13);
     }
     function drawGame() {
       if(game==="pacman")drawPacman();else if(game==="snake")drawSnake();else if(game==="tetris")drawTetris();else drawPong();
@@ -234,7 +234,7 @@
     function frame(now) {
       if(destroyed)return;
       const nowMs=Date.now(),seconds=Math.max(0,Math.ceil((deadline-nowMs)/1000));
-      timeLabel.textContent=ended?"RUN OVER":"00:"+String(seconds).padStart(2,"0");
+      timeLabel.textContent=ended?"ცდა დასრულდა":"00:"+String(seconds).padStart(2,"0");
       if(!ended&&nowMs>=deadline)finish();
       const dt=Math.min(.04,Math.max(0,(now-lastAt)/1000));lastAt=now;
       if(!ended){
@@ -244,12 +244,12 @@
         else updatePong(dt);
       }
       drawGame();
-      if(ended){ctx.fillStyle="#060915bb";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#fff";ctx.textAlign="center";ctx.font="bold 24px monospace";ctx.fillText("GAME OVER",canvas.width/2,canvas.height/2);ctx.font="14px monospace";ctx.fillStyle="#9df6ff";ctx.fillText("FINAL SCORE  "+score,canvas.width/2,canvas.height/2+28)}
+      if(ended){ctx.fillStyle="#060915bb";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#fff";ctx.textAlign="center";ctx.font="bold 24px monospace";ctx.fillText("თამაში დასრულდა",canvas.width/2,canvas.height/2);ctx.font="14px monospace";ctx.fillStyle="#9df6ff";ctx.fillText("საბოლოო ქულა  "+score,canvas.width/2,canvas.height/2+28)}
       else raf=requestAnimationFrame(frame);
     }
     if(game==="tetris")newPiece(state);
     if(game==="pong")state.playerY=canvas.height/2;
-    scoreLabel.textContent="SCORE  0";
+    scoreLabel.textContent="ქულა  0";
     raf=requestAnimationFrame(frame);
     return {destroy(){destroyed=true;cancelAnimationFrame(raf);window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp)},getScore(){return score}};
   }
