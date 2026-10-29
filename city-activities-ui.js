@@ -6,6 +6,7 @@
   const colors = { 'აღმოჩენა': '#72e9de', 'სამუშაოები': '#ffd68c', 'მეგობრებთან': '#ff8ed5', 'გაიკანელები': '#ffe96c', 'თამაშები': '#bba0ff', 'კოლექციები': '#9acaff' };
   let bridge, world, socket, overlay, panel, content, hud, launcher, message, tabs;
   let snapshot = null, category = 'აღმოჩენა', opened = false, connected = false, pending = false, lastFocus = null, clockOffset = 0;
+  let hudExpanded = false, hudSession = '';
   let lastActiveKey = '', menuKey = '', sequence = 0, renderers = new Map(), liveRenderer = null, photos = [];
   const node = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text !== undefined) e.textContent = text; return e; };
   const button = (text, action, className = '') => { const e = node('button', className, text); e.type = 'button'; e.addEventListener('click', action); return e; };
@@ -59,7 +60,7 @@
     if (lastFocus?.isConnected) lastFocus.focus();
   }
   function track(activity) {
-    command('track', { activityId: activity.id }).then(result => { if (result?.ok) { close(); bridge?.toast?.("მიჰყევი აქტივობის ნიშნულს: " + activity.name + "."); } });
+    command('track', { activityId: activity.id }).then(result => { if (result?.ok) { close(); } });
   }
   function start(activity, options = {}) {
     bridge?.stop?.();
@@ -169,15 +170,21 @@
     hud.hidden = !connected || (!active && !tracked);
     if (hud.hidden) return;
     const activity = find(active?.id) || tracked;
+    const session = active ? active.token + ":" + active.status : "track:" + tracked?.id;
+    if (session !== hudSession) { hudSession = session; hudExpanded = active?.status === "active"; }
+    hud.classList.toggle("is-collapsed", !hudExpanded);
     // Network progress updates must not erase a half-written answer or a drawing.
     const signature = JSON.stringify([active?.id, active?.token, active?.status, active?.step, active?.challenge?.id, active?.challenge?.type, !!active?.choices, tracked?.id, connected]);
     if (signature !== lastActiveKey) {
       lastActiveKey = signature; liveRenderer?.destroy?.(); liveRenderer = null; hud.replaceChildren();
-      const head = node('div', 'activity-hud-head'); head.append(node('strong', '', activity?.name || "ქალაქის აქტივობა"), button('×', () => active ? command('cancel') : command('track', { activityId: null }), 'activity-dismiss'));
+      const head = node('div', 'activity-hud-head'); const toggle = button(activity?.name || 'ქალაქის აქტივობა', () => { hudExpanded = !hudExpanded; updateHud(); }, 'activity-toggle');
+      toggle.setAttribute('aria-controls', 'activityHudDetails');
+      head.append(toggle, node('span', 'activity-distance-short'), button('×', () => active ? command('cancel') : command('track', { activityId: null }), 'activity-dismiss'));
       head.lastChild.setAttribute('aria-label', active ? 'აქტივობის დასრულება' : 'მონიშვნის გაუქმება'); hud.append(head);
-      hud.append(node('p', 'activity-instruction', active?.instruction || "მიჰყევი ნიშნულს: " + (target?.label || activity?.location?.label || "აქტივობა") + '.'));
-      hud.append(node('p', 'activity-distance'));
-      const mount = node('div', 'activity-play'); hud.append(mount);
+      const details = node('div', 'activity-hud-details'); details.id = 'activityHudDetails'; hud.append(details);
+      details.append(node('p', 'activity-instruction', active?.instruction || "მიჰყევი ნიშნულს: " + (target?.label || activity?.location?.label || "აქტივობა") + '.'));
+      details.append(node('p', 'activity-distance'));
+      const mount = node('div', 'activity-play'); details.append(mount);
       if (active?.status === 'active') {
         const renderer = renderers.get(active.id) || renderers.get(activity?.kind);
         if (renderer) liveRenderer = renderer({ mount, active, activity, state: snapshot, getState: () => snapshot, command, now, node, button, bridge, world });
@@ -187,9 +194,13 @@
         if (Number.isFinite(active.time)) mount.append(node('span', 'activity-clock', (active.time / 1000).toFixed(2) + ' წმ'));
       } else if (activity) mount.append(button('დაწყება', () => start(activity), 'activity-primary'));
     }
+    hud.querySelector('.activity-toggle').setAttribute('aria-expanded', String(hudExpanded));
+    hud.querySelector('.activity-toggle').title = hudExpanded ? 'დაკეცვა' : 'ინსტრუქცია და მოქმედებები';
+    hud.querySelector('.activity-hud-details').hidden = !hudExpanded;
     hud.querySelector('.activity-instruction').textContent = active?.instruction || "მიჰყევი ნიშნულს: " + (target?.label || activity?.location?.label || "აქტივობა") + '.';
     liveRenderer?.update?.(snapshot);
     const label = hud.querySelector('.activity-distance'), distance = distanceTo(target);
+    hud.querySelector('.activity-distance-short').textContent = active && active.status !== 'active' ? (active.status === 'success' ? '✓' : 'დასრულდა') : Number.isFinite(distance) ? Math.round(distance) + ' ნაბიჯი' : '';
     label.textContent = Number.isFinite(distance) ? Math.round(distance) + " ნაბიჯი · " + (target?.label || "დანიშნულება") : '';
   }
   function draw(g, time) {
@@ -232,7 +243,7 @@
     label.setAttribute('role', 'status');
     mount.append(canvas, label, hit, node('small', 'activities-note', "ნიშნის გამოჩენისას შეეხე ღილაკს ან დააჭირე შეყვანის ღილაკს.")); let frame, sounded = false, announced = '';
     function key(event) {
-      if (event.key !== 'Enter' || event.repeat || opened || /INPUT|SELECT|TEXTAREA|BUTTON|A/.test(event.target?.tagName || '') || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key !== 'Enter' || event.repeat || opened || !hudExpanded || /INPUT|SELECT|TEXTAREA|BUTTON|A/.test(event.target?.tagName || '') || event.ctrlKey || event.metaKey || event.altKey) return;
       event.preventDefault(); event.stopImmediatePropagation(); hit.click();
     }
     document.addEventListener('keydown', key, true);
