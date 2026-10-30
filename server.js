@@ -11257,6 +11257,11 @@ io.on("connection", (socket) => {
     toAdmins("supportAI:update", { enabled: supportAI.enabled });
     reply({ ok: true, enabled: supportAI.enabled });
   });
+  socket.on("supportAI:clearAll", (_data, ack) => {
+    const reply = typeof ack === "function" ? ack : () => {};
+    if (!supportAccount()) return reply({ error: "forbidden" });
+    reply(supportAI.clearAll());
+  });
   socket.on("supportAI:delete", ({ id } = {}, ack) => {
     const reply = typeof ack === "function" ? ack : () => {};
     if (!supportAccount()) return reply({ error: "forbidden" });

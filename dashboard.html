@@ -1874,6 +1874,7 @@ body.guest-mode .profile-actions { display: none; }
         </div>
         <p class="sai-note">Support AI რანდომ ჩატში ხვდება ხალხს, როგორც ნებისმიერი თანამოსაუბრე, და ეკითხება რა გავაუმჯობესოთ. რასაც მისწერენ, აქ ჩნდება. „⏭ გამოტოვება“ ან ბლოკი — ის ადამიანი აღარ შეხვდება; დანარჩენებს — კვირაში მაქსიმუმ ერთხელ.</p>
         <div class="sai-counts" id="saiCounts"></div>
+        <button type="button" id="saiClearAll" class="act-btn" disabled style="margin-bottom:8px">ყველა შეტყობინების წაშლა</button>
         <div class="sai-list" id="saiList"><div class="empty-state">იტვირთება…</div></div>
         <div class="sp-title">👥 ყველა მომხმარებელი</div>
         <input type="search" id="spSearch" placeholder="ძებნა სახელით…" autocomplete="off" />
@@ -4168,7 +4169,7 @@ function profileChipsHTML(p) {
       }).join("") + (found.length > shown.length ? `<div class="empty-state">ნაჩვენებია ${shown.length} / ${found.length} — დააზუსტე ძებნა</div>` : "");
     }
     /* 🤖 Support AI: the on/off switch, the numbers and what people wrote. */
-    let saiState = null, saiTimer = null;
+    let saiState = null, saiTimer = null, saiClearing = false;
     const saiFresh = new Set(); // arrived while this page was open
     function saiLoad(delay = 0) {
       clearTimeout(saiTimer);
@@ -4181,6 +4182,7 @@ function profileChipsHTML(p) {
     function saiRender() {
       if (!saiState) return;
       const on = !!saiState.enabled, c = saiState.counts || {};
+      document.getElementById("saiClearAll").disabled = saiClearing || !(saiState.total ?? saiState.convs?.length);
       const tg = document.getElementById("saiToggle");
       tg.classList.toggle("on", on);
       tg.setAttribute("aria-checked", String(on));
@@ -4201,6 +4203,16 @@ function profileChipsHTML(p) {
     }
     function initSupportAI() {
       saiLoad();
+      document.getElementById("saiClearAll").addEventListener("click", () => {
+        if (saiClearing || !socket?.connected || !confirm("წაიშალოს ბოტის ყველა შენახული შეტყობინება? აღდგენა შეუძლებელია. ბოტის პარამეტრები და სტატისტიკა უცვლელი დარჩება.")) return;
+        saiClearing = true; saiRender();
+        socket.timeout(8000).emit("supportAI:clearAll", {}, (error, result) => {
+          saiClearing = false;
+          if (error || !result?.ok) showToast("⚠️ წაშლა ვერ დადასტურდა. სია განახლდება — შეამოწმე შედეგი.");
+          else { saiFresh.clear(); showToast("შენახული შეტყობინებები წაიშალა"); }
+          saiRender(); saiLoad();
+        });
+      });
       document.getElementById("saiToggle").addEventListener("click", () => {
         if (!saiState) return;
         const want = !saiState.enabled;
@@ -4217,6 +4229,7 @@ function profileChipsHTML(p) {
       });
       // New answers appear as they're written.
       socket.on("supportAI:update", (d) => {
+        if (d?.cleared) saiFresh.clear();
         if (d && d.conv) saiFresh.add(d.conv.id);
         saiLoad(200);
       });

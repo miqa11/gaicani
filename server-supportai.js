@@ -41,7 +41,7 @@ function createSupportAI({ file, readJson, writeAtomic, graceMs, onUpdate = () =
     st.convs = Array.isArray(o.convs) ? o.convs : [];
   } catch { /* first run */ }
 
-  let saveTimer = null;
+  let saveTimer = null, clearRevision = 0;
   function save() {
     if (saveTimer) return;
     saveTimer = setTimeout(() => {
@@ -81,7 +81,7 @@ function createSupportAI({ file, readJson, writeAtomic, graceMs, onUpdate = () =
     save();
     const reg = user._regUser && !user._regUser.isGuest ? user._regUser : null;
     const who = { name: reg ? reg.username : (user.userName || "სტუმარი"), registered: !!reg };
-    let conv = null, ended = false, finalTimer = null, msgN = 0;
+    let conv = null, ended = false, finalTimer = null, msgN = 0, answered = false, revision = clearRevision;
     const timers = new Set();
     const later = (ms, fn) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); };
 
@@ -102,11 +102,12 @@ function createSupportAI({ file, readJson, writeAtomic, graceMs, onUpdate = () =
     const typing = () => { const u = live(); if (u) u.emit("partnerTyping", true); };
 
     function record(text) {
+      if (revision !== clearRevision) { conv = null; revision = clearRevision; }
       if (!conv) {
         conv = { id: bot.id.slice(10), at: Date.now(), who: who.name, registered: who.registered, outcome: "", messages: [] };
         st.convs.unshift(conv);
         if (st.convs.length > MAX_CONVS) st.convs.length = MAX_CONVS;
-        st.counts.answered++;
+        if (!answered) { st.counts.answered++; answered = true; }
       }
       if (conv.messages.length >= MAX_MSGS) return;
       const m = { text: String(text).slice(0, MAX_TEXT), at: Date.now() };
@@ -117,7 +118,7 @@ function createSupportAI({ file, readJson, writeAtomic, graceMs, onUpdate = () =
     function optOut(outcome) {
       for (const k of keys) st.optOut.add(k);
       st.counts.skipped++;
-      if (conv) { conv.outcome = outcome; onUpdate({ conv }); }
+      if (conv && revision === clearRevision) { conv.outcome = outcome; onUpdate({ conv }); }
       save();
       log(`[SUPPORT-AI] ${who.name} — ${outcome === "blocked" ? "blocked" : "skipped"} (won't be asked again)`);
     }
@@ -175,7 +176,8 @@ function createSupportAI({ file, readJson, writeAtomic, graceMs, onUpdate = () =
     isBot: (x) => !!(x && x.isSupportAI),
     // After the conversation is over (block from the "partner left" offer).
     optOutSocket(sock) { const keys = keysOf(sock); if (!keys.length) return; for (const k of keys) st.optOut.add(k); st.counts.skipped++; save(); },
-    view(limit = 200) { return { enabled: st.enabled, counts: st.counts, optedOut: st.optOut.size, convs: st.convs.slice(0, limit) }; },
+    clearAll() { const removed = st.convs.length; st.convs = []; clearRevision++; save(); onUpdate({ cleared: true }); return { ok: true, removed }; },
+    view(limit = 200) { return { total: st.convs.length, enabled: st.enabled, counts: st.counts, optedOut: st.optOut.size, convs: st.convs.slice(0, limit) }; },
     remove(id) { const i = st.convs.findIndex((c) => c.id === id); if (i < 0) return false; st.convs.splice(i, 1); save(); return true; },
   };
 }
